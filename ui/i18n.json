@@ -1,0 +1,663 @@
+{
+ "_about": "Keys are the original Korean strings; each entry maps a language code to its translation. To add a language, add its code to every entry and to LANGS in src/lang.rs. {0}, {1}, ... are placeholders.",
+ "쉬운 지면 편집기": {
+  "en": "Easy Typst Editor",
+  "zh": "Easy Typst Editor",
+  "ja": "Easy Typst Editor",
+  "es": "Easy Typst Editor"
+ },
+ "교재의 main.typ 고르기": {
+  "en": "Choose the main.typ of your document",
+  "zh": "选择文档的 main.typ",
+  "ja": "ドキュメントの main.typ を選択",
+  "es": "Elige el main.typ de tu documento"
+ },
+ "Typst 원고": {
+  "en": "Typst source",
+  "zh": "Typst 源文件",
+  "ja": "Typst ソース",
+  "es": "Fuente Typst"
+ },
+ "저장하지 않은 변경이 있습니다. 저장할까요?": {
+  "en": "You have unsaved changes. Save them?",
+  "zh": "有未保存的更改。要保存吗？",
+  "ja": "保存されていない変更があります。保存しますか？",
+  "es": "Hay cambios sin guardar. ¿Quieres guardarlos?"
+ },
+ "교재 열기 (Ctrl+O)": {
+  "en": "Open document (Ctrl+O)",
+  "zh": "打开文档 (Ctrl+O)",
+  "ja": "ドキュメントを開く (Ctrl+O)",
+  "es": "Abrir documento (Ctrl+O)"
+ },
+ "교재 열기": {
+  "en": "Open",
+  "zh": "打开",
+  "ja": "開く",
+  "es": "Abrir"
+ },
+ "저장 (Ctrl+S)": {
+  "en": "Save (Ctrl+S)",
+  "zh": "保存 (Ctrl+S)",
+  "ja": "保存 (Ctrl+S)",
+  "es": "Guardar (Ctrl+S)"
+ },
+ "저장": {
+  "en": "Save",
+  "zh": "保存",
+  "ja": "保存",
+  "es": "Guardar"
+ },
+ "실행 취소 (Ctrl+Z)": {
+  "en": "Undo (Ctrl+Z)",
+  "zh": "撤销 (Ctrl+Z)",
+  "ja": "元に戻す (Ctrl+Z)",
+  "es": "Deshacer (Ctrl+Z)"
+ },
+ "↶ 취소": {
+  "en": "↶ Undo",
+  "zh": "↶ 撤销",
+  "ja": "↶ 元に戻す",
+  "es": "↶ Deshacer"
+ },
+ "다시 실행 (Ctrl+Y)": {
+  "en": "Redo (Ctrl+Y)",
+  "zh": "重做 (Ctrl+Y)",
+  "ja": "やり直し (Ctrl+Y)",
+  "es": "Rehacer (Ctrl+Y)"
+ },
+ "↷ 다시": {
+  "en": "↷ Redo",
+  "zh": "↷ 重做",
+  "ja": "↷ やり直し",
+  "es": "↷ Rehacer"
+ },
+ "굵게 (Ctrl+B)": {
+  "en": "Bold (Ctrl+B)",
+  "zh": "加粗 (Ctrl+B)",
+  "ja": "太字 (Ctrl+B)",
+  "es": "Negrita (Ctrl+B)"
+ },
+ "밑줄 (Ctrl+U)": {
+  "en": "Underline (Ctrl+U)",
+  "zh": "下划线 (Ctrl+U)",
+  "ja": "下線 (Ctrl+U)",
+  "es": "Subrayado (Ctrl+U)"
+ },
+ "내어쓰기 줄이기": {
+  "en": "Decrease hanging indent",
+  "zh": "减少悬挂缩进",
+  "ja": "ぶら下げインデントを減らす",
+  "es": "Reducir sangría francesa"
+ },
+ "◀ 내어쓰기": {
+  "en": "◀ Indent",
+  "zh": "◀ 缩进",
+  "ja": "◀ インデント",
+  "es": "◀ Sangría"
+ },
+ "내어쓰기 늘리기 (둘째 줄부터 들여 씀)": {
+  "en": "Increase hanging indent (indents from the second line)",
+  "zh": "增加悬挂缩进（从第二行起缩进）",
+  "ja": "ぶら下げインデントを増やす（2行目から字下げ）",
+  "es": "Aumentar sangría francesa (desde la segunda línea)"
+ },
+ "내어쓰기 ▶": {
+  "en": "Indent ▶",
+  "zh": "缩进 ▶",
+  "ja": "インデント ▶",
+  "es": "Sangría ▶"
+ },
+ "앞 쪽": {
+  "en": "Previous page",
+  "zh": "上一页",
+  "ja": "前のページ",
+  "es": "Página anterior"
+ },
+ "쪽 번호를 넣고 Enter": {
+  "en": "Type a page number and press Enter",
+  "zh": "输入页码后按 Enter",
+  "ja": "ページ番号を入力して Enter",
+  "es": "Escribe un número de página y pulsa Enter"
+ },
+ "다음 쪽": {
+  "en": "Next page",
+  "zh": "下一页",
+  "ja": "次のページ",
+  "es": "Página siguiente"
+ },
+ "축소": {
+  "en": "Zoom out",
+  "zh": "缩小",
+  "ja": "縮小",
+  "es": "Alejar"
+ },
+ "확대": {
+  "en": "Zoom in",
+  "zh": "放大",
+  "ja": "拡大",
+  "es": "Acercar"
+ },
+ "창 너비에 맞춤": {
+  "en": "Fit to window width",
+  "zh": "适应窗口宽度",
+  "ja": "ウィンドウ幅に合わせる",
+  "es": "Ajustar al ancho de la ventana"
+ },
+ "너비 맞춤": {
+  "en": "Fit width",
+  "zh": "适应宽度",
+  "ja": "幅に合わせる",
+  "es": "Ajustar ancho"
+ },
+ "요소 고르기: 글자가 아니라 덩어리(표제어 줄, 통계 줄, 자리 잡힌 글 등)를 통째로 골라 지우거나 옮깁니다. Alt를 누른 채 지면을 눌러도 됩니다.": {
+  "en": "Pick element: select a whole block (a heading line, a placed label, a template element, …) instead of characters, then delete or move it. You can also Alt+click on the page.",
+  "zh": "选择元素：不是选字符，而是整块选中（标题行、定位文字、模板元素等）后删除或移动。也可以按住 Alt 点击页面。",
+  "ja": "要素を選ぶ：文字ではなくまとまり（見出し行、配置されたテキスト、テンプレート要素など）を丸ごと選んで削除・移動します。Alt を押しながらページをクリックしても選べます。",
+  "es": "Elegir elemento: selecciona un bloque entero (línea de título, texto posicionado, elemento de plantilla…) en lugar de caracteres, para borrarlo o moverlo. También puedes hacer Alt+clic en la página."
+ },
+ "요소 고르기": {
+  "en": "Pick element",
+  "zh": "选择元素",
+  "ja": "要素を選ぶ",
+  "es": "Elegir elemento"
+ },
+ "개발자용 보기: 고치는 자리의 원본을 보여 줍니다": {
+  "en": "Developer view: shows the source at the edit position",
+  "zh": "开发者视图：显示正在编辑位置的源代码",
+  "ja": "開発者ビュー：編集位置のソースを表示します",
+  "es": "Vista de desarrollador: muestra el código fuente en la posición de edición"
+ },
+ "개발자용 보기": {
+  "en": "Developer view",
+  "zh": "开发者视图",
+  "ja": "開発者ビュー",
+  "es": "Vista de desarrollador"
+ },
+ "교재의 <b>main.typ</b> 파일 하나를 고르면 책이 쪽 단위로 펼쳐집니다.<br>지면에서 글자를 눌러 바로 고치고, 저장하면 원고 파일에 반영됩니다.": {
+  "en": "Choose the <b>main.typ</b> of a Typst project and every page is laid out in front of you.<br>Click on the page to edit the text directly — saving writes the changes back to your .typ source.",
+  "zh": "选择 Typst 项目的 <b>main.typ</b>，所有页面就会逐页展开。<br>直接点击页面上的文字进行修改，保存后会写回 .typ 源文件。",
+  "ja": "Typst プロジェクトの <b>main.typ</b> を選ぶと、全ページがそのまま表示されます。<br>ページ上の文字をクリックして直接編集し、保存すると .typ ソースに反映されます。",
+  "es": "Elige el <b>main.typ</b> de un proyecto Typst y verás todas sus páginas.<br>Haz clic en la página para editar el texto directamente; al guardar, los cambios se escriben en tu código .typ."
+ },
+ "교재를 조판하는 중…": {
+  "en": "Typesetting the document…",
+  "zh": "正在排版文档…",
+  "ja": "ドキュメントを組版中…",
+  "es": "Componiendo el documento…"
+ },
+ "파일을 고르는 중…": {
+  "en": "Choosing a file…",
+  "zh": "正在选择文件…",
+  "ja": "ファイルを選択中…",
+  "es": "Eligiendo archivo…"
+ },
+ "고치는 자리:": {
+  "en": "Editing at:",
+  "zh": "编辑位置：",
+  "ja": "編集位置：",
+  "es": "Editando en:"
+ },
+ "교재를 열어 주세요.": {
+  "en": "Open a document to start.",
+  "zh": "请打开一个文档。",
+  "ja": "ドキュメントを開いてください。",
+  "es": "Abre un documento para empezar."
+ },
+ "이 요소를 품은 더 큰 요소 고르기": {
+  "en": "Select the larger element that contains this one",
+  "zh": "选择包含此元素的更大元素",
+  "ja": "この要素を含む、より大きな要素を選ぶ",
+  "es": "Seleccionar el elemento mayor que contiene este"
+ },
+ "넓히기": {
+  "en": "Widen",
+  "zh": "扩大",
+  "ja": "広げる",
+  "es": "Ampliar"
+ },
+ "요소 지우기 (Delete)": {
+  "en": "Delete element (Delete)",
+  "zh": "删除元素 (Delete)",
+  "ja": "要素を削除 (Delete)",
+  "es": "Borrar elemento (Supr)"
+ },
+ "지우기": {
+  "en": "Delete",
+  "zh": "删除",
+  "ja": "削除",
+  "es": "Borrar"
+ },
+ "고르기 끝내기 (Esc)": {
+  "en": "Stop picking (Esc)",
+  "zh": "结束选择 (Esc)",
+  "ja": "選択を終了 (Esc)",
+  "es": "Terminar selección (Esc)"
+ },
+ "닫기": {
+  "en": "Close",
+  "zh": "关闭",
+  "ja": "閉じる",
+  "es": "Cerrar"
+ },
+ "앱 엔진과 연결이 끊겼습니다. 앱을 다시 실행해 주세요.": {
+  "en": "Lost connection to the app engine. Please restart the app.",
+  "zh": "与应用引擎的连接已断开。请重新启动应用。",
+  "ja": "アプリのエンジンとの接続が切れました。アプリを再起動してください。",
+  "es": "Se perdió la conexión con el motor de la aplicación. Reinicia la aplicación."
+ },
+ "교재를 열지 못했습니다.": {
+  "en": "Could not open the document.",
+  "zh": "无法打开文档。",
+  "ja": "ドキュメントを開けませんでした。",
+  "es": "No se pudo abrir el documento."
+ },
+ "저장 안 한 변경: ": {
+  "en": "Unsaved changes: ",
+  "zh": "未保存的更改：",
+  "ja": "未保存の変更：",
+  "es": "Cambios sin guardar: "
+ },
+ "모두 저장됨": {
+  "en": "All saved",
+  "zh": "已全部保存",
+  "ja": "すべて保存済み",
+  "es": "Todo guardado"
+ },
+ "고칠 글자를 눌러 주세요.": {
+  "en": "Click the text you want to edit.",
+  "zh": "请点击要修改的文字。",
+  "ja": "編集したい文字をクリックしてください。",
+  "es": "Haz clic en el texto que quieras editar."
+ },
+ "끌거나 방향키로 옮깁니다(Shift: 5pt씩). Delete로 지웁니다. 잘못했으면 Ctrl+Z.": {
+  "en": "Drag or use the arrow keys to move (Shift: 5pt steps). Delete removes it. Ctrl+Z to undo.",
+  "zh": "拖动或用方向键移动（Shift：每次 5pt）。按 Delete 删除。出错了就按 Ctrl+Z。",
+  "ja": "ドラッグか矢印キーで移動（Shift：5pt ずつ）。Delete で削除。間違えたら Ctrl+Z。",
+  "es": "Arrastra o usa las flechas para mover (Mayús: pasos de 5pt). Supr lo borra. Ctrl+Z para deshacer."
+ },
+ "교재를 조판하지 못했습니다. 아래를 확인해 주세요.": {
+  "en": "The document could not be typeset. Please check the following:",
+  "zh": "文档无法排版。请检查以下内容：",
+  "ja": "ドキュメントを組版できませんでした。以下を確認してください。",
+  "es": "No se pudo componer el documento. Revisa lo siguiente:"
+ },
+ "여기는 글자로는 고칠 수 없습니다.": {
+  "en": "This text cannot be edited as characters.",
+  "zh": "这里无法按文字编辑。",
+  "ja": "ここは文字として編集できません。",
+  "es": "Este texto no se puede editar como caracteres."
+ },
+ "통째로 지우거나 옮기려면 <b>Alt</b>를 누른 채 누르세요(또는 위의 「요소 고르기」).": {
+  "en": "To delete or move it as a whole, <b>Alt</b>+click it (or use “Pick element” above).",
+  "zh": "要整体删除或移动，请按住 <b>Alt</b> 点击（或使用上方的“选择元素”）。",
+  "ja": "丸ごと削除・移動するには <b>Alt</b> を押しながらクリックしてください（または上の「要素を選ぶ」）。",
+  "es": "Para borrarlo o moverlo entero, haz <b>Alt</b>+clic (o usa «Elegir elemento» arriba)."
+ },
+ "지우거나 옮길 덩어리의 글자를 눌러 주세요. (Esc: 그만두기)": {
+  "en": "Click any text inside the block you want to delete or move. (Esc: cancel)",
+  "zh": "请点击要删除或移动的块中的文字。（Esc：取消）",
+  "ja": "削除・移動したいまとまりの文字をクリックしてください。（Esc：やめる）",
+  "es": "Haz clic en un texto del bloque que quieras borrar o mover. (Esc: cancelar)"
+ },
+ "고른 요소: ": {
+  "en": "Selected element: ",
+  "zh": "已选元素：",
+  "ja": "選択した要素：",
+  "es": "Elemento elegido: "
+ },
+ "템플릿 요소 · {0}곳이 함께 바뀝니다": {
+  "en": "Template element · {0} places change together",
+  "zh": "模板元素 · {0} 处会一起改变",
+  "ja": "テンプレート要素 · {0} か所が一緒に変わります",
+  "es": "Elemento de plantilla · cambian {0} lugares a la vez"
+ },
+ "{0} · {1}행": {
+  "en": "{0} · line {1}",
+  "zh": "{0} · 第 {1} 行",
+  "ja": "{0} · {1} 行目",
+  "es": "{0} · línea {1}"
+ },
+ "{0} {1}행": {
+  "en": "{0} line {1}",
+  "zh": "{0} 第 {1} 行",
+  "ja": "{0} {1} 行目",
+  "es": "{0} línea {1}"
+ },
+ "최근에 연 교재": {
+  "en": "Recent documents",
+  "zh": "最近打开的文档",
+  "ja": "最近開いたドキュメント",
+  "es": "Documentos recientes"
+ },
+ "조판에 필요한 파일을 찾지 못했습니다.": {
+  "en": "A file needed for typesetting was not found.",
+  "zh": "找不到排版所需的文件。",
+  "ja": "組版に必要なファイルが見つかりません。",
+  "es": "No se encontró un archivo necesario para la composición."
+ },
+ "main.typ가 있는 폴더(또는 그 아래 폴더)에 이 파일이 있는지, 이름이 바뀌지 않았는지 확인해 주세요.": {
+  "en": "Check that this file is in the folder of main.typ (or a subfolder) and has not been renamed.",
+  "zh": "请确认该文件位于 main.typ 所在文件夹（或其子文件夹）中，且未被改名。",
+  "ja": "このファイルが main.typ のあるフォルダ（またはその下）にあり、名前が変わっていないか確認してください。",
+  "es": "Comprueba que el archivo esté en la carpeta de main.typ (o una subcarpeta) y que no se haya renombrado."
+ },
+ "교재에 쓰인 글꼴이 이 컴퓨터에 없습니다.": {
+  "en": "A font used by the document is not installed on this computer.",
+  "zh": "文档使用的字体未安装在此电脑上。",
+  "ja": "ドキュメントで使われているフォントがこのコンピューターにありません。",
+  "es": "Una fuente usada por el documento no está instalada en este equipo."
+ },
+ "글꼴을 설치한 뒤 교재를 다시 열어 주세요. 지금은 다른 글꼴로 대신 짜여 쪽 나눔이 달라질 수 있습니다.": {
+  "en": "Install the font and reopen the document. For now a fallback font is used, so page breaks may differ.",
+  "zh": "安装字体后请重新打开文档。目前使用替代字体排版，分页可能不同。",
+  "ja": "フォントをインストールしてからドキュメントを開き直してください。今は代替フォントで組まれるため、改ページが変わることがあります。",
+  "es": "Instala la fuente y vuelve a abrir el documento. Por ahora se usa una fuente alternativa, así que los saltos de página pueden variar."
+ },
+ "교재 폴더 밖의 파일을 불러오려 했습니다.": {
+  "en": "The document tried to load a file outside its project folder.",
+  "zh": "文档试图读取项目文件夹之外的文件。",
+  "ja": "ドキュメントがプロジェクトフォルダの外のファイルを読み込もうとしました。",
+  "es": "El documento intentó cargar un archivo fuera de la carpeta del proyecto."
+ },
+ "main.typ가 교재 폴더의 맨 위에 있는지 확인해 주세요.": {
+  "en": "Make sure main.typ is at the top of the project folder.",
+  "zh": "请确认 main.typ 位于项目文件夹的最上层。",
+  "ja": "main.typ がプロジェクトフォルダの最上位にあるか確認してください。",
+  "es": "Asegúrate de que main.typ esté en la raíz de la carpeta del proyecto."
+ },
+ "교재가 쓰는 Typst 패키지가 이 컴퓨터에 없습니다.": {
+  "en": "A Typst package used by the document is not available on this computer.",
+  "zh": "此电脑上没有文档使用的 Typst 包。",
+  "ja": "ドキュメントが使う Typst パッケージがこのコンピューターにありません。",
+  "es": "Un paquete Typst usado por el documento no está disponible en este equipo."
+ },
+ "교재가 쓰는 공통 패키지를 이 컴퓨터의 typst에 이어 준 뒤(교재 폴더의 link.ps1 같은 설치 스크립트 실행, 또는 평소 방식으로 한 번 조판) 다시 열어 주세요.": {
+  "en": "Make the package available locally (for example, compile the document once with the typst CLI so it downloads the package, or put the package next to the project), then reopen it.",
+  "zh": "请先让该包在本机可用（例如用 typst 命令行编译一次以下载该包，或把包放在项目旁边），然后重新打开。",
+  "ja": "パッケージをローカルで使えるようにしてから（typst CLI で一度コンパイルしてダウンロードする、またはプロジェクトの近くに置くなど）開き直してください。",
+  "es": "Haz que el paquete esté disponible localmente (por ejemplo, compila una vez con la CLI de typst para descargarlo, o coloca el paquete junto al proyecto) y vuelve a abrirlo."
+ },
+ "그림 파일을 읽지 못했습니다.": {
+  "en": "An image file could not be read.",
+  "zh": "无法读取图片文件。",
+  "ja": "画像ファイルを読み込めませんでした。",
+  "es": "No se pudo leer un archivo de imagen."
+ },
+ "그림 파일이 깨지지 않았는지 확인해 주세요.": {
+  "en": "Check that the image file is not corrupted.",
+  "zh": "请确认图片文件没有损坏。",
+  "ja": "画像ファイルが壊れていないか確認してください。",
+  "es": "Comprueba que el archivo de imagen no esté dañado."
+ },
+ "원고에 조판 오류가 있습니다.": {
+  "en": "The source has a Typst error.",
+  "zh": "源文件中有排版错误。",
+  "ja": "ソースに組版エラーがあります。",
+  "es": "El código fuente tiene un error de Typst."
+ },
+ "원고(.typ)를 평소 쓰는 편집기에서 고친 뒤 다시 열어 주세요.": {
+  "en": "Fix the .typ source in your usual editor, then reopen it.",
+  "zh": "请在常用编辑器中修正 .typ 源文件后重新打开。",
+  "ja": "いつものエディタで .typ ソースを直してから開き直してください。",
+  "es": "Corrige el código .typ en tu editor habitual y vuelve a abrirlo."
+ },
+ "파일을 찾지 못했습니다.": {
+  "en": "File not found.",
+  "zh": "找不到文件。",
+  "ja": "ファイルが見つかりません。",
+  "es": "Archivo no encontrado."
+ },
+ "파일이 옮겨졌거나 지워졌는지 확인해 주세요.": {
+  "en": "Check whether the file was moved or deleted.",
+  "zh": "请确认文件是否被移动或删除。",
+  "ja": "ファイルが移動または削除されていないか確認してください。",
+  "es": "Comprueba si el archivo se movió o se borró."
+ },
+ "템플릿이 자동으로 만들어 넣는 글(쪽 번호·차례·머리말·꾸민 표제어·갈래 이름 등)이어서, 원고에서 고칠 자리를 정확히 찾을 수 없습니다.": {
+  "en": "This text is generated by the template (page numbers, outline, headers, decorated headwords, labels, …), so its exact place in the source cannot be found.",
+  "zh": "这是模板自动生成的文字（页码、目录、页眉、装饰标题、分类名等），无法准确找到源文件中的位置。",
+  "ja": "テンプレートが自動で生成する文字（ページ番号・目次・ヘッダー・装飾された見出し語・分類名など）なので、ソース上の正確な位置が見つかりません。",
+  "es": "Este texto lo genera la plantilla (números de página, índice, encabezados, títulos decorados, etiquetas…), así que no se puede localizar con exactitud en el código fuente."
+ },
+ "이 글자는 지면에서 고칠 수 없습니다.": {
+  "en": "This text cannot be edited on the page.",
+  "zh": "此文字无法在页面上修改。",
+  "ja": "この文字はページ上で編集できません。",
+  "es": "Este texto no se puede editar en la página."
+ },
+ "다른 원고 파일에 걸쳐서는 선택할 수 없습니다.": {
+  "en": "A selection cannot span different source files.",
+  "zh": "选择范围不能跨越不同的源文件。",
+  "ja": "別のソースファイルにまたがって選択することはできません。",
+  "es": "Una selección no puede abarcar distintos archivos fuente."
+ },
+ "이 글자가 원고의 어느 요소에서 왔는지 찾지 못했습니다.": {
+  "en": "Could not find which source element this text comes from.",
+  "zh": "找不到此文字来自源文件中的哪个元素。",
+  "ja": "この文字がソースのどの要素から来たのか見つかりませんでした。",
+  "es": "No se encontró de qué elemento del código procede este texto."
+ },
+ "이 글은 따로 떼어 낼 요소가 아닙니다. 글자를 끌어서 선택해 지워 주세요.": {
+  "en": "This text is not a separate element. Drag to select the text and delete it instead.",
+  "zh": "这段文字不是独立元素。请拖动选中文字后删除。",
+  "ja": "この文字は独立した要素ではありません。文字をドラッグで選択して削除してください。",
+  "es": "Este texto no es un elemento independiente. Arrastra para seleccionarlo y bórralo."
+ },
+ "더 넓힐 수 없습니다.": {
+  "en": "Cannot widen any further.",
+  "zh": "无法再扩大。",
+  "ja": "これ以上広げられません。",
+  "es": "No se puede ampliar más."
+ },
+ "먼저 고칠 자리를 눌러 커서를 놓아 주세요.": {
+  "en": "Click where you want to edit first.",
+  "zh": "请先点击要编辑的位置放置光标。",
+  "ja": "まず編集したい位置をクリックしてカーソルを置いてください。",
+  "es": "Primero haz clic donde quieras editar."
+ },
+ "이 수정은 조판 오류가 나서 적용하지 않았습니다. ": {
+  "en": "This edit was not applied because it caused a Typst error. ",
+  "zh": "此修改导致排版错误，未予应用。",
+  "ja": "この編集は組版エラーになるため適用しませんでした。",
+  "es": "Esta edición no se aplicó porque provocaba un error de Typst. "
+ },
+ "되돌리는 중 조판 오류: ": {
+  "en": "Typst error while undoing: ",
+  "zh": "撤销时出现排版错误：",
+  "ja": "元に戻す途中で組版エラー：",
+  "es": "Error de Typst al deshacer: "
+ },
+ "바뀐 내용이 없습니다.": {
+  "en": "Nothing to save.",
+  "zh": "没有更改。",
+  "ja": "変更はありません。",
+  "es": "No hay cambios."
+ },
+ "저장했습니다: ": {
+  "en": "Saved: ",
+  "zh": "已保存：",
+  "ja": "保存しました：",
+  "es": "Guardado: "
+ },
+ "주 파일 경로를 해석하지 못했습니다: ": {
+  "en": "Could not resolve the main file path: ",
+  "zh": "无法解析主文件路径：",
+  "ja": "メインファイルのパスを解決できませんでした：",
+  "es": "No se pudo resolver la ruta del archivo principal: "
+ },
+ "패키지 {0} 가 이 컴퓨터에 없습니다": {
+  "en": "package {0} is not available on this computer",
+  "zh": "此电脑上没有包 {0}",
+  "ja": "パッケージ {0} がこのコンピューターにありません",
+  "es": "el paquete {0} no está disponible en este equipo"
+ },
+ "{0} 파일을 읽지 못했습니다: {1}": {
+  "en": "Could not read {0}: {1}",
+  "zh": "无法读取 {0}：{1}",
+  "ja": "{0} を読み込めませんでした：{1}",
+  "es": "No se pudo leer {0}: {1}"
+ },
+ "{0} 파일에 쓰지 못했습니다: {1}": {
+  "en": "Could not write {0}: {1}",
+  "zh": "无法写入 {0}：{1}",
+  "ja": "{0} に書き込めませんでした：{1}",
+  "es": "No se pudo escribir {0}: {1}"
+ },
+ "저장하지 않았습니다. 교재를 연 뒤에 다른 프로그램이 {0} 파일을 바꿨습니다. 교재를 다시 열어 주세요.": {
+  "en": "Not saved: another program changed {0} after the document was opened. Please reopen the document.",
+  "zh": "未保存：打开文档后有其他程序修改了 {0}。请重新打开文档。",
+  "ja": "保存しませんでした。ドキュメントを開いた後に別のプログラムが {0} を変更しました。開き直してください。",
+  "es": "No se guardó: otro programa modificó {0} después de abrir el documento. Vuelve a abrirlo."
+ },
+ "조판 {0}ms · 색인 {1}ms · 정리 {2}ms": {
+  "en": "typeset {0}ms · index {1}ms · tidy {2}ms",
+  "zh": "排版 {0}ms · 索引 {1}ms · 整理 {2}ms",
+  "ja": "組版 {0}ms · 索引 {1}ms · 整理 {2}ms",
+  "es": "composición {0}ms · índice {1}ms · limpieza {2}ms"
+ },
+ "이 자리는 지면에서 바로 고칠 수 없습니다.": {
+  "en": "This spot cannot be edited directly on the page.",
+  "zh": "此处无法直接在页面上修改。",
+  "ja": "この位置はページ上で直接編集できません。",
+  "es": "Este punto no se puede editar directamente en la página."
+ },
+ "제목처럼 따옴표 안에 든 글에는 \\ 와 \" 를 넣을 수 없습니다.": {
+  "en": "Text inside quotes (like a title string) cannot contain \\ or \".",
+  "zh": "引号内的文字（如标题字符串）不能包含 \\ 或 \"。",
+  "ja": "引用符内の文字（タイトル文字列など）には \\ や \" を入れられません。",
+  "es": "El texto entre comillas (como una cadena de título) no puede contener \\ ni \"."
+ },
+ "이 자리에는 글자를 넣을 수 없습니다.": {
+  "en": "Text cannot be inserted here.",
+  "zh": "此处无法插入文字。",
+  "ja": "ここには文字を入力できません。",
+  "es": "No se puede insertar texto aquí."
+ },
+ "이 요소는 지면에서 지울 수 없습니다.": {
+  "en": "This element cannot be deleted on the page.",
+  "zh": "此元素无法在页面上删除。",
+  "ja": "この要素はページ上で削除できません。",
+  "es": "Este elemento no se puede borrar en la página."
+ },
+ "서로 다른 글 상자에 걸친 선택은 한꺼번에 고칠 수 없습니다. 한 문단(글 상자) 안에서 선택해 주세요.": {
+  "en": "A selection across different text blocks cannot be edited at once. Select within one paragraph (block).",
+  "zh": "跨越不同文本块的选择无法一次修改。请在一个段落（文本块）内选择。",
+  "ja": "異なるテキストブロックにまたがる選択は一度に編集できません。1つの段落（ブロック）内で選択してください。",
+  "es": "Una selección que abarca varios bloques de texto no se puede editar de una vez. Selecciona dentro de un párrafo (bloque)."
+ },
+ "이 선택은 지면에서 한꺼번에 지울 수 없습니다. 더 좁게 선택해 주세요.": {
+  "en": "This selection cannot be deleted at once. Select a smaller range.",
+  "zh": "此选择无法一次删除。请缩小选择范围。",
+  "ja": "この選択は一度に削除できません。範囲を狭めてください。",
+  "es": "Esta selección no se puede borrar de una vez. Selecciona un rango menor."
+ },
+ "제목처럼 따옴표 안에 든 글에서는 문단을 나눌 수 없습니다.": {
+  "en": "Text inside quotes (like a title string) cannot be split into paragraphs.",
+  "zh": "引号内的文字（如标题字符串）不能分段。",
+  "ja": "引用符内の文字（タイトル文字列など）では段落を分けられません。",
+  "es": "El texto entre comillas (como una cadena de título) no se puede dividir en párrafos."
+ },
+ "이 자리에서는 문단을 나눌 수 없습니다.": {
+  "en": "A paragraph cannot be split here.",
+  "zh": "此处无法分段。",
+  "ja": "ここでは段落を分けられません。",
+  "es": "No se puede dividir el párrafo aquí."
+ },
+ "이 자리에서는 줄을 바꿀 수 없습니다.": {
+  "en": "A line break cannot be inserted here.",
+  "zh": "此处无法换行。",
+  "ja": "ここでは改行できません。",
+  "es": "No se puede insertar un salto de línea aquí."
+ },
+ "이 자리에는 탭을 넣을 수 없습니다.": {
+  "en": "A tab cannot be inserted here.",
+  "zh": "此处无法插入制表符。",
+  "ja": "ここにはタブを入れられません。",
+  "es": "No se puede insertar un tabulador aquí."
+ },
+ "이 글에는 내어쓰기를 줄 수 없습니다.": {
+  "en": "Hanging indent cannot be applied to this text.",
+  "zh": "此文字无法设置悬挂缩进。",
+  "ja": "この文字にはぶら下げインデントを付けられません。",
+  "es": "No se puede aplicar sangría francesa a este texto."
+ },
+ "내어쓰기 값을 읽지 못했습니다.": {
+  "en": "Could not read the hanging indent value.",
+  "zh": "无法读取悬挂缩进值。",
+  "ja": "ぶら下げインデントの値を読み取れませんでした。",
+  "es": "No se pudo leer el valor de la sangría francesa."
+ },
+ "내어쓰기를 바꾸지 못했습니다.": {
+  "en": "Could not change the hanging indent.",
+  "zh": "无法更改悬挂缩进。",
+  "ja": "ぶら下げインデントを変更できませんでした。",
+  "es": "No se pudo cambiar la sangría francesa."
+ },
+ "이 문단에는 내어쓰기가 없습니다.": {
+  "en": "This paragraph has no hanging indent.",
+  "zh": "此段落没有悬挂缩进。",
+  "ja": "この段落にはぶら下げインデントがありません。",
+  "es": "Este párrafo no tiene sangría francesa."
+ },
+ "빈 문단에는 내어쓰기를 줄 수 없습니다.": {
+  "en": "Hanging indent cannot be applied to an empty paragraph.",
+  "zh": "空段落无法设置悬挂缩进。",
+  "ja": "空の段落にはぶら下げインデントを付けられません。",
+  "es": "No se puede aplicar sangría francesa a un párrafo vacío."
+ },
+ "이 문단에는 내어쓰기를 줄 수 없습니다.": {
+  "en": "Hanging indent cannot be applied to this paragraph.",
+  "zh": "此段落无法设置悬挂缩进。",
+  "ja": "この段落にはぶら下げインデントを付けられません。",
+  "es": "No se puede aplicar sangría francesa a este párrafo."
+ },
+ "이 선택에는 서식을 바꿀 수 없습니다.": {
+  "en": "Formatting cannot be changed for this selection.",
+  "zh": "此选择无法更改格式。",
+  "ja": "この選択の書式は変更できません。",
+  "es": "No se puede cambiar el formato de esta selección."
+ },
+ "서식을 줄 글자가 없습니다.": {
+  "en": "There is no text to format.",
+  "zh": "没有可设置格式的文字。",
+  "ja": "書式を付ける文字がありません。",
+  "es": "No hay texto al que dar formato."
+ },
+ "이 선택에는 서식을 줄 수 없습니다.": {
+  "en": "Formatting cannot be applied to this selection.",
+  "zh": "此选择无法设置格式。",
+  "ja": "この選択には書式を付けられません。",
+  "es": "No se puede aplicar formato a esta selección."
+ },
+ "먼저 서식을 바꿀 글자를 끌어서 선택해 주세요.": {
+  "en": "First drag to select the text you want to format.",
+  "zh": "请先拖动选中要设置格式的文字。",
+  "ja": "まず書式を変えたい文字をドラッグして選択してください。",
+  "es": "Primero arrastra para seleccionar el texto al que quieres dar formato."
+ },
+ "제목처럼 따옴표 안에 든 글에는 굵게·밑줄을 줄 수 없습니다.": {
+  "en": "Bold and underline cannot be applied to text inside quotes (like a title string).",
+  "zh": "引号内的文字（如标题字符串）不能加粗或加下划线。",
+  "ja": "引用符内の文字（タイトル文字列など）には太字・下線を付けられません。",
+  "es": "No se puede aplicar negrita ni subrayado al texto entre comillas (como una cadena de título)."
+ },
+ "요소를 찾지 못했습니다. 다시 골라 주세요.": {
+  "en": "Element not found. Please pick it again.",
+  "zh": "找不到元素。请重新选择。",
+  "ja": "要素が見つかりません。もう一度選んでください。",
+  "es": "Elemento no encontrado. Vuelve a elegirlo."
+ },
+ "이 요소는 지면에서 옮길 수 없습니다.": {
+  "en": "This element cannot be moved on the page.",
+  "zh": "此元素无法在页面上移动。",
+  "ja": "この要素はページ上で移動できません。",
+  "es": "Este elemento no se puede mover en la página."
+ },
+ "언어": {
+  "en": "Language",
+  "zh": "语言",
+  "ja": "言語",
+  "es": "Idioma"
+ }
+}

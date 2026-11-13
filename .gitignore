@@ -1,0 +1,5 @@
+target/
+dist/
+*.bak
+# local build settings (e.g. target-dir outside OneDrive)
+.cargo/
