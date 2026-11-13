@@ -25,13 +25,13 @@ fn saved_lang() -> Option<&'static str> {
     LANGS.iter().find(|c| **c == l).copied()
 }
 
-/// 지금 화면 언어. 우선순위: 환경 변수 EASY_TYPST_LANG > 화면에서 고른 언어(settings.json) > 영어(기본).
+/// 지금 화면 언어. 우선순위: 환경 변수 EASY_TYPST_LANG > 화면에서 고른 언어(settings.json) > Windows 표시 언어.
 pub fn code() -> &'static str {
     if let Some(c) = *CURRENT.read().unwrap() { return c; }
     let c = std::env::var("EASY_TYPST_LANG").ok()
         .and_then(|v| { let v = v.to_ascii_lowercase(); LANGS.iter().find(|c| v.starts_with(**c)).copied() })
         .or_else(saved_lang)
-        .unwrap_or("en");
+        .unwrap_or_else(system_lang);
     *CURRENT.write().unwrap() = Some(c);
     c
 }
@@ -44,6 +44,25 @@ pub fn set(lang: &str) -> bool {
     v["lang"] = Value::String(c.to_string());
     let _ = std::fs::write(settings_path(), serde_json::to_string_pretty(&v).unwrap_or_default());
     true
+}
+
+#[cfg(windows)]
+fn system_lang() -> &'static str {
+    #[link(name = "kernel32")]
+    extern "system" { fn GetUserDefaultUILanguage() -> u16; }
+    match unsafe { GetUserDefaultUILanguage() } & 0x3ff {
+        0x12 => "ko",
+        0x04 => "zh",
+        0x11 => "ja",
+        0x0a => "es",
+        _ => "en",
+    }
+}
+
+#[cfg(not(windows))]
+fn system_lang() -> &'static str {
+    let l = std::env::var("LC_ALL").or_else(|_| std::env::var("LANG")).unwrap_or_default();
+    LANGS.iter().find(|c| l.starts_with(**c)).copied().unwrap_or("en")
 }
 
 struct Table { exact: HashMap<String, String>, parts: Vec<(String, String)> }

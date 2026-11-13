@@ -41,7 +41,7 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
 - **Safe by design.** Every edit is checked against the syntax tree and rolled back if it would break compilation; nothing touches the disk until you save;
   the original is backed up before each save; and it refuses to overwrite a file another program changed in the meantime.
 - **Developer view.** Optionally shows the source line you are editing.
-- **5 UI languages:** English (default), 한국어, 日本語, 简体中文, Español — switch in the 🌐 menu, top-right; your choice is remembered.
+- **5 UI languages:** English, 한국어, 日本語, 简体中文, Español (🌐 menu, top-right).
 
 ## Download & run
 

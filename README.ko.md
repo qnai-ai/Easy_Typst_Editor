@@ -66,7 +66,7 @@ ui/index.html   화면
 
 ## 화면 언어
 
-한국어·English·日本語·简体中文·Español을 지원한다. 처음엔 영어로 열리고, 도구 모음 오른쪽 끝의 🌐 메뉴에서 바꾸면 기억한다
+한국어·English·日本語·简体中文·Español을 지원한다. 처음엔 Windows 표시 언어를 따르고, 도구 모음 오른쪽 끝의 🌐 메뉴에서 바꾸면 기억한다
 (`%LOCALAPPDATA%\EasyTypstEditor\settings.json`). 환경 변수 `EASY_TYPST_LANG=ko|en|zh|ja|es`가 있으면 그것이 우선한다.
 번역문은 `ui/i18n.json` 한 파일에 있다(엔진 안내문과 화면 글 모두).
 
