@@ -1,0 +1,16 @@
+name: Suggestion / 건의
+description: An idea or something you wish the editor did. Answered within 24 hours. / 24시간 안에 답합니다.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like? / 무엇이 있으면 좋을까요?
+      description: Describe what you want to do on the page and why.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example (optional) / 예시(선택)
+      description: A .typ snippet, a screenshot, or how another app does it.

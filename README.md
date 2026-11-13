@@ -2,10 +2,12 @@
 
 # Easy Typst Editor
 
-**Edit Typst documents right on the page — like a word processor, but your `.typ` source stays clean.**
+**Edit your Typst output the way you'd edit a PDF in Adobe Acrobat — except every change goes back into clean `.typ` source.**
 
 Open a `main.typ`, see every page exactly as Typst typesets it, click on the text and type.
 Ctrl+S writes the change back into the right spot of the right `.typ` file.
+
+🐞 **Found a bug or have an idea? [Open a GitHub issue](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose) — I fix reported issues within 24 hours.**
 
 [![Latest release](https://img.shields.io/github/v/release/qnai-ai/Easy_Typst_Editor?label=download)](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)
 ![Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d4)
@@ -96,9 +98,14 @@ Headless mode for development: `EasyTypstEditor.exe --serve 47615 main.typ`, the
 - Font size, color, alignment, tables, images and find/replace are not editable yet.
 - If the same text appears several times on a page and cannot be told apart by context, it is locked (safer than editing the wrong one).
 
+## Bugs & suggestions — fixed within 24 hours
+
+Please report anything that goes wrong, and anything you wish it did, on **[GitHub Issues](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose)**.
+I fix reported issues within 24 hours. A minimal `.typ` file (or a screenshot) that shows the problem makes it much faster.
+
 ## Contributing
 
-Issues and pull requests are welcome — especially:
+Pull requests are welcome too — especially:
 
 - **Translations:** all UI strings live in [`ui/i18n.json`](ui/i18n.json). Add your language code to each entry and to `LANGS` in `src/lang.rs`.
 - Templates or documents where text gets locked unexpectedly (a minimal `.typ` reproduction helps a lot).
@@ -108,4 +115,4 @@ If this tool saves you time, a ⭐ helps other Typst users find it.
 
 ## License
 
-[MIT](LICENSE). Easy Typst Editor is not affiliated with Typst GmbH; it embeds the open-source [Typst](https://github.com/typst/typst) compiler (Apache-2.0).
+[MIT](LICENSE). Easy Typst Editor is not affiliated with Typst GmbH or Adobe; it embeds the open-source [Typst](https://github.com/typst/typst) compiler (Apache-2.0).

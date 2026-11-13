@@ -1,0 +1,27 @@
+name: Bug report / 오류 신고
+description: Something went wrong. Reported issues are fixed within 24 hours. / 24시간 안에 고칩니다.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / 무엇이 잘못됐나요?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal .typ or screenshot / 재현용 .typ 또는 화면
+      description: A small .typ snippet (or attached file / screenshot) that shows the problem makes the fix much faster.
+      render: typst
+  - type: input
+    id: version
+    attributes:
+      label: Version / 버전
+      placeholder: v0.1.0
+  - type: input
+    id: os
+    attributes:
+      label: Windows version / Windows 버전
+      placeholder: Windows 11 24H2

@@ -6,8 +6,12 @@
 
 **내려받기:** [Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)에서 zip을 받아 풀고 `EasyTypstEditor.exe`를 실행한다(Windows 10/11).
 
+**Typst 결과물을 Adobe Acrobat에서 PDF 고치듯 편집한다.** 다른 점은, 고친 내용이 PDF가 아니라 원고(.typ)에 깔끔하게 반영된다는 것.
+
 Typst를 몰라도 쓰는 교재 지면 편집기. `main.typ` 하나를 열면 책이 쪽 단위로 펼쳐지고,
 지면에서 글자를 눌러 바로 고친 뒤 저장하면 해당 원고(.typ) 파일에 반영된다.
+
+> **오류·건의는 [GitHub Issues](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose)로 보내 주세요. 24시간 안에 고치겠습니다.**
 
 - 실행 파일: `dist\EasyTypstEditor.exe` (같은 폴더의 `WebView2Loader.dll`과 함께 둔다)
 - 교재를 바로 열기: `EasyTypstEditor.exe "C:\...\main.typ"`
