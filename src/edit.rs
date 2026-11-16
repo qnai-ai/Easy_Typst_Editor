@@ -526,6 +526,77 @@ fn kill_range(text: &str, f: &LinkedNode) -> Option<Range<usize>> {
     Some(h..end)
 }
 
+/// `stack(check[가], check[나])`의 `check[..]`처럼, `#` 없이 쉼표로 늘어놓은 항목으로 쓰인 함수 부름인지.
+fn is_item(f: &LinkedNode) -> bool {
+    f.kind() == SyntaxKind::FuncCall && hash_start(f).is_none()
+        && matches!(f.parent_kind(), Some(SyntaxKind::Args | SyntaxKind::Array))
+}
+
+/// 이름이 `name`인 함수가 이 파일에서 `..항목` 꼴로 인자를 몇 개든 받게 정의되었는지.
+fn has_sink(root: &LinkedNode, name: &str) -> bool {
+    if root.kind() == SyntaxKind::Closure {
+        let ch: Vec<_> = root.children().collect();
+        if ch.first().is_some_and(|c| c.kind() == SyntaxKind::Ident && c.get().full_text() == name) {
+            return ch.iter().any(|c| c.kind() == SyntaxKind::Params && c.children().any(|p| p.kind() == SyntaxKind::Spread));
+        }
+    }
+    root.children().any(|c| has_sink(&c, name))
+}
+
+/// 항목을 통째로 빼도 되는 자리인지: 항목을 몇 개든 받는 곳이어야 한다
+/// (`stack`·`list`·`enum`, 배열, `..항목`을 받는 템플릿 함수). 표·격자는 칸이 밀리므로 빼지 않는다.
+fn item_removable(root: &LinkedNode, f: &LinkedNode) -> bool {
+    if !is_item(f) { return false; }
+    let Some(par) = f.parent() else { return false };
+    if par.kind() == SyntaxKind::Array { return true; }
+    let Some(owner) = par.parent().filter(|o| o.kind() == SyntaxKind::FuncCall) else { return false };
+    let name = callee_name(owner);
+    matches!(name.as_str(), "stack" | "list" | "enum") || has_sink(root, &name)
+}
+
+/// 항목을 지울 범위: 뒤의 쉼표까지(마지막 항목이면 앞의 쉼표부터), 제 줄을 혼자 차지하면 줄째로.
+fn item_range(text: &str, f: &LinkedNode) -> Range<usize> {
+    let r = f.range();
+    let (mut s, mut e) = (r.start, r.end);
+    let rest = text[e..].trim_start_matches([' ', '\t']);
+    if rest.starts_with(',') {
+        e = text.len() - rest.len() + 1;
+        let ls = text[..s].rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let le = text[e..].find('\n').map(|i| e + i + 1).unwrap_or(text.len());
+        if text[ls..s].trim().is_empty() && text[e..le].trim().is_empty() { return ls..le; }
+        if text[e..].starts_with(' ') { e += 1; }
+    } else {
+        let head = text[..s].trim_end();
+        if head.ends_with(',') { s = head.len() - 1; }
+    }
+    s..e
+}
+
+/// 인자가 글 상자뿐인 부름인지(`check[]`, `ex[][]`): 그림 경로 같은 다른 인자가 있으면 속이 비었다고 지우지 않는다.
+fn bare_call(f: &LinkedNode) -> bool {
+    f.children().filter(|c| c.kind() == SyntaxKind::Args)
+        .all(|a| a.children().all(|c| c.kind() == SyntaxKind::ContentBlock))
+}
+
+/// 항목의 맨 앞(뒤)에서 지울 때: 바로 앞(뒤)에 속이 빈 항목이 있으면 그것을 걷어 낸다.
+/// 빈 항목에는 글자가 없어 커서를 놓을 수 없으므로, 옆 항목에서 지워 들어가게 한다.
+fn empty_sibling(root: &LinkedNode, text: &str, bracket: &LinkedNode, fwd: bool) -> Option<Tg> {
+    let f = func_of(bracket)?;
+    if !is_item(&f) { return None; }
+    // 이 부름의 첫(마지막) 글 상자의 가장자리여야 한다
+    let cb = bracket.parent()?;
+    let blocks: Vec<_> = cb.parent()?.children().filter(|c| c.kind() == SyntaxKind::ContentBlock).collect();
+    let edge = if fwd { blocks.last() } else { blocks.first() };
+    if edge.map(|b| b.range()) != Some(cb.range()) { return None; }
+    fn step<'a>(n: &LinkedNode<'a>, fwd: bool) -> Option<LinkedNode<'a>> { if fwd { n.next_sibling() } else { n.prev_sibling() } }
+    let mut sib = step(&f, fwd)?;
+    if sib.kind() == SyntaxKind::Comma { sib = step(&sib, fwd)?; }
+    if is_item(&sib) && bare_call(&sib) && hollow(&sib) && item_removable(root, &sib) {
+        return Some(Tg::Kill(item_range(text, &sib), callee_name(&sib)));
+    }
+    None
+}
+
 /// 공백·문단 나눔의 앞이나 뒤에 따로 선 덩어리(블록 요소, 설정문 등)가 붙어 있는지.
 /// 그런 자리의 공백은 지우지 않는다(덩어리가 앞뒤 문단에 달라붙지 않게).
 fn beside_solid(l: &LinkedNode, text: &str) -> bool {
@@ -619,10 +690,13 @@ fn back_target(root: &LinkedNode, text: &str, p: usize) -> Tg {
                 // 빈 글 상자에서 한 번 더 지우면, 속이 다 빈 요소는 통째로 걷어 낸다
                 if empty_block(&leaf) && hollow(&f) {
                     if let Some(k) = kill_range(text, &f) { return Tg::Kill(k, callee_name(&f)); }
+                    // `stack(check[], ..)`처럼 항목으로 쓰인 부름
+                    if item_removable(root, &f) { return Tg::Kill(item_range(text, &f), callee_name(&f)); }
                 }
                 if let Some(wp) = wrap_of(&f) {
                     if wp.content.start == r.end && wp.flows(text) { return Tg::Move(wp.open.start); }
                 }
+                if let Some(t) = empty_sibling(root, text, &leaf, false) { return t; }
                 Tg::Edge
             }
             None => Tg::Edge,
@@ -703,10 +777,12 @@ fn fwd_target(root: &LinkedNode, text: &str, p: usize) -> Tg {
             Some(f) => {
                 if empty_block(&leaf) && hollow(&f) {
                     if let Some(k) = kill_range(text, &f) { return Tg::Kill(k, callee_name(&f)); }
+                    if item_removable(root, &f) { return Tg::Kill(item_range(text, &f), callee_name(&f)); }
                 }
                 if let Some(wp) = wrap_of(&f) {
                     if wp.close == r && wp.flows(text) { return Tg::Move(r.end); }
                 }
+                if let Some(t) = empty_sibling(root, text, &leaf, true) { return t; }
                 Tg::Edge
             }
             None => Tg::Edge,
@@ -785,7 +861,8 @@ fn del_one(w: &mut Work, fwd: bool) -> R<()> {
             Tg::Kill(r, name) => {
                 // 통째로 지울 수 없는 자리면 건너뛴다
                 if unchecked(w, r.clone(), "", false).is_err() { break; }
-                w.caret = r.start; w.anchor = r.start;
+                let q = if p >= r.end { p - r.len() } else { p.min(r.start) };
+                w.caret = q; w.anchor = q;
                 w.note = Some(name);
                 return Ok(());
             }
@@ -1541,6 +1618,7 @@ pub fn elem_delete(text: &str, r: &Range<usize>) -> R<String> {
     } else {
         match f.parent_kind() {
             Some(SyntaxKind::Named) => t.replace_range(r.clone(), "none"),
+            Some(SyntaxKind::Args) | Some(SyntaxKind::Array) if item_removable(&root, &f) => t.replace_range(item_range(text, &f), ""),
             Some(SyntaxKind::Args) => t.replace_range(r.clone(), "[]"),
             Some(SyntaxKind::Code) | Some(SyntaxKind::CodeBlock) => { let d = whole_line(&t, r); t.replace_range(d, ""); }
             _ => t.replace_range(r.clone(), "none"),
@@ -1996,6 +2074,41 @@ mod tests {
         let mut x = w("#entry(mean: [#pos(\"명\") |])");
         backspace(&mut x).unwrap(); assert_eq!(show(&x), "#entry(mean: [#pos(\"명\")|])");
         backspace(&mut x).unwrap(); assert_eq!(show(&x), "#entry(mean: [|])");
+    }
+    const STACK: &str = "#stack(spacing: 8pt,\n  check[가],\n  check[나],\n  check[다],\n)";
+    #[test] fn bs_item_empty() {
+        let mut x = w(&STACK.replace("[나]", "[|]")); backspace(&mut x).unwrap();
+        assert_eq!(show(&x), "#stack(spacing: 8pt,\n  check[가],\n|  check[다],\n)"); assert_eq!(x.note.as_deref(), Some("check"));
+        let mut x = w(&STACK.replace("[나]", "[|]")); delete(&mut x).unwrap();
+        assert_eq!(show(&x), "#stack(spacing: 8pt,\n  check[가],\n|  check[다],\n)");
+    }
+    #[test] fn bs_item_before() {
+        // 빈 항목 다음 항목의 맨 앞에서 Backspace: 빈 항목이 사라지고 커서는 제자리
+        let mut x = w(&STACK.replace("[나]", "[]").replace("[다]", "[|다]")); backspace(&mut x).unwrap();
+        assert_eq!(show(&x), "#stack(spacing: 8pt,\n  check[가],\n  check[|다],\n)"); assert_eq!(x.note.as_deref(), Some("check"));
+    }
+    #[test] fn bs_item_after() {
+        // 빈 항목 앞 항목의 맨 끝에서 Delete
+        let mut x = w(&STACK.replace("[나]", "[]").replace("[가]", "[가|]")); delete(&mut x).unwrap();
+        assert_eq!(show(&x), "#stack(spacing: 8pt,\n  check[가|],\n  check[다],\n)");
+    }
+    #[test] fn bs_item_last() {
+        let mut x = w("#stack(check[가], check[|])"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "#stack(check[가]|)");
+        let mut x = w("#stack(check[|], check[가])"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "#stack(|check[가])");
+    }
+    #[test] fn bs_item_sink() {
+        let t = "#let row(fit: false, ..cards) = grid(..cards)\n#row(card[가], card[|])";
+        let mut x = w(t); backspace(&mut x).unwrap(); assert_eq!(show(&x), "#let row(fit: false, ..cards) = grid(..cards)\n#row(card[가]|)");
+    }
+    #[test] fn bs_item_keep() {
+        // 표·격자의 칸과, 인자 수가 정해진 함수의 인자는 빼지 않는다
+        for t in ["#grid(columns: 2, cell[가], cell[|], cell[다])", "#let f(a, b) = a + b\n#f(text[|], text[나])", "#stack(img(\"a.png\")[], check[|다])"] {
+            let mut x = w(t); backspace(&mut x).unwrap(); assert_eq!(show(&x), t); assert!(x.edge);
+        }
+    }
+    #[test] fn el_del_item() {
+        let c = elem_chain(STACK, STACK.find("나").unwrap()); assert_eq!(c[0].name, "check");
+        assert_eq!(elem_delete(STACK, &c[0].range).unwrap(), "#stack(spacing: 8pt,\n  check[가],\n  check[다],\n)");
     }
     #[test] fn bs_dead_str() {
         let mut x = w("가\n\n#sub(\"기|\")\n\n나");

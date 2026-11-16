@@ -36,6 +36,8 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
   Shift+arrows, move by word and paragraph, find and replace. See [Keyboard](#keyboard).
 - **Hold Backspace and it keeps going.** Deleting walks straight through inline template markup such as `#lk("a")[word]`,
   removes elements that end up empty, and steps from one text box into the next, so a run of entries can be cleared with the key alone.
+  An item written as a function argument (`#stack(check[A], check[B])`) goes away the same way once its text is gone; an item that
+  is already empty has no text to click, so press Backspace at the start of the next item or Delete at the end of the previous one.
   A selection may span several text boxes: the text inside each is deleted and the structure is kept.
 - **Formatting that writes clean Typst:** Ctrl+B → `*bold*`, Ctrl+I → `_italic_`, Ctrl+U → `#underline[...]` (or your template's own `#u[...]`),
   strikethrough, paragraph alignment (`#align(center)[...]`), Enter → new paragraph, Shift+Enter → `\` line break, Tab, hanging indent.
