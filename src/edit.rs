@@ -2339,6 +2339,75 @@ pub fn box_resize(def: &str, r: &Range<usize>, site: Option<(&str, usize)>, loca
     Ok(BoxEdit { def: de, site: vec![], local: false })
 }
 
+// ───────────────────────── 그림
+
+/// 부름에 `key:` 인자가 있는지.
+pub fn has_named(text: &str, r: &Range<usize>, key: &str) -> bool {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    find_node(&root, r, SyntaxKind::FuncCall).is_some_and(|f| named_arg(&f, key).is_some())
+}
+
+/// 이 부름이 템플릿 함수(`#let 이름(..) = ..`) 안에 있으면 그 함수의 이름.
+pub fn closure_name(text: &str, r: &Range<usize>) -> Option<String> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    let f = find_node(&root, r, SyntaxKind::FuncCall)?;
+    closure_of(&f).map(|c| c.1)
+}
+
+/// 부름의 자리 인자들(쉼표로 준 것과 뒤에 붙인 글 상자), 차례대로.
+fn positional<'a>(f: &LinkedNode<'a>) -> Vec<LinkedNode<'a>> {
+    let Some(args) = f.children().find(|c| c.kind() == SyntaxKind::Args) else { return vec![] };
+    args.children().filter(|c| !matches!(c.kind(), SyntaxKind::LeftParen | SyntaxKind::RightParen | SyntaxKind::Comma | SyntaxKind::Space
+        | SyntaxKind::Named | SyntaxKind::Spread | SyntaxKind::LineComment | SyntaxKind::BlockComment)).collect()
+}
+
+/// 그림의 파일 경로가 글자로 적힌 곳: (부른 자리의 원고에 있는지, 따옴표를 포함한 범위).
+/// `image("a.png")`면 그 자리, `image(path)`처럼 변수면 템플릿 함수를 부른 자리에서 그 값을 준 곳.
+fn image_path_at(def: &str, r: &Range<usize>, site: Option<(&str, usize)>) -> Option<(bool, Range<usize>)> {
+    let node = tree(def);
+    let root = LinkedNode::new(&node);
+    let f = find_node(&root, r, SyntaxKind::FuncCall)?;
+    if callee_name(&f) != "image" { return None; }
+    let first = positional(&f).into_iter().next()?;
+    match first.kind() {
+        SyntaxKind::Str => Some((false, first.range())),
+        SyntaxKind::Ident => {
+            let p = first.get().full_text().to_string();
+            let (clo, fname) = closure_of(&f)?;
+            let (st, pos) = site?;
+            let call = elem_chain(st, pos).into_iter().find(|e| e.name == fname)?;
+            let snode = tree(st);
+            let sroot = LinkedNode::new(&snode);
+            let cf = find_node(&sroot, &call.range, SyntaxKind::FuncCall)?;
+            // 이름 붙은 매개변수면 부른 자리의 그 인자, 자리 매개변수면 같은 차례의 인자
+            if let Some(v) = named_arg(&cf, &p) { return (v.kind() == SyntaxKind::Str).then(|| (true, v.range())); }
+            let params = clo.children().find(|c| c.kind() == SyntaxKind::Params)?;
+            let k = params.children().filter(|c| c.kind() == SyntaxKind::Ident).position(|c| c.get().full_text() == p.as_str());
+            match k {
+                Some(k) => positional(&cf).into_iter().nth(k).filter(|v| v.kind() == SyntaxKind::Str).map(|v| (true, v.range())),
+                None => param_default(&clo, &p).filter(|d| def[d.clone()].starts_with('"')).map(|d| (false, d)),
+            }
+        }
+        _ => None,
+    }
+}
+
+/// 그림의 파일 경로(원고에 적힌 그대로, 따옴표 없이).
+pub fn image_path(def: &str, r: &Range<usize>, site: Option<(&str, usize)>) -> Option<String> {
+    let (at_site, range) = image_path_at(def, r, site)?;
+    let t = if at_site { site?.0 } else { def };
+    Some(t[range].trim_matches('"').to_string())
+}
+
+/// 그림의 파일 경로를 `new`로 바꾸는 고침.
+pub fn image_replace(def: &str, r: &Range<usize>, site: Option<(&str, usize)>, new: &str) -> R<BoxEdit> {
+    let (at_site, range) = image_path_at(def, r, site).ok_or("이 그림의 파일 이름은 원고에 글자로 적혀 있지 않아 여기서 바꿀 수 없습니다.")?;
+    let lit = format!("\"{}\"", new.replace('\\', "/").replace('"', "\\\""));
+    Ok(if at_site { BoxEdit { def: vec![], site: vec![(range, lit)], local: true } } else { BoxEdit { def: vec![(range, lit)], site: vec![], local: false } })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2640,6 +2709,21 @@ mod tests {
     #[test] fn bv_local() {
         let t = "#let key(body) = block(width: 100%, body)\n#key[가]\n#key[나]";
         assert_eq!(bv(t, "block", "나", true, None, 5.0 * MM, 10.0 * MM, &[]), "#let key(body, height: auto) = block(height: height, width: 100%, body)\n#key[가]\n#key(height: 15mm)[나]");
+    }
+    #[test] fn img_path() {
+        let t = "#image(\"fig/a.png\", width: 40mm)";
+        let r = call(t, "image");
+        assert_eq!(image_path(t, &r, Some((t, 2))).as_deref(), Some("fig/a.png"));
+        let e = image_replace(t, &r, Some((t, 2)), "fig/b.jpg").unwrap(); assert_eq!(apply_edits(t, &e.def), "#image(\"fig/b.jpg\", width: 40mm)");
+        // 템플릿 함수의 매개변수로 받은 경로: 부른 자리의 글자를 바꾼다
+        let t = "#let card(path, title, len: none) = stack(image(path, width: 17mm), title)\n#card(\"qr/a.svg\", [가])\n#card(\"qr/b.svg\", [나])";
+        let r = call(t, "image");
+        let at = t.find("나").unwrap();
+        assert_eq!(image_path(t, &r, Some((t, at))).as_deref(), Some("qr/b.svg"));
+        let e = image_replace(t, &r, Some((t, at)), "qr/c.png").unwrap(); assert!(e.def.is_empty());
+        assert_eq!(apply_edits(t, &e.site), t.replace("qr/b.svg", "qr/c.png"));
+        // 식으로 만든 경로는 바꿀 수 없다
+        let t = "#image(\"fig/\" + name)"; assert!(image_replace(t, &call(t, "image"), Some((t, 2)), "x.png").is_err());
     }
     #[test] fn bx_map_pos() {
         let e: Vec<Edit> = vec![(5..5, "ab".into()), (10..12, "x".into())];

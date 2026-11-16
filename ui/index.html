@@ -275,7 +275,7 @@ kbd{font:11.5px Consolas,"D2Coding",monospace;background:#f1f3f7;border:1px soli
 <div id="colors"><div class="sw" id="colorSw"></div><div class="row"><button id="colorAuto">자동(기본 색)</button><input type="color" id="colorPick" title="다른 색"></div></div>
 <div id="cmenu"></div>
 <div id="keysveil"><div id="keys"></div></div>
-<div id="ebar"><span id="einfo"></span><button class="tb" id="eGrow" title="이 요소를 품은 더 큰 요소 고르기">넓히기</button><button class="tb danger" id="eDel" title="요소 지우기 (Delete)">지우기</button><button class="tb" id="eClose" title="고르기 끝내기 (Esc)">닫기</button></div>
+<div id="ebar"><span id="einfo"></span><button class="tb" id="eGrow" title="이 요소를 품은 더 큰 요소 고르기">넓히기</button><button class="tb" id="eRepl" title="이 그림을 다른 파일로 바꾸기">그림 바꾸기</button><button class="tb danger" id="eDel" title="요소 지우기 (Delete)">지우기</button><button class="tb" id="eClose" title="고르기 끝내기 (Esc)">닫기</button></div>
 
 <script>
 const PT = 96 / 72;
@@ -538,6 +538,7 @@ function showEbar() {
   if (!el || !el.rects.length) { bar.style.display = el ? 'flex' : 'none'; if (!el) return; }
   $('einfo').innerHTML = T('고른 요소: ') + `<b>${esc(el.name)}</b>` + (el.copies > 1 ? `<span class="warn">${T('템플릿 요소 · {0}곳이 함께 바뀝니다', el.copies)}</span>` : '')
     + (el.box ? ` · ${T('너비')} <b>${mm(el.box.w)}mm</b>` + (el.box.copies > 1 && !(el.box.own && el.copies > 1) ? `<span class="warn">${tplNote(el.box, false)}</span>` : '') : '') + ' ';
+  $('eRepl').style.display = el.image ? '' : 'none';
   bar.style.display = 'flex';
   const r0 = el.rects[0];
   const pe = r0 && pageEls[r0[0]];
@@ -567,7 +568,8 @@ pagesBox.addEventListener('mousedown', e => {
     e.target.classList.add('drag');
     return;
   }
-  if (e.target.classList.contains('elemr') && !e.altKey && !pickMode) { edrag = { x: e.clientX, y: e.clientY, dx: 0, dy: 0 }; return; }
+  if (e.target.classList.contains('elemr') && !e.altKey && !pickMode && !(view.elem && view.elem.image)) { edrag = { x: e.clientX, y: e.clientY, dx: 0, dy: 0 }; return; }
+  if (e.target.classList.contains('elemr') && view.elem && view.elem.image && !e.altKey && !pickMode) return;
   if (e.altKey || pickMode) { setPick(false); act('pick', p); return; }
   dragging = e.detail === 1;
   act('click', { ...p, extend: e.shiftKey, dbl: e.detail === 2, tpl: e.detail >= 3 });
@@ -955,6 +957,12 @@ on('bFit', () => { fitMode = true; relayoutKeep(); });
 on('bPrev', () => gotoPage(curPage() - 1)); on('bNext', () => gotoPage(curPage() + 1));
 on('bElem', () => setPick(!pickMode));
 on('eGrow', () => act('elemGrow')); on('eDel', () => act('elemDelete')); on('eClose', () => act('elemClear'));
+on('eRepl', async () => {
+  try {
+    const r = await fetch('/api/pickImage', { method: 'POST', body: '{}' }).then(r => r.json());
+    if (r.path) act('imageReplace', { path: r.path });
+  } catch (e) { setMsg(T('고른 그림 파일을 읽지 못했습니다.'), 'error'); }
+});
 on('bDev', () => { const s = $('dev').classList.toggle('show'); $('bDev').classList.toggle('on', s); if (s) loadSource(); if (fitMode) relayoutKeep(); });
 $('pageno').addEventListener('keydown', e => { if (e.key === 'Enter') { gotoPage(parseInt($('pageno').value, 10) - 1); ime.focus(); } });
 function setZoom(z) { fitMode = false; zoom = Math.max(0.3, Math.min(4, z)); relayoutKeep(); }

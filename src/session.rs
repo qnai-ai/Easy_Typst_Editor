@@ -56,6 +56,8 @@ struct Bx {
     /// 표·격자의 줄마다 위쪽 끝과 줄 사이 간격
     tops: Vec<f32>,
     rgutter: f32,
+    /// 그림인지
+    img: bool,
 }
 
 impl Bx {
@@ -131,13 +133,24 @@ impl BoxWalk<'_> {
                         page: self.page, x: ax.min(bx), y: ay.min(by), w: (bx - ax).abs(), h: (by - ay).abs(), depth,
                         g0: self.g, g1: self.g, shape: None,
                         grid: pending.as_ref().map(|p| p.0.clone()), lefts: vec![], gutter: pending.as_ref().map(|p| p.1).unwrap_or(0.0),
-                        tops: vec![], rgutter: pending.map(|p| p.2).unwrap_or(0.0),
+                        tops: vec![], rgutter: pending.map(|p| p.2).unwrap_or(0.0), img: false,
                     });
                     let inner = if self.out[idx].grid.is_some() { Some(idx) } else { grid };
                     self.frame(&group.frame, ts2, Some(idx), inner, depth + 1);
                     self.out[idx].g1 = self.g;
                 }
                 FrameItem::Text(t) => self.g += t.glyphs.len(),
+                // 그림: 제 크기가 곧 상자다
+                FrameItem::Image(_, size, span) => {
+                    let a = Point::new(pos.x, pos.y).transform(ts);
+                    let b = Point::new(pos.x + size.x, pos.y + size.y).transform(ts);
+                    let (ax, ay, bx, by) = (a.x.to_pt() as f32, a.y.to_pt() as f32, b.x.to_pt() as f32, b.y.to_pt() as f32);
+                    self.out.push(Bx {
+                        page: self.page, x: ax.min(bx), y: ay.min(by), w: (bx - ax).abs(), h: (by - ay).abs(), depth,
+                        g0: self.g, g1: self.g, shape: self.src(*span), grid: None, lefts: vec![], gutter: 0.0,
+                        tops: vec![], rgutter: 0.0, img: true,
+                    });
+                }
                 // 상자의 바탕(채움·테두리): 상자와 너비가 같고 왼쪽 끝에서 시작하는 도형
                 FrameItem::Shape(shape, span) => {
                     if let Some(i) = me {
@@ -971,6 +984,123 @@ impl Session {
         }
     }
 
+    // ───────────── 그림
+
+    /// 누른 자리에 놓인 그림의 원고 자리(여럿이 겹치면 가장 작은 것).
+    fn image_at(&self, page: usize, x: f32, y: f32) -> Option<(FileId, std::ops::Range<usize>)> {
+        self.page_boxes(page).into_iter().filter(|b| b.img && b.shape.is_some() && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h)
+            .min_by(|p, q| (p.w * p.h).partial_cmp(&(q.w * q.h)).unwrap()).and_then(|b| b.shape)
+    }
+
+    /// 그림을 눌러 고른다. 글자 위를 눌렀으면 false(그림을 고르지 않는다).
+    fn pick_image(&mut self, page: usize, x: f32, y: f32) -> bool {
+        if self.hit(page, x, y).is_some_and(|h| h.1) { return false; }
+        let Some((file, range)) = self.image_at(page, x, y) else { return false };
+        self.caret = None; self.anchor = None; self.lock = None;
+        self.elem = Some(ElemSel { file, range: range.clone(), name: "image".into(), at: (page as u32, x, y), bx: None });
+        self.refresh_box(None);
+        // 템플릿 함수가 그린 그림이면 그 함수를 부른 자리를 고른 요소로 삼는다(이 곳만 바꿀 수 있게).
+        // 그림에는 부른 자리의 흔적이 없어서, 같은 부름이 함께 찍어 낸 가까운 글자(제목 등)로 찾는다.
+        let fname = self.world.text_of(file).and_then(|t| edit::closure_name(&t, &range));
+        let rect = self.elem.as_ref().and_then(|e| e.bx.as_ref()).map(|b| (b.x, b.y, b.w, b.h));
+        if let (Some(fname), Some(rc)) = (fname, rect) {
+            if let Some((sf, sr)) = self.site_of(page, rc, &fname) {
+                self.elem = Some(ElemSel { file: sf, range: sr, name: fname, at: (page as u32, x, y), bx: None });
+                self.refresh_box(Some((file, range, rc.0, rc.1)));
+            }
+        }
+        true
+    }
+
+    /// 지면의 한 네모(그림) 가까이에 찍힌 글자들 가운데, 템플릿 함수 `fname`을 부른 자리에서 온 것을 찾아 그 부름을 돌려준다.
+    fn site_of(&self, page: usize, rect: (f32, f32, f32, f32), fname: &str) -> Option<(FileId, std::ops::Range<usize>)> {
+        let &(a, b) = self.ix.page_ranges.get(page)?;
+        let (x, y, w, h) = rect;
+        let mut cands: Vec<(f32, usize)> = (a..b).filter_map(|gi| {
+            let g = &self.ix.glyphs[gi];
+            g.file.filter(|f| self.world.in_project(*f))?;
+            let (gx, gy) = ((g.x0 + g.x1) / 2.0, g.y - g.size * 0.3);
+            let d = (x - gx).max(gx - x - w).max(0.0) + (y - gy).max(gy - y - h).max(0.0);
+            (d < 200.0).then_some((d, gi))
+        }).collect();
+        cands.sort_by(|p, q| p.0.partial_cmp(&q.0).unwrap());
+        // 같은 원고 조각에서 온 글자는 한 번만 본다
+        let mut seen: Vec<(FileId, u32)> = vec![];
+        for (_, gi) in cands {
+            let g = &self.ix.glyphs[gi];
+            let Some(f) = g.file else { continue };
+            if seen.contains(&(f, g.node.0)) { continue; }
+            seen.push((f, g.node.0));
+            if seen.len() > 12 { break; }
+            let Some(t) = self.world.text_of(f) else { continue };
+            if let Some(e) = edit::elem_chain(&t, g.s as usize).into_iter().find(|e| e.name == fname) { return Some((f, e.range)); }
+        }
+        None
+    }
+
+    fn image_replace(&mut self, chosen: &str) {
+        let target = self.elem.as_ref().and_then(|el| el.bx.as_ref().filter(|b| b.name == "image").map(|b| (el.file, el.range.start, b.file, b.range.clone())));
+        let Some((efile, epos, dfile, drange)) = target else {
+            self.msg = Some(("먼저 바꿀 그림을 눌러 골라 주세요.".into(), "warn"));
+            return;
+        };
+        let def = self.world.text_of(dfile).unwrap_or_default();
+        let same = efile == dfile;
+        let site_text = if same { def.clone() } else { self.world.text_of(efile).unwrap_or_default() };
+        let site = Some((site_text.as_str(), epos));
+        let Some(old) = edit::image_path(&def, &drange, site) else {
+            self.msg = Some(("이 그림의 파일 이름은 원고에 글자로 적혀 있지 않아 여기서 바꿀 수 없습니다.".into(), "warn"));
+            return;
+        };
+        // 새 파일은 옛 그림과 같은 폴더에 둔다(이미 거기 있으면 그대로 쓴다)
+        let base = self.world.path_of(dfile).and_then(|p| p.parent().map(|d| d.to_path_buf())).unwrap_or_else(|| self.world.root.clone());
+        let old_abs = if old.starts_with('/') { self.world.root.join(old.trim_start_matches('/')) } else { base.join(&old) };
+        let dir = old_abs.parent().map(|d| d.to_path_buf()).unwrap_or(base);
+        let src = PathBuf::from(chosen);
+        let Some(fname) = src.file_name().map(|n| n.to_string_lossy().to_string()) else { return };
+        let mut dest = dir.join(&fname);
+        let canon = |p: &Path| std::fs::canonicalize(p).ok();
+        if canon(&src).is_none() {
+            self.msg = Some(("고른 그림 파일을 읽지 못했습니다.".into(), "error"));
+            return;
+        }
+        if canon(&src) != canon(&dest) {
+            // 같은 이름의 다른 파일이 이미 있으면 이름을 달리해 넣는다
+            if dest.exists() && std::fs::read(&dest).ok() != std::fs::read(&src).ok() {
+                let stem = src.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                let ext = src.extension().map(|n| format!(".{}", n.to_string_lossy())).unwrap_or_default();
+                for i in 2..200 { let c = dir.join(format!("{stem}-{i}{ext}")); if !c.exists() { dest = c; break; } }
+            }
+            if !dest.exists() {
+                if std::fs::copy(&src, &dest).is_err() {
+                    self.msg = Some(("고른 그림 파일을 교재 폴더로 복사하지 못했습니다.".into(), "error"));
+                    return;
+                }
+            }
+        }
+        let name = dest.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(fname);
+        let new = match old.rfind('/') { Some(i) => format!("{}/{}", &old[..i], name), None => name };
+        match edit::image_replace(&def, &drange, site, &new) {
+            Ok(be) => {
+                let (de, se): (Vec<edit::Edit>, Vec<edit::Edit>) = if same { (be.def.iter().chain(be.site.iter()).cloned().collect(), vec![]) } else { (be.def, be.site) };
+                let ok = match (de.is_empty(), se.is_empty()) {
+                    (false, true) => self.apply_file(dfile, edit::apply_edits(&def, &de)),
+                    (true, false) => self.apply_file(efile, edit::apply_edits(&site_text, &se)),
+                    (false, false) => self.apply_two(dfile, edit::apply_edits(&def, &de), efile, edit::apply_edits(&site_text, &se)),
+                    (true, true) => false,
+                };
+                if ok {
+                    if let Some(el) = self.elem.as_mut() {
+                        let ee = if same { &de } else { &se };
+                        el.range = edit::map_pos(ee, el.range.start)..edit::map_pos(ee, el.range.end);
+                    }
+                    self.refresh_box(None);
+                }
+            }
+            Err(e) => self.msg = Some((e, "warn")),
+        }
+    }
+
     // ───────────── 상자·표의 너비
 
     fn page_boxes(&self, page: usize) -> Vec<Bx> {
@@ -1096,6 +1226,7 @@ impl Session {
             let before = self.world.text_of(bx.file).unwrap_or_default();
             let same = el.file == bx.file;
             let site_text = if same { before.clone() } else { self.world.text_of(el.file).unwrap_or_default() };
+            let (vert, dx) = if vert && bx.name == "image" && bx.h > 0.5 && !edit::has_named(&before, &bx.range, "height") { (false, dx * bx.w / bx.h) } else { (vert, dx) };
             match edit::box_resize(&before, &bx.range, Some((&site_text, el.range.start)), !all && bx.copies > 1, vert, col, dx, Some(if vert { bx.h } else { bx.w }), if vert { &bx.rows } else { &bx.cols }) {
                 Ok(be) => {
                     // 상자가 적힌 파일과 부른 자리의 파일이 같으면 한 번에 고친다
@@ -1246,7 +1377,10 @@ impl Session {
             i = end + 1;
         }
         let line = self.world.source_of(el.file).and_then(|s| s.lines().byte_to_line(el.range.start)).unwrap_or(0) + 1;
+        let image = el.bx.as_ref().is_some_and(|b| b.name == "image");
+        if image { if let Some(b) = &el.bx { rects = vec![json!([b.page, b.x, b.y, b.w, b.h])]; } }
         json!({
+            "image": image,
             "rects": rects,
             "copies": copies.values().copied().max().unwrap_or(0),
             "name": el.name,
@@ -1696,7 +1830,7 @@ impl Session {
         let op = req["op"].as_str().unwrap_or("");
         if !matches!(op, "compose" | "composeEnd") { self.flush_comp(); }
         if op != "click" && op != "move" { self.lock = None; self.goal_x = None; }
-        if !op.starts_with("elem") && op != "pick" && op != "save" { self.elem = None; }
+        if !op.starts_with("elem") && !matches!(op, "pick" | "save" | "click" | "imageReplace") { self.elem = None; }
         let text = req["text"].as_str().unwrap_or("");
         if op != "elemResize" { self.cbox = None; }
         self.act_op(op, text, req);
@@ -1705,10 +1839,15 @@ impl Session {
 
     fn act_op(&mut self, op: &str, text: &str, req: &Value) {
         match op {
-            "click" => self.click(
-                req["page"].as_u64().unwrap_or(0) as usize,
-                req["x"].as_f64().unwrap_or(0.0) as f32, req["y"].as_f64().unwrap_or(0.0) as f32,
-                req["extend"].as_bool().unwrap_or(false), req["dbl"].as_bool().unwrap_or(false), req["tpl"].as_bool().unwrap_or(false)),
+            "click" => {
+                let (page, x, y) = (req["page"].as_u64().unwrap_or(0) as usize, req["x"].as_f64().unwrap_or(0.0) as f32, req["y"].as_f64().unwrap_or(0.0) as f32);
+                let extend = req["extend"].as_bool().unwrap_or(false);
+                // 그림 위를 누르면 그림을 고른다
+                if !extend && self.pick_image(page, x, y) { return; }
+                self.elem = None;
+                self.click(page, x, y, extend, req["dbl"].as_bool().unwrap_or(false), req["tpl"].as_bool().unwrap_or(false));
+            }
+            "imageReplace" => self.image_replace(req["path"].as_str().unwrap_or("")),
             "move" => self.mv(req["dir"].as_str().unwrap_or(""), req["shift"].as_bool().unwrap_or(false)),
             "insert" => {
                 let typing = !text.chars().any(|c| c.is_whitespace()) && self.sel_range().is_none();
@@ -1757,7 +1896,10 @@ impl Session {
             "undo" => self.undo_redo(true),
             "redo" => self.undo_redo(false),
             "save" => { self.save(); }
-            "pick" => self.pick(req["page"].as_u64().unwrap_or(0) as usize, req["x"].as_f64().unwrap_or(0.0) as f32, req["y"].as_f64().unwrap_or(0.0) as f32),
+            "pick" => {
+                let (page, x, y) = (req["page"].as_u64().unwrap_or(0) as usize, req["x"].as_f64().unwrap_or(0.0) as f32, req["y"].as_f64().unwrap_or(0.0) as f32);
+                if !self.pick_image(page, x, y) { self.pick(page, x, y); }
+            }
             "elemGrow" => self.elem_grow(),
             "elemDelete" => self.elem_delete(),
             "elemMove" => self.elem_move(req["dx"].as_f64().unwrap_or(0.0) as f32, req["dy"].as_f64().unwrap_or(0.0) as f32),

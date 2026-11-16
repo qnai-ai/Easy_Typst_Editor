@@ -1230,6 +1230,54 @@
   "ja": "文字を大きく / 小さく",
   "es": "Texto más grande / más pequeño"
  },
+ "그림 바꾸기": {
+  "en": "Replace image",
+  "zh": "更换图片",
+  "ja": "画像を差し替え",
+  "es": "Cambiar imagen"
+ },
+ "이 그림을 다른 파일로 바꾸기": {
+  "en": "Replace this image with another file",
+  "zh": "用其他文件替换此图片",
+  "ja": "この画像を別のファイルに差し替える",
+  "es": "Sustituir esta imagen por otro archivo"
+ },
+ "바꿀 그림 파일 고르기": {
+  "en": "Choose the new image file",
+  "zh": "选择新的图片文件",
+  "ja": "新しい画像ファイルを選ぶ",
+  "es": "Elige el nuevo archivo de imagen"
+ },
+ "그림": {
+  "en": "Images",
+  "zh": "图片",
+  "ja": "画像",
+  "es": "Imágenes"
+ },
+ "먼저 바꿀 그림을 눌러 골라 주세요.": {
+  "en": "Click the image you want to replace first.",
+  "zh": "请先点击要更换的图片。",
+  "ja": "まず差し替える画像をクリックして選んでください。",
+  "es": "Primero haz clic en la imagen que quieres cambiar."
+ },
+ "이 그림의 파일 이름은 원고에 글자로 적혀 있지 않아 여기서 바꿀 수 없습니다.": {
+  "en": "The file name of this image is not written out in the source, so it cannot be replaced here.",
+  "zh": "此图片的文件名未在源文件中直接写出，无法在此更换。",
+  "ja": "この画像のファイル名はソースに文字で書かれていないため、ここでは差し替えできません。",
+  "es": "El nombre de archivo de esta imagen no está escrito en el fuente, así que no se puede cambiar aquí."
+ },
+ "고른 그림 파일을 읽지 못했습니다.": {
+  "en": "Could not read the chosen image file.",
+  "zh": "无法读取所选的图片文件。",
+  "ja": "選んだ画像ファイルを読み込めませんでした。",
+  "es": "No se pudo leer el archivo de imagen elegido."
+ },
+ "고른 그림 파일을 교재 폴더로 복사하지 못했습니다.": {
+  "en": "Could not copy the chosen image file into the book folder.",
+  "zh": "无法将所选图片文件复制到书稿文件夹。",
+  "ja": "選んだ画像ファイルを本のフォルダーにコピーできませんでした。",
+  "es": "No se pudo copiar el archivo de imagen elegido a la carpeta del libro."
+ },
  "언어": {
   "en": "Language",
   "zh": "语言",

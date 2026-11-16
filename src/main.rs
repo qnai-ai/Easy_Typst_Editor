@@ -114,6 +114,11 @@ fn serve(server: Server, app: Arc<App>) {
                 };
                 respond_json(req, &v);
             }
+            "/api/pickImage" => {
+                let p = rfd::FileDialog::new().set_title(lang::tr("바꿀 그림 파일 고르기"))
+                    .add_filter(lang::tr("그림"), &["png", "jpg", "jpeg", "gif", "svg", "webp", "pdf"]).pick_file();
+                respond_json(req, &json!({ "path": p.map(|p| p.display().to_string()) }));
+            }
             "/api/act" => {
                 let mut g = app.session.lock().unwrap();
                 let v = match g.as_mut() { Some(s) => { s.act(&jb); s.view() } None => json!({ "open": false }) };
