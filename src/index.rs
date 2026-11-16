@@ -42,6 +42,8 @@ pub struct G {
     pub bold: u8,
     /// 지면에 그어진 글자 꾸밈 선: 1 밑줄, 2 취소선
     pub deco: u8,
+    /// 지면에 찍힌 글자 색(RGB)
+    pub fill: [u8; 3],
 }
 
 #[derive(Default)]
@@ -176,6 +178,10 @@ impl<'a> Builder<'a> {
                     let mut x = pos.x;
                     let scale = ts.sx.get().abs() as f32;
                     let bold = self.bold_of(&text.font);
+                    let fill = match &text.fill {
+                        typst::visualize::Paint::Solid(c) => { let v = c.to_vec4_u8(); [v[0], v[1], v[2]] }
+                        _ => [0, 0, 0],
+                    };
                     // 이 글줄 조각에 그어진 선: 조각의 너비를 벗어나는 선(표의 괘선 등)은 뺀다
                     let size = text.size.to_pt();
                     let (ix0, ix1) = (pos.x.to_pt(), pos.x.to_pt() + text.width().to_pt());
@@ -227,6 +233,7 @@ impl<'a> Builder<'a> {
                             rec: false,
                             bold,
                             deco,
+                            fill,
                         });
                     }
                 }

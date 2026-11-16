@@ -1402,6 +1402,47 @@ impl Session {
         }
     }
 
+    /// 선택한 글(없으면 커서 곁의 글자)이 지면에 찍힌 크기와 색. 섞여 있으면 None.
+    fn look(&self) -> (Option<f32>, Option<[u8; 3]>) {
+        let Some(c) = self.caret else { return (None, None) };
+        let Some((a, b)) = self.sel_range() else {
+            return match c.gi.map(|gi| self.glyph(gi)) { Some(g) => (Some(g.size), Some(g.fill)), None => (None, None) };
+        };
+        let Some(v) = self.ix.by_file.get(&c.pos.file) else { return (None, None) };
+        let from = v.partition_point(|&(s, _)| (s as usize) < a);
+        let (mut size, mut fill, mut n) = (None, None, 0);
+        let (mut one_size, mut one_fill) = (true, true);
+        for &(s, gi) in &v[from..] {
+            if s as usize >= b { break; }
+            let g = &self.ix.glyphs[gi as usize];
+            if (g.x1 - g.x0).abs() < 0.05 { continue; }
+            if n == 0 { size = Some(g.size); fill = Some(g.fill); }
+            if size.is_some_and(|x: f32| (x - g.size).abs() > 0.05) { one_size = false; }
+            if fill != Some(g.fill) { one_fill = false; }
+            n += 1;
+        }
+        (size.filter(|_| one_size), fill.filter(|_| one_fill))
+    }
+
+    /// 선택한 글의 글자 크기를 바꾼다: `delta`만큼 키우거나, `size`pt로.
+    fn text_size(&mut self, delta: Option<f32>, size: Option<f32>) {
+        // 지금 크기: 선택의 첫 글자
+        let cur = self.caret.and_then(|c| {
+            let (a, b) = self.sel_range()?;
+            let v = self.ix.by_file.get(&c.pos.file)?;
+            let from = v.partition_point(|&(s, _)| (s as usize) < a);
+            v[from..].iter().take_while(|&&(s, _)| (s as usize) < b).map(|&(_, gi)| self.ix.glyphs[gi as usize].size).next()
+        });
+        let Some(cur) = cur else {
+            self.msg = Some(("먼저 서식을 바꿀 글자를 끌어서 선택해 주세요.".into(), "warn"));
+            return;
+        };
+        let new = size.unwrap_or(cur + delta.unwrap_or(0.0));
+        let new = ((new * 2.0).round() / 2.0).clamp(2.0, 400.0);
+        if (new - cur).abs() < 0.01 { return; }
+        self.apply(0, true, |w| edit::text_size(w, cur, new));
+    }
+
     /// 굵게 켜고 끄기. 원고의 표식만 보지 않고 지면에 실제로 찍힌 굵기를 따른다:
     /// `#text(weight: "bold")`나 템플릿·show 규칙이 굵게 만든 글자도 굵은 글자로 보고 푼다.
     fn toggle_bold(&mut self) {
@@ -1683,6 +1724,11 @@ impl Session {
             "linebreak" => { self.apply(0, false, edit::linebreak); }
             "tab" => { let wd = self.tab_width(); self.apply(0, true, |w| edit::tab(w, wd)); }
             "bold" => self.toggle_bold(),
+            "textSize" => self.text_size(req["delta"].as_f64().map(|x| x as f32), req["size"].as_f64().map(|x| x as f32)),
+            "textColor" => {
+                let hex = req["color"].as_str().filter(|h| h.len() == 7 && h.starts_with('#') && h[1..].chars().all(|c| c.is_ascii_hexdigit())).map(|h| h.to_lowercase());
+                self.apply(0, true, |w| edit::text_fill(w, hex.as_deref()));
+            }
             "underline" => self.toggle_line(Style::Under),
             "strike" => self.toggle_line(Style::Strike),
             "italic" => {
@@ -1801,6 +1847,7 @@ impl Session {
                 where_ = json!({ "file": c.pos.file.vpath().get_without_slash(), "line": line });
             }
         }
+        let look = self.look();
         let dirty: Vec<String> = self.world.dirty_files().iter().map(|id| id.vpath().file_name().unwrap_or("").to_string()).collect();
         let msg = self.msg.clone();
         json!({
@@ -1816,7 +1863,8 @@ impl Session {
             "lock": self.lock.as_ref().map(|l| json!({ "page": l.page, "x": l.x, "y": l.y, "w": l.w, "h": l.h, "reason": l.reason })),
             "sel": sel,
             "selText": sel_text,
-            "fmt": { "bold": fmt[0], "italic": fmt[1], "underline": fmt[2], "strike": fmt[3], "align": align },
+            "fmt": { "bold": fmt[0], "italic": fmt[1], "underline": fmt[2], "strike": fmt[3], "align": align,
+                "size": look.0.map(|x| (x as f64 * 10.0).round() / 10.0), "color": look.1.map(|c| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2])) },
             "rev": self.rev,
             "dirty": dirty,
             "canUndo": !self.undo.is_empty() || self.comp.is_some(),

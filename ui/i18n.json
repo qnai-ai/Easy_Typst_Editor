@@ -1188,6 +1188,48 @@
   "ja": "この表の行の高さはソースに数値で書かれていない（変数や式）ため、ページ上で変更できません。",
   "es": "Los altos de fila de esta tabla no están escritos como números en el fuente (una variable o una expresión), así que no se pueden cambiar en la página."
  },
+ "글자 작게 (Ctrl+[)": {
+  "en": "Smaller text (Ctrl+[)",
+  "zh": "缩小字号 (Ctrl+[)",
+  "ja": "文字を小さく (Ctrl+[)",
+  "es": "Texto más pequeño (Ctrl+[)"
+ },
+ "글자 크게 (Ctrl+])": {
+  "en": "Larger text (Ctrl+])",
+  "zh": "放大字号 (Ctrl+])",
+  "ja": "文字を大きく (Ctrl+])",
+  "es": "Texto más grande (Ctrl+])"
+ },
+ "글자 크기(pt). 숫자를 넣고 Enter": {
+  "en": "Font size (pt). Type a number and press Enter",
+  "zh": "字号（pt）。输入数字后按 Enter",
+  "ja": "文字サイズ（pt）。数値を入れて Enter",
+  "es": "Tamaño de letra (pt). Escribe un número y pulsa Intro"
+ },
+ "글자 색": {
+  "en": "Text color",
+  "zh": "文字颜色",
+  "ja": "文字の色",
+  "es": "Color del texto"
+ },
+ "자동(기본 색)": {
+  "en": "Automatic (default)",
+  "zh": "自动（默认颜色）",
+  "ja": "自動（既定の色）",
+  "es": "Automático (por defecto)"
+ },
+ "다른 색": {
+  "en": "Other color",
+  "zh": "其他颜色",
+  "ja": "その他の色",
+  "es": "Otro color"
+ },
+ "글자 크게 / 작게": {
+  "en": "Larger / smaller text",
+  "zh": "放大 / 缩小字号",
+  "ja": "文字を大きく / 小さく",
+  "es": "Texto más grande / más pequeño"
+ },
  "언어": {
   "en": "Language",
   "zh": "语言",

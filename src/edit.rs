@@ -141,6 +141,8 @@ struct Wrap {
     blocky: bool,
     /// `#text(.., weight: ..)[..]`의 굵기: (굵은지, 그 인자의 범위, 인자가 그것뿐인지)
     weight: Option<(bool, Range<usize>, bool)>,
+    /// 이 꾸밈의 노드 범위(함수 꼴이면 `#` 뒤의 부름)
+    node: Range<usize>,
 }
 
 impl Wrap {
@@ -188,6 +190,7 @@ fn wrap_of(node: &LinkedNode) -> Option<Wrap> {
                 kind: if mk == SyntaxKind::Star { WK::Star } else { WK::Under },
                 blocky: false,
                 weight: None,
+                node: node.range(),
             })
         }
         SyntaxKind::FuncCall => {
@@ -207,6 +210,7 @@ fn wrap_of(node: &LinkedNode) -> Option<Wrap> {
                 content: cb.start + 1..cb.end - 1,
                 blocky: block_like(node, &name),
                 weight: if name == "text" { weight_arg(&ach) } else { None },
+                node: node.range(),
                 kind: WK::Func(name, ach.len() > 1),
             })
         }
@@ -1564,6 +1568,118 @@ pub fn peel(w: &mut Work, key: &str) -> R<()> {
     remove_wraps(w, &|x: &Wrap| peel_key(x).as_deref() == Some(key))
 }
 
+const COLOR_NAMES: &[&str] = &["black", "gray", "silver", "white", "navy", "blue", "aqua", "teal", "eastern", "purple", "fuchsia",
+    "maroon", "red", "orange", "yellow", "olive", "green", "lime"];
+
+/// 색을 나타내는 식인지: 색 이름, `rgb(..)`·`luma(..)` 같은 부름, 또는 그런 값으로 정해 둔 변수.
+fn colorish(root: &LinkedNode, text: &str, c: &LinkedNode) -> bool {
+    let is_call = |t: &str| ["rgb(", "luma(", "cmyk(", "oklab(", "oklch(", "color."].iter().any(|p| t.trim_start().starts_with(p));
+    let t = &text[c.range()];
+    match c.kind() {
+        SyntaxKind::FuncCall | SyntaxKind::FieldAccess => is_call(t) || COLOR_NAMES.iter().any(|n| t.starts_with(&format!("{n}."))),
+        SyntaxKind::Ident => COLOR_NAMES.contains(&t) || let_value(root, t, usize::MAX).is_some_and(|r| is_call(&text[r])),
+        _ => false,
+    }
+}
+
+/// `#text(..)`에서 크기(`size`)나 색(`fill`)을 정한 인자의 범위: 이름 붙은 인자, 또는 자리로 준 값(`#text(9pt, navy)[..]`).
+/// 돌려주는 것: (값의 범위, 인자 전체의 범위).
+fn text_slot(root: &LinkedNode, text: &str, f: &LinkedNode, key: &str) -> Option<(Range<usize>, Range<usize>)> {
+    let args = f.children().find(|c| c.kind() == SyntaxKind::Args)?;
+    for c in args.children() {
+        match c.kind() {
+            SyntaxKind::Named => if c.children().next().is_some_and(|k| k.get().full_text() == key) {
+                return c.children().last().map(|v| (v.range(), c.range()));
+            },
+            SyntaxKind::Numeric => if key == "size" { return Some((c.range(), c.range())); },
+            SyntaxKind::Ident | SyntaxKind::FuncCall | SyntaxKind::FieldAccess => if key == "fill" && colorish(root, text, &c) { return Some((c.range(), c.range())); },
+            _ => {}
+        }
+    }
+    None
+}
+
+/// 선택한 글의 글자 크기(`size`)나 색(`fill`)을 정한다. `calc`: 지금 적힌 값(없으면 None) → 새 값(None이면 그 속성을 지운다).
+/// 선택이 `#text(..)[..]`의 내용 전체면 그 인자를 고치고, 아니면 `#text(key: 값)[..]`으로 감싼다.
+fn text_prop(w: &mut Work, key: &str, calc: &dyn Fn(Option<&str>) -> R<Option<String>>) -> R<()> {
+    let (a, b) = style_sel(w)?;
+    let before = w.text.clone();
+    let (c0, a0) = (w.caret, w.anchor);
+    let node = tree(&w.text);
+    let root = LinkedNode::new(&node);
+    let trim = |s: usize, e: usize| { let t = &before[s..e]; (s + (t.len() - t.trim_start().len()), e - (t.len() - t.trim_end().len())) };
+    let (ta, tb) = trim(a, b);
+    let mut ws = vec![];
+    all_wraps(&root, &mut ws);
+    // 선택이 내용을 통째로 덮은 `#text(..)[..]`: 그 속성을 이미 가진 것이 먼저, 다음은 가장 안쪽
+    let mut hits: Vec<(bool, Wrap, Option<(Range<usize>, Range<usize>)>)> = vec![];
+    for x in ws {
+        if !matches!(&x.kind, WK::Func(n, _) if n == "text") { continue; }
+        let (cs, ce) = trim(x.content.start, x.content.end);
+        if !(cs < ce && ta >= x.content.start && tb <= x.content.end && ta <= cs && tb >= ce) { continue; }
+        let Some(f) = find_node(&root, &x.node, SyntaxKind::FuncCall) else { continue };
+        let slot = text_slot(&root, &before, &f, key);
+        hits.push((slot.is_some(), x, slot));
+    }
+    hits.sort_by_key(|h| (!h.0, h.1.content.len()));
+    match hits.into_iter().next() {
+        Some((_, x, slot)) => {
+            let new = calc(slot.as_ref().map(|r| &before[r.0.clone()]))?;
+            match (slot, new) {
+                (Some((r, _)), Some(v)) => w.rep(r, &v, false),
+                (Some((_, r)), None) => {
+                    // 그 인자를 지운다. 남는 인자가 없으면 꾸밈째로 걷어 낸다
+                    let (mut s, mut e) = (r.start, r.end);
+                    let rest = before[e..].trim_start_matches(' ');
+                    if rest.starts_with(',') {
+                        e = before.len() - rest.len() + 1;
+                        e += before[e..].len() - before[e..].trim_start_matches(' ').len();
+                    } else {
+                        let head = before[..s].trim_end();
+                        if head.ends_with(',') { s = head.len() - 1; }
+                    }
+                    let open = format!("{}{}", &before[x.open.start..s], &before[e..x.open.end]);
+                    if open.replace(' ', "") == "#text()[" {
+                        let mut end = x.close.end;
+                        if before[end..].starts_with(';') { end += 1; }
+                        w.rep(x.close.start..end, "", false);
+                        w.rep(x.open.clone(), "", false);
+                    } else {
+                        w.rep(s..e, "", false);
+                    }
+                }
+                (None, Some(v)) => {
+                    let f = find_node(&root, &x.node, SyntaxKind::FuncCall).ok_or(NO_ELEM)?;
+                    let (at, ins) = arg_insert(&f, key, &v).ok_or(NO_ELEM)?;
+                    w.rep(at, &ins, false);
+                }
+                (None, None) => {}
+            }
+        }
+        None => {
+            if let Some(v) = calc(None)? { add_wrap(w, None, &format!("#text({key}: {v})["))?; }
+        }
+    }
+    if bad(&tree(&w.text)) {
+        w.text = before; w.caret = c0; w.anchor = a0;
+        return Err("이 선택에는 서식을 바꿀 수 없습니다.".into());
+    }
+    Ok(())
+}
+
+/// 선택한 글의 글자 크기를 `new`pt로. `cur`: 지금 지면에서의 크기.
+pub fn text_size(w: &mut Work, cur: f32, new: f32) -> R<()> {
+    text_prop(w, "size", &|old| Ok(Some(match old {
+        Some(s) => set_len(s, Some(cur), new - cur)?,
+        None => format!("{}pt", fmt_num(new, 1)),
+    })))
+}
+
+/// 선택한 글의 글자 색을 정한다(`#rrggbb`). None이면 따로 준 색을 지운다.
+pub fn text_fill(w: &mut Work, hex: Option<&str>) -> R<()> {
+    text_prop(w, "fill", &|_| Ok(hex.map(|h| format!("rgb(\"{h}\")"))))
+}
+
 /// 굵게·기울임·밑줄·취소선을 켜거나 끈다. `under_fn`: 밑줄에 쓸 함수 이름(책의 템플릿에 `u`가 있으면 그것).
 /// 여러 글 상자에 걸친 선택이면 상자마다 따로 꾸민다.
 pub fn toggle(w: &mut Work, st: Style, under_fn: &str) -> R<()> {
@@ -2282,6 +2398,28 @@ mod tests {
     #[test] fn peel_part_break() { let mut x = w("_가 \\ {나}_"); peel(&mut x, "emph").unwrap(); assert_eq!(x.text, "_가 \\ _나"); }
     #[test] fn peel_two() { let mut x = w("{_무엇을_, _어떤_}"); peel(&mut x, "emph").unwrap(); assert_eq!(x.text, "무엇을, 어떤"); }
     #[test] fn peel_order() { let t = "#key[*가 #kw[나] 다*]"; let p = t.find("나").unwrap(); assert_eq!(peel_kinds(t, p, p + 3), vec!["kw".to_string(), "strong".to_string()]); }
+    #[test] fn size_wrap() {
+        let mut x = w("가 {나다} 라"); text_size(&mut x, 10.0, 12.0).unwrap(); assert_eq!(x.text, "가 #text(size: 12pt)[나다] 라");
+        // 다시: 감싼 꾸밈의 값을 고친다
+        text_size(&mut x, 12.0, 13.5).unwrap(); assert_eq!(x.text, "가 #text(size: 13.5pt)[나다] 라");
+    }
+    #[test] fn size_args() {
+        let mut x = w("#text(9pt, weight: \"bold\")[{제목}]"); text_size(&mut x, 9.0, 11.0).unwrap(); assert_eq!(x.text, "#text(11pt, weight: \"bold\")[제목]");
+        let mut x = w("#text(size: 0.9em)[{작게}]"); text_size(&mut x, 9.0, 10.0).unwrap(); assert_eq!(x.text, "#text(size: 1em)[작게]");
+        let mut x = w("#text(weight: \"bold\")[{제목}]"); text_size(&mut x, 10.0, 12.0).unwrap(); assert_eq!(x.text, "#text(size: 12pt, weight: \"bold\")[제목]");
+        // 일부만 고르면 안쪽을 감싼다
+        let mut x = w("#text(9pt)[가 {나} 다]"); text_size(&mut x, 9.0, 12.0).unwrap(); assert_eq!(x.text, "#text(9pt)[가 #text(size: 12pt)[나] 다]");
+    }
+    #[test] fn fill_set() {
+        let mut x = w("가 {나} 다"); text_fill(&mut x, Some("#c00000")).unwrap(); assert_eq!(x.text, "가 #text(fill: rgb(\"#c00000\"))[나] 다");
+        text_fill(&mut x, Some("#1f6fb2")).unwrap(); assert_eq!(x.text, "가 #text(fill: rgb(\"#1f6fb2\"))[나] 다");
+        text_fill(&mut x, None).unwrap(); assert_eq!(x.text, "가 나 다");
+        let mut x = w("#text(13pt, weight: \"bold\", fill: navy)[{제목}]"); text_fill(&mut x, Some("#c00000")).unwrap(); assert_eq!(x.text, "#text(13pt, weight: \"bold\", fill: rgb(\"#c00000\"))[제목]");
+        text_fill(&mut x, None).unwrap(); assert_eq!(x.text, "#text(13pt, weight: \"bold\")[제목]");
+        // 자리로 준 색
+        let mut x = w("#text(white, size: 12pt)[{1}]"); text_fill(&mut x, Some("#000000")).unwrap(); assert_eq!(x.text, "#text(rgb(\"#000000\"), size: 12pt)[1]");
+        let mut x = w("#let ink = rgb(\"#123456\")\n#text(ink)[{가}]"); text_fill(&mut x, Some("#000000")).unwrap(); assert_eq!(x.text, "#let ink = rgb(\"#123456\")\n#text(rgb(\"#000000\"))[가]");
+    }
     #[test] fn bold_midword() { let mut x = w("un{believ}able"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "un#strong[believ]able"); }
     #[test] fn bold_hangul() { let mut x = w("청중{관중}독자"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "청중*관중*독자"); }
     #[test] fn under_on() { let mut x = w("The {cat} sat"); toggle(&mut x, Style::Under, "underline").unwrap(); assert_eq!(x.text, "The #underline[cat] sat"); }
