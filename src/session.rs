@@ -1180,6 +1180,87 @@ impl Session {
         (nb, n)
     }
 
+    /// 원고 범위 [a, b)의 글자에 지면에서 선(`bit`: 1 밑줄, 2 취소선)이 그어졌는지: (그어진 글자 수, 전체 글자 수).
+    fn deco_count(&self, file: FileId, a: usize, b: usize, bit: u8) -> (usize, usize) {
+        let Some(v) = self.ix.by_file.get(&file) else { return (0, 0) };
+        let from = v.partition_point(|&(s, _)| (s as usize) < a);
+        let (mut nd, mut n) = (0, 0);
+        for &(s, gi) in &v[from..] {
+            if s as usize >= b { break; }
+            let g = &self.ix.glyphs[gi as usize];
+            if (g.x1 - g.x0).abs() < 0.05 { continue; }
+            n += 1;
+            if g.deco & bit != 0 { nd += 1; }
+        }
+        (nd, n)
+    }
+
+    /// 밑줄·취소선 켜고 끄기. 지면에 그어진 선을 따른다: `#underline[..]`이 아니라 문서의 규칙이나 템플릿이
+    /// 그은 선(예: `#show emph: it => underline(..)`)이면, 그 선을 만든 글줄 꾸밈을 찾아 벗긴다.
+    fn toggle_line(&mut self, st: Style) {
+        let bit: u8 = if st == Style::Under { 1 } else { 2 };
+        let drawn = self.work().and_then(|(file, w)| {
+            let (a, b) = w.sel()?;
+            let (nd, n) = self.deco_count(file, a, b, bit);
+            Some(n > 0 && nd == n)
+        }).unwrap_or(false);
+        if !drawn {
+            let u = self.under_fn.clone();
+            self.apply(0, true, |w| edit::toggle(w, st, &u));
+            return;
+        }
+        let Some((file, mut w)) = self.work() else { return };
+        let before = w.text.clone();
+        let caret_before = self.caret.map(|c| c.pos);
+        let was_bold = w.sel().is_some_and(|(a, b)| { let (nb, n) = self.bold_count(file, a, b); n > 0 && nb == n });
+        // 1) 원고의 밑줄·취소선 표식을 걷어 낸다
+        if let Err(e) = edit::style_strip(&mut w, st) { self.msg = Some((e, "warn")); return; }
+        let mut left = true;
+        if w.text != before {
+            if !self.commit(file, &before, &w) { return; }
+            left = w.sel().is_some_and(|(a, b)| self.deco_count(file, a, b, bit).0 > 0);
+        }
+        // 2) 그래도 선이 남으면: 선택에 걸친 글줄 꾸밈을 안쪽부터 하나씩 벗겨 보고, 선이 사라지는 것을 고른다
+        if left {
+            let (a, b) = w.sel().unwrap_or((0, 0));
+            let mut found = false;
+            for key in edit::peel_kinds(&w.text, a, b) {
+                let mut t = w.clone();
+                if edit::peel(&mut t, &key).is_err() || t.text == w.text { continue; }
+                if self.try_text(file, &t.text).is_err() { continue; }
+                let gone = t.sel().is_some_and(|(a, b)| { let (nd, n) = self.deco_count(file, a, b, bit); n > 0 && nd == 0 });
+                if gone { w = t; found = true; break; }
+                let _ = self.try_text(file, &w.text);
+            }
+            if !found && w.text == before {
+                self.msg = Some(("이 꾸밈은 템플릿이나 문서의 규칙이 준 것이라 지면에서 풀 수 없습니다.".into(), "warn"));
+                return;
+            }
+            if found {
+                let bold_now = |s: &Session, w: &Work| w.sel().map(|(a, b)| s.bold_count(file, a, b));
+                if was_bold {
+                    // 벗긴 꾸밈이 굵기도 주고 있었으면 굵기는 남긴다
+                    if bold_now(self, &w).is_some_and(|(nb, n)| n > 0 && nb < n) {
+                        let mut t = w.clone();
+                        if edit::wrap_with(&mut t, "#text(weight: \"bold\")[").is_ok() && self.try_text(file, &t.text).is_ok() { w = t; }
+                    }
+                } else {
+                    // 굵기를 풀려고 감쌌던 `#text(weight: "regular")[..]`가 이제 쓸모없으면 걷어 낸다
+                    let mut t = w.clone();
+                    if edit::bold_strip(&mut t, false).is_ok() && t.text != w.text && self.try_text(file, &t.text).is_ok() {
+                        if bold_now(self, &t).is_some_and(|(nb, n)| n > 0 && nb == 0) { w = t; } else { let _ = self.try_text(file, &w.text); }
+                    }
+                }
+            }
+        }
+        let hint = self.hint();
+        self.caret = Some(self.locate(Pos { file, off: w.caret }, true, hint));
+        self.anchor = if w.anchor != w.caret { Some(Pos { file, off: w.anchor }) } else { None };
+        if w.text != before {
+            self.push_undo(Step { file, before, after: w.text, caret_before, caret_after: self.caret.map(|c| c.pos), kind: 0, time: Instant::now() });
+        }
+    }
+
     /// 굵게 켜고 끄기. 원고의 표식만 보지 않고 지면에 실제로 찍힌 굵기를 따른다:
     /// `#text(weight: "bold")`나 템플릿·show 규칙이 굵게 만든 글자도 굵은 글자로 보고 푼다.
     fn toggle_bold(&mut self) {
@@ -1444,7 +1525,9 @@ impl Session {
             "linebreak" => { self.apply(0, false, edit::linebreak); }
             "tab" => { let wd = self.tab_width(); self.apply(0, true, |w| edit::tab(w, wd)); }
             "bold" => self.toggle_bold(),
-            "italic" | "underline" | "strike" => {
+            "underline" => self.toggle_line(Style::Under),
+            "strike" => self.toggle_line(Style::Strike),
+            "italic" => {
                 let st = match op { "italic" => Style::Italic, "underline" => Style::Under, _ => Style::Strike };
                 let u = self.under_fn.clone();
                 self.apply(0, true, |w| edit::toggle(w, st, &u));
@@ -1546,6 +1629,12 @@ impl Session {
                     match c.gi.map(|gi| self.glyph(gi).bold) { Some(1) => (1, 1), Some(0) => (0, 1), _ => (0, 0) }
                 };
                 if n > 0 && nb == n { fmt[0] = true; }
+                // 밑줄·취소선도 지면에 그어진 선을 본다
+                for (i, bit) in [(2usize, 1u8), (3, 2)] {
+                    let on = if a < b { let (nd, n) = self.deco_count(c.pos.file, a, b, bit); n > 0 && nd == n }
+                        else { c.gi.is_some_and(|gi| self.glyph(gi).deco & bit != 0) };
+                    if on { fmt[i] = true; }
+                }
                 align = edit::align_state(src.text(), c.pos.off);
                 let line = src.lines().byte_to_line(c.pos.off.min(src.text().len())).unwrap_or(0) + 1;
                 where_ = json!({ "file": c.pos.file.vpath().get_without_slash(), "line": line });

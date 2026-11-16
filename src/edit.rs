@@ -1247,6 +1247,10 @@ fn remove_wraps(w: &mut Work, pick: &dyn Fn(&Wrap) -> bool) -> R<()> {
         let (cs, ce) = (wp.content.start, wp.content.end);
         let os = snap(&root, &wp.content, a.max(cs), false);
         let oe = snap(&root, &wp.content, b.min(ce), true);
+        // 갈라 낼 때 남는 꾸밈이 공백으로 끝나거나 시작하지 않게, 표식 자리를 공백 너머로 옮긴다
+        // (`\ ` 줄 나눔 뒤의 공백은 그대로 둔다: 표식이 `\` 바로 뒤에 붙으면 글자로 읽힌다)
+        let os = { let t = w.text[cs..os].trim_end(); if t.ends_with('\\') { os } else { cs + t.len() } };
+        let oe = { let t = &w.text[oe..ce]; oe + (t.len() - t.trim_start().len()) };
         let func = matches!(wp.kind, WK::Func(..));
         let open_txt = w.text[wp.open.clone()].to_string();
         let close_txt = match wp.kind { WK::Func(..) => "]", WK::Star => "*", WK::Under => "_" };
@@ -1417,6 +1421,47 @@ pub fn bold_wrap(w: &mut Work, on: bool) -> R<()> {
     if on { return add_wrap(w, None, "#text(weight: \"regular\")["); }
     remove_style(w, Style::Bold)?;
     add_style(w, Style::Bold, "#strong[")
+}
+
+/// 서식 표식만 걷어 낸다(밑줄·취소선 풀기의 첫 단계).
+pub fn style_strip(w: &mut Work, st: Style) -> R<()> {
+    style_sel(w)?;
+    remove_style(w, st)
+}
+
+/// 선택을 `open`으로 여는 함수 꾸밈으로 감싼다.
+pub fn wrap_with(w: &mut Work, open: &str) -> R<()> { add_wrap(w, None, open) }
+
+/// 벗겨 볼 수 있는 글줄 꾸밈의 종류: `*..*`·`_.._`와, 인자 없이 글줄에 낀 `#이름[..]`.
+fn peel_key(x: &Wrap) -> Option<String> {
+    match &x.kind {
+        WK::Star => Some("strong".into()),
+        WK::Under => Some("emph".into()),
+        WK::Func(n, false) if x.inline() || !x.blocky => Some(n.clone()),
+        _ => None,
+    }
+}
+
+/// 선택에 걸친 글줄 꾸밈의 종류(안쪽부터). 문서의 규칙이나 템플릿이 이 꾸밈에 밑줄 같은 것을 입혔는지
+/// 하나씩 벗겨 보며 찾을 때의 후보다.
+pub fn peel_kinds(text: &str, a: usize, b: usize) -> Vec<String> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    let mut ws = vec![];
+    all_wraps(&root, &mut ws);
+    ws.retain(|x| a.max(x.content.start) < b.min(x.content.end));
+    ws.sort_by_key(|x| x.content.len());
+    let mut out: Vec<String> = vec![];
+    for x in &ws {
+        if let Some(k) = peel_key(x) { if !out.contains(&k) { out.push(k); } }
+    }
+    out
+}
+
+/// 선택에 걸친 `key` 종류의 꾸밈을 벗긴다(선택이 일부만 덮으면 그 부분만).
+pub fn peel(w: &mut Work, key: &str) -> R<()> {
+    style_sel(w)?;
+    remove_wraps(w, &|x: &Wrap| peel_key(x).as_deref() == Some(key))
 }
 
 /// 굵게·기울임·밑줄·취소선을 켜거나 끈다. `under_fn`: 밑줄에 쓸 함수 이름(책의 템플릿에 `u`가 있으면 그것).
@@ -1844,11 +1889,11 @@ mod tests {
     #[test] fn del_fwd() { let mut x = w("a| *bc* d"); delete(&mut x).unwrap(); assert_eq!(show(&x), "a|#strong[bc] d"); }
     #[test] fn bold_on() { let mut x = w("The {cat} sat"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "The *cat* sat"); }
     #[test] fn bold_off() { let mut x = w("The *{cat}* sat"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "The cat sat"); }
-    #[test] fn bold_part_off() { let mut x = w("*{big} cat*"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "big* cat*"); }
+    #[test] fn bold_part_off() { let mut x = w("*{big} cat*"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "big *cat*"); }
     #[test] fn bold_off_weight() { let mut x = w("#text(17pt, weight: \"bold\")[{2028 LEET}]"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "#text(17pt)[2028 LEET]"); }
     #[test] fn bold_off_weight_first() { let mut x = w("#text(weight: \"bold\", fill: navy)[{로준생}]"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "#text(fill: navy)[로준생]"); }
     #[test] fn bold_off_weight_solo() { let mut x = w("a #text(weight: \"bold\")[{b}] c"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "a b c"); }
-    #[test] fn bold_off_weight_num() { let mut x = w("a #text(weight: 700)[{b} c] d"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "a b#text(weight: 700)[ c] d"); }
+    #[test] fn bold_off_weight_num() { let mut x = w("a #text(weight: 700)[{b} c] d"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "a b #text(weight: 700)[c] d"); }
     #[test] fn bold_off_weight_part() { let mut x = w("#text(10pt, weight: \"bold\")[가설이 {거짓}이면]"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "#text(10pt, weight: \"bold\")[가설이 #text(weight: \"regular\")[거짓]이면]"); }
     #[test] fn bold_on_regular() { let mut x = w("#text(10pt, weight: \"bold\")[가설이 #text(weight: \"regular\")[{거짓}]이면]"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "#text(10pt, weight: \"bold\")[가설이 거짓이면]"); }
     #[test] fn bold_state_weight() {
@@ -1857,6 +1902,16 @@ mod tests {
         assert_eq!([at("가"), at("나"), at("다"), at("라"), at("마")], [true, false, true, true, false]);
     }
     #[test] fn bold_strip_keeps() { let mut x = w("#sub[{내 상식은}?]"); bold_strip(&mut x, true).unwrap(); assert_eq!(x.text, "#sub[내 상식은?]"); bold_wrap(&mut x, true).unwrap(); assert_eq!(x.text, "#sub[#text(weight: \"regular\")[내 상식은]?]"); }
+    #[test] fn peel_emph() {
+        let mut x = w("효과가 있다. _#text(weight: \"regular\")[{단}]_...");
+        assert_eq!(peel_kinds(&x.text, x.sel().unwrap().0, x.sel().unwrap().1), vec!["emph".to_string()]);
+        peel(&mut x, "emph").unwrap(); assert_eq!(x.text, "효과가 있다. #text(weight: \"regular\")[단]...");
+        bold_strip(&mut x, false).unwrap(); assert_eq!(x.text, "효과가 있다. 단...");
+    }
+    #[test] fn peel_part() { let mut x = w("_다른 {사람}_이 탁구"); peel(&mut x, "emph").unwrap(); assert_eq!(x.text, "_다른_ 사람이 탁구"); }
+    #[test] fn peel_part_break() { let mut x = w("_가 \\ {나}_"); peel(&mut x, "emph").unwrap(); assert_eq!(x.text, "_가 \\ _나"); }
+    #[test] fn peel_two() { let mut x = w("{_무엇을_, _어떤_}"); peel(&mut x, "emph").unwrap(); assert_eq!(x.text, "무엇을, 어떤"); }
+    #[test] fn peel_order() { let t = "#key[*가 #kw[나] 다*]"; let p = t.find("나").unwrap(); assert_eq!(peel_kinds(t, p, p + 3), vec!["kw".to_string(), "strong".to_string()]); }
     #[test] fn bold_midword() { let mut x = w("un{believ}able"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "un#strong[believ]able"); }
     #[test] fn bold_hangul() { let mut x = w("청중{관중}독자"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "청중*관중*독자"); }
     #[test] fn under_on() { let mut x = w("The {cat} sat"); toggle(&mut x, Style::Under, "underline").unwrap(); assert_eq!(x.text, "The #underline[cat] sat"); }

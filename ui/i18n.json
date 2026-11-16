@@ -1140,6 +1140,12 @@
   "ja": "この表には残りの幅を埋める列（fr）があるため、全体の幅は表の置かれた場所に合わせられます。列の間の境界をドラッグしてください。",
   "es": "Esta tabla tiene una columna que ocupa el ancho restante (fr), así que su ancho total sigue al espacio donde está. Arrastra un límite entre columnas."
  },
+ "이 꾸밈은 템플릿이나 문서의 규칙이 준 것이라 지면에서 풀 수 없습니다.": {
+  "en": "This formatting comes from the template or a document rule, so it cannot be turned off on the page.",
+  "zh": "此格式来自模板或文档规则，无法在页面上取消。",
+  "ja": "この書式はテンプレートや文書のルールによるもので、ページ上では解除できません。",
+  "es": "Este formato viene de la plantilla o de una regla del documento, así que no se puede quitar en la página."
+ },
  "언어": {
   "en": "Language",
   "zh": "语言",

@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use typst::layout::{Frame, FrameItem, Point, Transform};
 use typst::syntax::{FileId, Span, SyntaxKind};
+use typst::visualize::Geometry;
 use typst::World;
 use typst_layout::PagedDocument;
 
@@ -39,6 +40,8 @@ pub struct G {
     pub rec: bool,
     /// 지면에 찍힌 굵기: 0 보통, 1 굵게, 2 알 수 없음(그 글꼴에 굵은 꼴이 없다)
     pub bold: u8,
+    /// 지면에 그어진 글자 꾸밈 선: 1 밑줄, 2 취소선
+    pub deco: u8,
 }
 
 #[derive(Default)]
@@ -146,6 +149,18 @@ impl Index {
 impl<'a> Builder<'a> {
     fn frame(&mut self, frame: &Frame, ts: Transform) {
         let mut has_text = false;
+        // 글자 꾸밈 선(밑줄·취소선)은 글자와 같은 틀에 가로선으로 놓인다: (왼쪽, 오른쪽, y)
+        let mut lines: Vec<(f64, f64, f64)> = vec![];
+        for (pos, item) in frame.items() {
+            let FrameItem::Shape(shape, span) = item else { continue };
+            if !span.is_detached() || shape.stroke.is_none() { continue; }
+            if let Geometry::Line(t) = &shape.geometry {
+                if t.y.to_pt().abs() < 0.01 {
+                    let (a, b) = (pos.x.to_pt(), pos.x.to_pt() + t.x.to_pt());
+                    lines.push((a.min(b), a.max(b), pos.y.to_pt()));
+                }
+            }
+        }
         for (pos, item) in frame.items() {
             match item {
                 FrameItem::Group(group) => {
@@ -161,10 +176,35 @@ impl<'a> Builder<'a> {
                     let mut x = pos.x;
                     let scale = ts.sx.get().abs() as f32;
                     let bold = self.bold_of(&text.font);
+                    // 이 글줄 조각에 그어진 선: 조각의 너비를 벗어나는 선(표의 괘선 등)은 뺀다
+                    let size = text.size.to_pt();
+                    let (ix0, ix1) = (pos.x.to_pt(), pos.x.to_pt() + text.width().to_pt());
+                    let mut segs: Vec<(f64, f64, u8)> = vec![];
+                    for &(a, b, y) in &lines {
+                        if size <= 0.0 || a < ix0 - 0.3 * size || b > ix1 + 0.3 * size { continue; }
+                        let dy = (y - pos.y.to_pt()) / size;
+                        let bit = if (-0.05..=0.4).contains(&dy) { 1 } else if (-0.65..-0.12).contains(&dy) { 2 } else { continue };
+                        segs.push((a, b, bit));
+                    }
+                    segs.sort_by(|p, q| (p.2, p.0).partial_cmp(&(q.2, q.0)).unwrap_or(std::cmp::Ordering::Equal));
+                    // 내림 획을 피해 끊긴 선은 하나로 잇는다
+                    let mut runs: Vec<(f64, f64, u8)> = vec![];
+                    for (a, b, bit) in segs {
+                        match runs.last_mut() {
+                            Some(l) if l.2 == bit && a - l.1 <= 0.6 * size => l.1 = l.1.max(b),
+                            _ => runs.push((a, b, bit)),
+                        }
+                    }
                     for glyph in &text.glyphs {
                         let w = glyph.x_advance.at(text.size);
                         let p0 = Point::new(x, pos.y).transform(ts);
                         let p1 = Point::new(x + w, pos.y).transform(ts);
+                        let (g0, g1) = (x.to_pt(), (x + w).to_pt());
+                        let mut deco = 0u8;
+                        for &(a, b, bit) in &runs {
+                            let ov = g1.min(b) - g0.max(a);
+                            if ov > 0.0 && ov >= 0.5 * (g1 - g0) { deco |= bit; }
+                        }
                         x += w;
                         let (span, off) = glyph.span;
                         let (file, ns, ne, kind, nk) = self.resolve(span);
@@ -186,6 +226,7 @@ impl<'a> Builder<'a> {
                             node: (ns, ne),
                             rec: false,
                             bold,
+                            deco,
                         });
                     }
                 }

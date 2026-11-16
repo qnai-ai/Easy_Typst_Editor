@@ -41,6 +41,8 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
   strikethrough, paragraph alignment (`#align(center)[...]`), Enter → new paragraph, Shift+Enter → `\` line break, Tab, hanging indent.
   Typing over a selection keeps its formatting. Ctrl+B follows what is actually typeset, not only the marks in the source:
   it also turns off bold that comes from `#text(weight: "bold")[...]`, a template function or a `#show` rule.
+  Ctrl+U does the same for an underline drawn by a rule (for example `#show emph: it => underline(it.body)`): it removes the
+  `_..._` that the rule decorates and keeps the bold if there was one.
 - **Multi-file projects.** Edits go to whichever included file the text came from (`content/ch01.typ`, …).
 - **Template text is protected.** Page numbers, outlines, headers and other computed text are locked — click them and the editor explains why.
 - **Move or delete whole blocks.** Alt+click any element (a placed label, a heading line, a template element) to drag it or delete it.
