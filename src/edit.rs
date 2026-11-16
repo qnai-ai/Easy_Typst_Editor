@@ -1931,6 +1931,241 @@ pub fn elem_resize(text: &str, r: &Range<usize>, col: Option<usize>, dx: f32, wi
     Ok(t)
 }
 
+// ───────────────────────── 템플릿 상자: 이 곳만 바꾸기, 변수로 적힌 값
+
+/// 원고 고침 하나: (바꿀 범위, 새 글).
+pub type Edit = (Range<usize>, String);
+
+/// 고침들을 적용한 본문.
+pub fn apply_edits(text: &str, edits: &[Edit]) -> String {
+    let mut v: Vec<&Edit> = edits.iter().collect();
+    v.sort_by_key(|e| std::cmp::Reverse(e.0.start));
+    let mut t = text.to_string();
+    for (r, w) in v { t.replace_range(r.clone(), w); }
+    t
+}
+
+/// 고침들을 적용한 뒤 원고 자리 `p`가 옮겨 가는 곳.
+pub fn map_pos(edits: &[Edit], p: usize) -> usize {
+    let mut v: Vec<&Edit> = edits.iter().collect();
+    v.sort_by_key(|e| e.0.start);
+    let mut shift = 0isize;
+    for (r, w) in v {
+        if r.is_empty() && p == r.start { break; }
+        if p >= r.end { shift += w.len() as isize - r.len() as isize; }
+        else if p > r.start { return (r.start as isize + shift) as usize; }
+        else { break; }
+    }
+    (p as isize + shift) as usize
+}
+
+/// 두 본문이 다른 구간을 고침 하나로.
+fn diff_edit(old: &str, new: &str) -> Vec<Edit> {
+    if old == new { return vec![]; }
+    let (ob, nb) = (old.as_bytes(), new.as_bytes());
+    let mut pre = 0;
+    while pre < ob.len() && pre < nb.len() && ob[pre] == nb[pre] { pre += 1; }
+    while !old.is_char_boundary(pre) || !new.is_char_boundary(pre) { pre -= 1; }
+    let mut suf = 0;
+    while suf < ob.len() - pre && suf < nb.len() - pre && ob[ob.len() - 1 - suf] == nb[nb.len() - 1 - suf] { suf += 1; }
+    while !old.is_char_boundary(ob.len() - suf) || !new.is_char_boundary(nb.len() - suf) { suf -= 1; }
+    vec![(pre..ob.len() - suf, new[pre..nb.len() - suf].to_string())]
+}
+
+/// 부름에서 `key:`로 준 인자의 값.
+fn named_arg<'a>(f: &LinkedNode<'a>, key: &str) -> Option<LinkedNode<'a>> {
+    let args = f.children().find(|c| c.kind() == SyntaxKind::Args)?;
+    let n = args.children().find(|c| c.kind() == SyntaxKind::Named && c.children().next().is_some_and(|k| k.get().full_text() == key))?;
+    n.children().last()
+}
+
+/// 부름에 `key: value` 인자를 넣는 고침.
+fn arg_insert(f: &LinkedNode, key: &str, value: &str) -> Option<Edit> {
+    match f.children().find(|c| c.kind() == SyntaxKind::Args) {
+        Some(args) => match args.children().next() {
+            Some(lp) if lp.kind() == SyntaxKind::LeftParen => {
+                let empty = args.children().nth(1).is_some_and(|c| c.kind() == SyntaxKind::RightParen);
+                Some((lp.range().end..lp.range().end, if empty { format!("{key}: {value}") } else { format!("{key}: {value}, ") }))
+            }
+            _ => Some((args.range().start..args.range().start, format!("({key}: {value})"))),
+        },
+        None => None,
+    }
+}
+
+/// 부름의 인자 끝에 `key: value`를 덧붙이는 고침.
+fn arg_append(text: &str, f: &LinkedNode, key: &str, value: &str) -> Option<Edit> {
+    let args = f.children().find(|c| c.kind() == SyntaxKind::Args)?;
+    let rp = args.children().find(|c| c.kind() == SyntaxKind::RightParen);
+    match (args.children().next(), rp) {
+        (Some(lp), Some(rp)) if lp.kind() == SyntaxKind::LeftParen => {
+            let head = text[args.range().start..rp.range().start].trim_end();
+            let sep = if head.ends_with('(') { "" } else if head.ends_with(',') { " " } else { ", " };
+            let at = args.range().start + head.len();
+            Some((at..at, format!("{sep}{key}: {value}")))
+        }
+        _ => Some((args.range().start..args.range().start, format!("({key}: {value})"))),
+    }
+}
+
+/// 상자·표의 크기를 정하는 인자의 이름.
+fn size_key(name: &str) -> Option<&'static str> {
+    if name == "grid" || name == "table" { Some("columns") } else if SIZED.contains(&name) { Some("width") } else { None }
+}
+
+/// 값 표기 하나를 끈 만큼 고친 새 표기: 같은 규칙을 쓰려고 그 값만 가진 부름을 만들어 고쳐 본다.
+fn recompute(name: &str, key: &str, old: Option<&str>, col: Option<usize>, dx: f32, width: Option<f32>, cols: &[f32]) -> R<String> {
+    let tmp = match old { Some(v) => format!("#{name}({key}: {v})"), None => format!("#{name}()") };
+    let out = elem_resize(&tmp, &(1..tmp.len()), col, dx, width, cols)?;
+    let node = tree(&out);
+    let root = LinkedNode::new(&node);
+    let f = root.leaf_at(2, Side::Before).and_then(|l| func_of(&l)).ok_or(NO_ELEM)?;
+    named_arg(&f, key).map(|v| out[v.range()].to_string()).ok_or_else(|| NO_ELEM.to_string())
+}
+
+/// `f`를 품은 함수 정의(`#let 이름(..) = ..`): (정의, 이름).
+fn closure_of<'a>(f: &LinkedNode<'a>) -> Option<(LinkedNode<'a>, String)> {
+    let mut n = f.parent()?.clone();
+    loop {
+        if n.kind() == SyntaxKind::Closure {
+            let name = n.children().next().filter(|c| c.kind() == SyntaxKind::Ident).map(|c| c.get().full_text().to_string())?;
+            return Some((n, name));
+        }
+        n = n.parent()?.clone();
+    }
+}
+
+/// 함수 정의에서 이름 붙은 매개변수 `p`의 기본값 범위.
+fn param_default(clo: &LinkedNode, p: &str) -> Option<Range<usize>> {
+    let params = clo.children().find(|c| c.kind() == SyntaxKind::Params)?;
+    let n = params.children().find(|c| c.kind() == SyntaxKind::Named && c.children().next().is_some_and(|k| k.get().full_text() == p))?;
+    n.children().last().map(|v| v.range())
+}
+
+/// 함수 정의에 `p`라는 매개변수(자리로 받는 것 포함)가 있는지.
+fn has_param(clo: &LinkedNode, p: &str) -> bool {
+    clo.children().filter(|c| c.kind() == SyntaxKind::Params).any(|ps| ps.children().any(|c| match c.kind() {
+        SyntaxKind::Ident => c.get().full_text() == p,
+        SyntaxKind::Named | SyntaxKind::Spread => c.children().any(|k| k.kind() == SyntaxKind::Ident && k.get().full_text() == p),
+        _ => false,
+    }))
+}
+
+/// `#let p = 값`으로 정한 변수의 값 범위(`before` 앞에서 가장 가까운 것).
+fn let_value(root: &LinkedNode, p: &str, before: usize) -> Option<Range<usize>> {
+    fn go(n: &LinkedNode, p: &str, before: usize, best: &mut Option<Range<usize>>) {
+        if n.range().start >= before { return; }
+        if n.kind() == SyntaxKind::LetBinding {
+            let ch: Vec<_> = n.children().collect();
+            let name_ok = ch.iter().find(|c| !matches!(c.kind(), SyntaxKind::Let | SyntaxKind::Space)).is_some_and(|c| c.kind() == SyntaxKind::Ident && c.get().full_text() == p);
+            if name_ok && ch.iter().any(|c| c.kind() == SyntaxKind::Eq) {
+                if let Some(v) = ch.last() { if v.kind() != SyntaxKind::Closure && v.range().end <= before { *best = Some(v.range()); } }
+            }
+        }
+        for c in n.children() { go(&c, p, before, best); }
+    }
+    let mut best = None;
+    go(root, p, before, &mut best);
+    best
+}
+
+/// 상자·표를 끌어 바꿀 때의 고침: 상자가 적힌 원고(`def`)와, 그 상자를 부른 자리의 원고(`site`).
+pub struct BoxEdit { pub def: Vec<Edit>, pub site: Vec<Edit>, /// 이 곳만 바꿨는지(부른 자리에 값을 줬는지)
+    pub local: bool }
+
+const NO_VAR: &str = "이 너비는 원고에 수로 적혀 있지 않아(식이나 다른 곳에서 온 값) 지면에서 바꿀 수 없습니다.";
+
+/// 상자가 템플릿 함수 안에 있고 그 함수를 부른 자리를 알면: (함수 정의, 부른 자리의 부름 범위).
+fn local_target<'a>(f: &LinkedNode<'a>, site: Option<(&str, usize)>) -> Option<(LinkedNode<'a>, Range<usize>)> {
+    let (clo, fname) = closure_of(f)?;
+    let (st, pos) = site?;
+    let call = elem_chain(st, pos).into_iter().find(|e| e.name == fname)?;
+    Some((clo, call.range))
+}
+
+/// 이 상자만 따로 바꿀 수 있는지(템플릿 함수가 그린 상자이고, 그 함수를 부른 자리를 안다).
+pub fn box_can_local(def: &str, r: &Range<usize>, site: Option<(&str, usize)>) -> bool {
+    let node = tree(def);
+    let root = LinkedNode::new(&node);
+    find_node(&root, r, SyntaxKind::FuncCall).is_some_and(|f| local_target(&f, site).is_some())
+}
+
+/// 상자·표의 너비를 `dx`pt 만큼 바꾸는 고침을 만든다.
+/// - 값이 변수면 그 변수가 정해진 곳(함수의 매개변수 기본값, `#let 변수 = 값`)을 고친다.
+/// - `local`: 템플릿 함수가 그린 상자면 이 곳만 바꾼다. 함수에 매개변수(`width: 100%`)를 만들고,
+///   부른 자리에 값(`#key(width: 80%)[..]`)을 준다. 부른 자리(`site`: 본문과 자리)를 모르면 모두 바꾼다.
+pub fn box_resize(def: &str, r: &Range<usize>, site: Option<(&str, usize)>, local: bool,
+                  col: Option<usize>, dx: f32, width: Option<f32>, cols: &[f32]) -> R<BoxEdit> {
+    let node = tree(def);
+    let root = LinkedNode::new(&node);
+    let f = find_node(&root, r, SyntaxKind::FuncCall).ok_or(NO_ELEM)?;
+    let name = callee_name(&f);
+    let key = size_key(&name).ok_or("이 요소는 지면에서 너비를 바꿀 수 없습니다.")?;
+    let val = named_arg(&f, key);
+    let clo = closure_of(&f).map(|c| c.0);
+    // 값이 변수면: 어디에서 정해졌는가
+    enum Src { Direct, Param(String, Range<usize>), Var(Range<usize>) }
+    let src = match &val {
+        Some(v) if v.kind() == SyntaxKind::Ident => {
+            let p = v.get().full_text().to_string();
+            match clo.as_ref().and_then(|c| param_default(c, &p)) {
+                Some(d) => Src::Param(p, d),
+                None => match let_value(&root, &p, f.range().start) {
+                    Some(d) => Src::Var(d),
+                    None => return Err(if key == "columns" { NO_COLS } else { NO_VAR }.into()),
+                },
+            }
+        }
+        _ => Src::Direct,
+    };
+    if local {
+        if let Some((clo, call)) = local_target(&f, site) {
+            let (st, _) = site.unwrap();
+            let snode = tree(st);
+            let sroot = LinkedNode::new(&snode);
+            let cf = find_node(&sroot, &call, SyntaxKind::FuncCall).ok_or(NO_ELEM)?;
+            // 매개변수 이름과, 이 곳에 지금 적용되는 값
+            let (pname, dflt): (String, Option<String>) = match &src {
+                Src::Param(p, d) => (p.clone(), Some(def[d.clone()].to_string())),
+                Src::Var(d) => (key.to_string(), Some(def[d.clone()].to_string())),
+                Src::Direct => (key.to_string(), val.as_ref().map(|v| def[v.range()].to_string())),
+            };
+            let fresh = !matches!(src, Src::Param(..));
+            if !(fresh && has_param(&clo, &pname)) {
+                let cur = named_arg(&cf, &pname);
+                let old = cur.as_ref().map(|v| st[v.range()].to_string()).or(dflt);
+                let new = recompute(&name, key, old.as_deref(), col, dx, width, cols)?;
+                let site_edit = match cur {
+                    Some(v) => (v.range(), new),
+                    None => arg_append(st, &cf, &pname, &new).ok_or(NO_ELEM)?,
+                };
+                let mut de: Vec<Edit> = vec![];
+                if fresh {
+                    // 함수에 매개변수를 만든다: 기본값은 지금 적힌 값 그대로
+                    let params = clo.children().find(|c| c.kind() == SyntaxKind::Params).ok_or(NO_ELEM)?;
+                    let rp = params.children().last().filter(|c| c.kind() == SyntaxKind::RightParen).ok_or(NO_ELEM)?;
+                    let head = def[params.range().start..rp.range().start].trim_end();
+                    let sep = if head.ends_with('(') || head.ends_with(',') { if head.ends_with(',') { " " } else { "" } } else { ", " };
+                    let at = params.range().start + head.len();
+                    let dv = val.as_ref().map(|v| def[v.range()].to_string()).unwrap_or_else(|| "auto".into());
+                    de.push((at..at, format!("{sep}{pname}: {dv}")));
+                    match &val {
+                        Some(v) => de.push((v.range(), pname.clone())),
+                        None => de.push(arg_insert(&f, key, &pname).ok_or(NO_ELEM)?),
+                    }
+                }
+                return Ok(BoxEdit { def: de, site: vec![site_edit], local: true });
+            }
+        }
+    }
+    // 모두 바꾸기: 값이 적힌 곳을 고친다
+    let de = match src {
+        Src::Direct => diff_edit(def, &elem_resize(def, r, col, dx, width, cols)?),
+        Src::Param(_, d) | Src::Var(d) => vec![(d.clone(), recompute(&name, key, Some(&def[d]), col, dx, width, cols)?)],
+    };
+    Ok(BoxEdit { def: de, site: vec![], local: false })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2119,6 +2354,69 @@ mod tests {
     // 상자·표의 너비
     fn call(t: &str, name: &str) -> Range<usize> { let s = t.find(name).unwrap(); let node = tree(t); let root = LinkedNode::new(&node); let mut n = root.leaf_at(s + 1, Side::Before).unwrap(); while n.kind() != SyntaxKind::FuncCall { n = n.parent().unwrap().clone(); } n.range() }
     const MM: f32 = 2.834_645_7;
+    /// 한 파일 안에서: 상자 `call`을 끌고(부른 자리는 `site` 글자가 있는 곳), 고친 본문을 돌려준다.
+    fn bx(t: &str, name: &str, site: &str, local: bool, col: Option<usize>, dx: f32, width: f32, cols: &[f32]) -> (String, bool) {
+        let e = box_resize(t, &call(t, name), Some((t, t.find(site).unwrap())), local, col, dx, Some(width), cols).unwrap();
+        let all: Vec<Edit> = e.def.iter().chain(e.site.iter()).cloned().collect();
+        let out = apply_edits(t, &all);
+        assert!(!bad(&tree(&out)), "{out}");
+        (out, e.local)
+    }
+    const KEY: &str = "#let key(body) = block(width: 100%, fill: gray, body)\n#key[가]\n#key[나]";
+    #[test] fn bx_local_new() {
+        let (t, local) = bx(KEY, "block", "나", true, None, -50.0, 200.0, &[]);
+        assert_eq!(t, "#let key(body, width: 100%) = block(width: width, fill: gray, body)\n#key[가]\n#key(width: 75%)[나]"); assert!(local);
+        // 한 번 더: 이미 매개변수가 있다
+        let (t2, _) = bx(&t, "block", "나", true, None, -50.0, 150.0, &[]);
+        assert_eq!(t2, "#let key(body, width: 100%) = block(width: width, fill: gray, body)\n#key[가]\n#key(width: 50%)[나]");
+        // 다른 곳
+        let (t3, _) = bx(&t2, "block", "가", true, None, -100.0, 200.0, &[]);
+        assert_eq!(t3, "#let key(body, width: 100%) = block(width: width, fill: gray, body)\n#key(width: 50%)[가]\n#key(width: 50%)[나]");
+        // 모두(Shift): 기본값을 고친다
+        let (t4, local) = bx(&t3, "block", "가", false, None, -100.0, 200.0, &[]);
+        assert_eq!(t4, "#let key(body, width: 50%) = block(width: width, fill: gray, body)\n#key(width: 50%)[가]\n#key(width: 50%)[나]"); assert!(!local);
+    }
+    #[test] fn bx_local_all() { let (t, local) = bx(KEY, "block", "나", false, None, -50.0, 200.0, &[]); assert_eq!(t, KEY.replace("100%", "75%")); assert!(!local); }
+    #[test] fn bx_local_auto() {
+        let t = "#let card(body) = box(stroke: 1pt, body)\n#card[가] #card[나]";
+        let (o, _) = bx(t, "box", "나", true, None, 10.0 * MM, 20.0 * MM, &[]);
+        assert_eq!(o, "#let card(body, width: auto) = box(width: width, stroke: 1pt, body)\n#card[가] #card(width: 30mm)[나]");
+    }
+    #[test] fn bx_local_args() {
+        let t = "#let qr(path, len: none) = stack(image(path, width: 17mm), [가])\n#qr(\"a.svg\", len: 3)";
+        let (o, _) = bx(t, "image", "a.svg", true, None, 3.0 * MM, 17.0 * MM, &[]);
+        assert_eq!(o, "#let qr(path, len: none, width: 17mm) = stack(image(path, width: width), [가])\n#qr(\"a.svg\", len: 3, width: 20mm)");
+    }
+    #[test] fn bx_local_cols() {
+        let t = "#let check(t) = grid(columns: (12pt, 1fr), box(), t)\n#check[가]\n#check[나]";
+        let (o, _) = bx(t, "grid", "나", true, Some(0), 6.0, 300.0, &[12.0, 288.0]);
+        assert_eq!(o, "#let check(t, columns: (12pt, 1fr)) = grid(columns: columns, box(), t)\n#check[가]\n#check(columns: (18pt, 1fr))[나]");
+    }
+    #[test] fn bx_param() {
+        // 값이 매개변수: 이 곳만이면 부른 자리에, 모두면 기본값에
+        let t = "#let card(path, size: 18mm) = image(path, width: size)\n#card(\"a.svg\")\n#card(\"b.svg\", size: 20mm)";
+        assert_eq!(bx(t, "image", "a.svg", true, None, 2.0 * MM, 18.0 * MM, &[]).0, t.replace("#card(\"a.svg\")", "#card(\"a.svg\", size: 20mm)"));
+        assert_eq!(bx(t, "image", "b.svg", true, None, 2.0 * MM, 20.0 * MM, &[]).0, t.replace("size: 20mm", "size: 22mm"));
+        assert_eq!(bx(t, "image", "a.svg", false, None, 2.0 * MM, 18.0 * MM, &[]).0, t.replace("size: 18mm", "size: 20mm"));
+    }
+    #[test] fn bx_var() {
+        // 값이 변수: 그 변수를 정한 곳을 고친다
+        let t = "#let w = 60mm\n#block(width: w)[가]\n#block(width: w)[나]";
+        assert_eq!(bx(t, "block", "가", true, None, 10.0 * MM, 60.0 * MM, &[]).0, t.replace("60mm", "70mm"));
+        let t = "#let cols = (20mm, 1fr)\n#grid(columns: cols, [가], [나])";
+        assert_eq!(bx(t, "grid", "가", true, Some(0), 5.0 * MM, 100.0 * MM, &[20.0 * MM, 80.0 * MM]).0, t.replace("20mm", "25mm"));
+    }
+    #[test] fn bx_plain() {
+        // 템플릿이 아니면 전과 같다
+        let t = "#block(width: 60mm)[가]"; let (o, local) = bx(t, "block", "가", true, None, 10.0 * MM, 60.0 * MM, &[]); assert_eq!(o, "#block(width: 70mm)[가]"); assert!(!local);
+        // 이름 없는 함수(map) 안의 상자는 모두 함께
+        let t = "#grid(..([가], [나]).map(a => block(width: 100%, a)))"; assert_eq!(bx(t, "block", "가", true, None, -50.0, 100.0, &[]).0, t.replace("100%", "50%"));
+    }
+    #[test] fn bx_map_pos() {
+        let e: Vec<Edit> = vec![(5..5, "ab".into()), (10..12, "x".into())];
+        assert_eq!([map_pos(&e, 3), map_pos(&e, 5), map_pos(&e, 6), map_pos(&e, 11), map_pos(&e, 12), map_pos(&e, 20)], [3, 5, 8, 12, 13, 21]);
+        assert_eq!(apply_edits("0123456789ABCDEF", &e), "01234ab56789xCDEF");
+    }
     #[test] fn rs_width_mm() { let t = "#block(width: 60mm, inset: 2mm)[가]"; assert_eq!(elem_resize(t, &call(t, "block"), None, 10.0 * MM, Some(60.0 * MM), &[]).unwrap(), "#block(width: 70mm, inset: 2mm)[가]"); }
     #[test] fn rs_width_pct() { let t = "#block(width: 80%)[가]"; assert_eq!(elem_resize(t, &call(t, "block"), None, -50.0, Some(200.0), &[]).unwrap(), "#block(width: 60%)[가]"); }
     #[test] fn rs_width_new() {

@@ -82,6 +82,8 @@ struct BoxSel {
     bounds: Vec<f32>,
     /// 같은 원고 자리에서 나온 상자의 수(템플릿 요소면 여러 곳)
     copies: usize,
+    /// 이 곳만 따로 바꿀 수 있는지(템플릿 함수를 부른 자리를 안다)
+    local: bool,
 }
 
 struct BoxWalk<'a> {
@@ -128,9 +130,13 @@ impl BoxWalk<'_> {
                     if let Some(i) = me {
                         if self.out[i].shape.is_none() {
                             let bb = shape.geometry.bbox(None);
-                            let sw = (bb.max.x - bb.min.x).to_pt() as f32;
-                            let fw = frame.width().to_pt() as f32;
-                            if (pos.x + bb.min.x).to_pt().abs() < 1.5 && (sw - fw).abs() < 2.0 {
+                            let (x0, x1) = ((pos.x + bb.min.x).to_pt() as f32, (pos.x + bb.max.x).to_pt() as f32);
+                            let (y0, y1) = ((pos.y + bb.min.y).to_pt() as f32, (pos.y + bb.max.y).to_pt() as f32);
+                            let (fw, fh) = (frame.width().to_pt() as f32, frame.height().to_pt() as f32);
+                            // 한쪽 변에만 그은 테두리(`stroke: (left: ..)`)는 그 변을 따라 선 선이다
+                            let side = y0.abs() < 1.5 && (y1 - fh).abs() < 2.0
+                                && ((x0.abs() < 1.5 && x1.abs() < 1.5) || ((x0 - fw).abs() < 1.5 && (x1 - fw).abs() < 1.5));
+                            if (x0.abs() < 1.5 && (x1 - x0 - fw).abs() < 2.0) || side {
                                 self.out[i].shape = self.src(*span);
                             }
                         }
@@ -181,6 +187,9 @@ struct Step {
     time: Instant,
 }
 
+/// 바로 앞 걸음과 한 묶음인 걸음(두 파일을 함께 고친 경우): 되돌릴 때 함께 되돌린다.
+const LINKED: u8 = 9;
+
 /// 찾기에서 줄이 바뀌는 자리(공백 없이 줄만 넘어간 곳)를 나타내는 표식.
 const SOFT: char = '\u{1}';
 
@@ -210,6 +219,8 @@ pub struct Session {
     timing: String,
     ix_src: Vec<(FileId, String)>,
     under_fn: String,
+    /// 커서(또는 상자가 없는 고른 요소)를 품은 가장 가까운 상자·표: 요소를 고르지 않아도 손잡이를 보여 준다
+    cbox: Option<ElemSel>,
 }
 
 fn editable(g: &G) -> bool { (g.kind == K_TEXT || g.kind == K_ATOM || g.kind == K_STR) && g.e > g.s }
@@ -269,7 +280,7 @@ impl Session {
                     let mut s = Session {
                         world, doc, ix, hashes: vec![], main_path: main.clone(), title,
                         caret: None, anchor: None, lock: None, elem: None, undo: vec![], redo: vec![], comp: None,
-                        goal_x: None, msg: None, warnings, rev: 0, last_ms: 0, timing: String::new(), ix_src: vec![], under_fn: String::new(),
+                        goal_x: None, msg: None, warnings, rev: 0, last_ms: 0, timing: String::new(), ix_src: vec![], under_fn: String::new(), cbox: None,
                     };
                     s.hashes = Self::hash_pages(&s.doc);
                     s.under_fn = s.world.underline_fn();
@@ -969,7 +980,44 @@ impl Session {
             copies += v.as_ref().unwrap_or(&boxes).iter().filter(|x| src_of(x).is_some_and(|s| s.0 == file && s.1 == range)).count();
             if copies > 999 { break; }
         }
-        Some(BoxSel { file, range, name, grid, page: bx.page, x: bx.x, y: bx.y, w: bx.w, h: bx.h, cols, bounds, copies: copies.max(1) })
+        let local = {
+            let site = if el.file == file { Some(text.clone()) } else { self.world.text_of(el.file) };
+            site.is_some_and(|st| edit::box_can_local(&text, &range, Some((&st, el.range.start))))
+        };
+        Some(BoxSel { file, range, name, grid, page: bx.page, x: bx.x, y: bx.y, w: bx.w, h: bx.h, cols, bounds, copies: copies.max(1), local })
+    }
+
+    /// 원고 자리 `pos`를 품은 가장 가까운 상자·표: 요소 사슬을 안쪽부터 훑어 처음으로 상자가 잡히는 것.
+    fn box_around(&self, file: FileId, pos: usize, at: (u32, f32, f32)) -> Option<ElemSel> {
+        let text = self.world.text_of(file)?;
+        for e in edit::elem_chain(&text, pos).into_iter().take(12) {
+            let el = ElemSel { file, range: e.range, name: e.name, at, bx: None };
+            if let Some(bx) = self.find_box(&el, None) { return Some(ElemSel { bx: Some(bx), ..el }); }
+        }
+        None
+    }
+
+    /// 손잡이를 보여 줄 상자를 다시 찾는다: 고른 요소에 제 상자가 있으면 그것으로 충분하고,
+    /// 없으면 고른 요소나 커서를 품은 바깥 상자를 찾아 둔다.
+    fn refresh_cbox(&mut self) {
+        self.cbox = None;
+        if let Some(el) = &self.elem {
+            if el.bx.is_none() { self.cbox = self.box_around(el.file, el.range.start, el.at); }
+        } else if let Some(c) = self.caret {
+            if self.sel_range().is_none() {
+                self.cbox = self.box_around(c.pos.file, c.pos.off, (c.page, c.x, c.y - c.size * 0.3));
+            }
+        }
+    }
+
+    fn box_json(&self, b: &BoxSel, own: bool) -> Value {
+        json!({
+            "page": b.page, "x": b.x, "y": b.y, "w": b.w, "h": b.h,
+            "bounds": b.bounds, "cols": b.cols, "grid": b.grid, "name": b.name, "copies": b.copies,
+            "file": b.file.vpath().get_without_slash(),
+            "line": self.world.source_of(b.file).and_then(|s| s.lines().byte_to_line(b.range.start)).unwrap_or(0) + 1,
+            "own": own, "local": b.local,
+        })
     }
 
     fn refresh_box(&mut self, near: Option<(FileId, std::ops::Range<usize>, f32, f32)>) {
@@ -979,33 +1027,60 @@ impl Session {
     }
 
     /// 상자의 오른쪽 가장자리(`col` 없음)나 칸 사이 경계(`col`번째 칸 뒤)를 `dx`pt 만큼 끈다.
-    fn elem_resize(&mut self, col: Option<usize>, dx: f32) {
-        let Some(mut el) = self.elem.take() else { return };
-        let Some(bx) = el.bx.take() else {
+    /// 고른 요소에 제 상자가 없으면(또는 고른 요소 없이 커서만 있으면) 둘러싼 상자를 고친다.
+    /// 템플릿 함수가 그린 상자는 이 곳만 바꾸고, `all`이면 그 템플릿이 쓰인 모든 곳을 바꾼다.
+    fn elem_resize(&mut self, col: Option<usize>, dx: f32, all: bool) {
+        let around = !self.elem.as_ref().is_some_and(|e| e.bx.is_some());
+        let Some(mut el) = (if around { self.cbox.take() } else { self.elem.take() }) else {
             self.msg = Some(("이 요소는 지면에서 너비를 바꿀 수 없습니다.".into(), "warn"));
-            self.elem = Some(el);
             return;
         };
-        let Some(before) = self.world.text_of(bx.file) else { self.elem = Some(ElemSel { bx: Some(bx), ..el }); return };
-        match edit::elem_resize(&before, &bx.range, col, dx, Some(bx.w), &bx.cols) {
-            Ok(t) => {
-                if self.apply_file(bx.file, t.clone()) {
-                    // 고친 자리 뒤의 원고 자리는 그만큼 밀린다
-                    let (ob, nb) = (before.as_bytes(), t.as_bytes());
-                    let mut pre = 0;
-                    while pre < ob.len() && pre < nb.len() && ob[pre] == nb[pre] { pre += 1; }
-                    let mut suf = 0;
-                    while suf < ob.len() - pre && suf < nb.len() - pre && ob[ob.len() - 1 - suf] == nb[nb.len() - 1 - suf] { suf += 1; }
-                    let map = |p: usize| if p <= pre { p } else if p >= ob.len() - suf { p + nb.len() - ob.len() } else { pre };
-                    let range = map(bx.range.start)..map(bx.range.end);
-                    if el.file == bx.file { el.range = map(el.range.start)..map(el.range.end); }
-                    self.elem = Some(el);
-                    self.refresh_box(Some((bx.file, range, bx.x, bx.y)));
-                    if self.elem.as_ref().is_some_and(|e| e.bx.is_none()) { self.refresh_box(None); }
-                } else { self.elem = Some(ElemSel { bx: Some(bx), ..el }); }
+        let mut done = false;
+        if let Some(bx) = el.bx.take() {
+            let before = self.world.text_of(bx.file).unwrap_or_default();
+            let same = el.file == bx.file;
+            let site_text = if same { before.clone() } else { self.world.text_of(el.file).unwrap_or_default() };
+            match edit::box_resize(&before, &bx.range, Some((&site_text, el.range.start)), !all && bx.copies > 1, col, dx, Some(bx.w), &bx.cols) {
+                Ok(be) => {
+                    // 상자가 적힌 파일과 부른 자리의 파일이 같으면 한 번에 고친다
+                    let (de, se): (Vec<edit::Edit>, Vec<edit::Edit>) = if same { (be.def.iter().chain(be.site.iter()).cloned().collect(), vec![]) } else { (be.def.clone(), be.site.clone()) };
+                    let ok = match (de.is_empty(), se.is_empty()) {
+                        (false, true) => self.apply_file(bx.file, edit::apply_edits(&before, &de)),
+                        (true, false) => self.apply_file(el.file, edit::apply_edits(&site_text, &se)),
+                        (false, false) => self.apply_two(bx.file, edit::apply_edits(&before, &de), el.file, edit::apply_edits(&site_text, &se)),
+                        (true, true) => false,
+                    };
+                    if ok {
+                        let range = edit::map_pos(&de, bx.range.start)..edit::map_pos(&de, bx.range.end);
+                        let ee = if same { &de } else { &se };
+                        el.range = edit::map_pos(ee, el.range.start)..edit::map_pos(ee, el.range.end);
+                        // 커서의 원고 자리도 고친 만큼 민다
+                        let shift = |p: Pos| -> Pos {
+                            if p.file == bx.file { Pos { file: p.file, off: edit::map_pos(&de, p.off) } }
+                            else if p.file == el.file { Pos { file: p.file, off: edit::map_pos(&se, p.off) } } else { p }
+                        };
+                        if let Some(c) = self.caret {
+                            let hint = self.hint();
+                            self.caret = Some(self.locate(shift(c.pos), c.aff_end, hint));
+                        }
+                        if let Some(a) = self.anchor { self.anchor = Some(shift(a)); }
+                        el.bx = self.find_box(&el, Some((bx.file, range, bx.x, bx.y))).or_else(|| self.find_box(&el, None));
+                        if bx.copies > 1 {
+                            let n = bx.copies;
+                            self.msg = Some(if be.local {
+                                (crate::lang::f("이 상자만 바꿨습니다. 같은 템플릿의 {0}곳을 모두 바꾸려면 Shift를 누른 채 끄세요.", &[&n]), "info")
+                            } else {
+                                (crate::lang::f("같은 템플릿의 상자 {0}곳을 함께 바꿨습니다. 되돌리려면 Ctrl+Z를 누르세요.", &[&n]), "info")
+                            });
+                        }
+                        done = true;
+                    } else { el.bx = Some(bx); }
+                }
+                Err(e) => { self.msg = Some((e, "warn")); el.bx = Some(bx); }
             }
-            Err(e) => { self.msg = Some((e, "warn")); self.elem = Some(ElemSel { bx: Some(bx), ..el }); }
         }
+        if around { self.cbox = Some(el); } else { self.elem = Some(el); }
+        if done && around && self.cbox.as_ref().is_some_and(|e| e.bx.is_none()) { self.refresh_cbox(); }
     }
 
     fn hit_any(&self, page: usize, x: f32, y: f32) -> Option<(usize, bool)> {
@@ -1042,6 +1117,22 @@ impl Session {
         let w = Work::new(new_text, 0, 0);
         if !self.commit(file, &before, &w) { return false; }
         self.push_undo(Step { file, before, after: w.text, caret_before: None, caret_after: None, kind: 0, time: Instant::now() });
+        true
+    }
+
+    /// 두 파일을 함께 고친다(템플릿 파일과 본문 파일). 되돌리기는 한 번에 둘 다 되돌린다.
+    fn apply_two(&mut self, f1: FileId, t1: String, f2: FileId, t2: String) -> bool {
+        let (Some(b1), Some(b2)) = (self.world.text_of(f1), self.world.text_of(f2)) else { return false };
+        self.set_text(f1, &t1);
+        self.set_text(f2, &t2);
+        if let Err(e) = self.compile() {
+            self.set_text(f1, &b1);
+            self.set_text(f2, &b2);
+            self.msg = Some((format!("이 수정은 조판 오류가 나서 적용하지 않았습니다. ({e})"), "error"));
+            return false;
+        }
+        self.push_undo(Step { file: f1, before: b1, after: t1, caret_before: None, caret_after: None, kind: 0, time: Instant::now() });
+        self.undo.push(Step { file: f2, before: b2, after: t2, caret_before: None, caret_after: None, kind: LINKED, time: Instant::now() });
         true
     }
 
@@ -1105,13 +1196,7 @@ impl Session {
             "name": el.name,
             "file": el.file.vpath().get_without_slash(),
             "line": line,
-            "box": el.bx.as_ref().map(|b| json!({
-                "page": b.page, "x": b.x, "y": b.y, "w": b.w, "h": b.h,
-                "bounds": b.bounds, "cols": b.cols, "grid": b.grid, "name": b.name, "copies": b.copies,
-                "file": b.file.vpath().get_without_slash(),
-                "line": self.world.source_of(b.file).and_then(|s| s.lines().byte_to_line(b.range.start)).unwrap_or(0) + 1,
-                "own": b.file == el.file && b.range == el.range,
-            })),
+            "box": el.bx.as_ref().map(|b| self.box_json(b, b.file == el.file && b.range == el.range)),
         })
     }
 
@@ -1469,15 +1554,26 @@ impl Session {
     }
 
     fn undo_redo(&mut self, undo: bool) {
-        let st = if undo { self.undo.pop() } else { self.redo.pop() };
-        let Some(st) = st else { return };
-        let (text, pos) = if undo { (&st.before, st.caret_before) } else { (&st.after, st.caret_after) };
-        self.set_text(st.file, text);
+        let mut pos = None;
+        let mut any = false;
+        loop {
+            let st = if undo { self.undo.pop() } else { self.redo.pop() };
+            let Some(st) = st else { break };
+            any = true;
+            let (text, p) = if undo { (&st.before, st.caret_before) } else { (&st.after, st.caret_after) };
+            self.set_text(st.file, text);
+            pos = p;
+            let kind = st.kind;
+            if undo { self.redo.push(st); } else { self.undo.push(st); }
+            // 두 파일을 함께 고친 걸음은 함께 되돌린다
+            let more = if undo { kind == LINKED } else { self.redo.last().is_some_and(|n| n.kind == LINKED) };
+            if !more { break; }
+        }
+        if !any { return; }
         if let Err(e) = self.compile() { self.msg = Some((format!("되돌리는 중 조판 오류: {e}"), "error")); }
         let hint = self.hint();
         self.caret = pos.map(|p| self.locate(p, true, hint));
         self.anchor = None;
-        if undo { self.redo.push(st); } else { self.undo.push(st); }
     }
 
     pub fn save(&mut self) -> bool {
@@ -1505,6 +1601,12 @@ impl Session {
         if op != "click" && op != "move" { self.lock = None; self.goal_x = None; }
         if !op.starts_with("elem") && op != "pick" && op != "save" { self.elem = None; }
         let text = req["text"].as_str().unwrap_or("");
+        if op != "elemResize" { self.cbox = None; }
+        self.act_op(op, text, req);
+        if matches!(op, "click" | "pick" | "elemGrow" | "elemMove") { self.refresh_cbox(); }
+    }
+
+    fn act_op(&mut self, op: &str, text: &str, req: &Value) {
         match op {
             "click" => self.click(
                 req["page"].as_u64().unwrap_or(0) as usize,
@@ -1557,7 +1659,7 @@ impl Session {
             "elemGrow" => self.elem_grow(),
             "elemDelete" => self.elem_delete(),
             "elemMove" => self.elem_move(req["dx"].as_f64().unwrap_or(0.0) as f32, req["dy"].as_f64().unwrap_or(0.0) as f32),
-            "elemResize" => self.elem_resize(req["col"].as_u64().map(|c| c as usize), req["dx"].as_f64().unwrap_or(0.0) as f32),
+            "elemResize" => self.elem_resize(req["col"].as_u64().map(|c| c as usize), req["dx"].as_f64().unwrap_or(0.0) as f32, req["all"].as_bool().unwrap_or(false)),
             "elemClear" => { self.elem = None; }
             _ => {}
         }
@@ -1663,6 +1765,7 @@ impl Session {
             "timing": self.timing,
             "problems": [],
             "elem": self.elem_view(),
+            "box": self.cbox.as_ref().and_then(|e| e.bx.as_ref()).map(|b| self.box_json(b, false)),
         })
     }
 
