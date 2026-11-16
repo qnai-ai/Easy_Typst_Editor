@@ -984,6 +984,51 @@ impl Session {
         }
     }
 
+    // ───────────── 표의 줄·칸
+
+    /// 표·격자 `call`의 (col, row) 칸이 지면에 놓인 자리: (쪽, x, y, 너비, 높이). 커서가 있는 쪽 둘레에서 찾는다.
+    fn cell_rect(&self, file: FileId, call: &std::ops::Range<usize>, col: usize, row: usize, near: usize) -> Option<(u32, f32, f32, f32, f32)> {
+        let n = self.doc.pages().len();
+        for p in [Some(near), near.checked_add(1), near.checked_sub(1)].into_iter().flatten().filter(|p| *p < n) {
+            for b in self.page_boxes(p) {
+                if b.grid.as_ref().is_some_and(|g| g.0 == file && g.1 == *call) {
+                    let (cw, rh) = (b.col_widths(), b.row_heights());
+                    if col < cw.len() && row < rh.len() { return Some((b.page, b.lefts[col], b.tops[row], cw[col], rh[row])); }
+                }
+            }
+        }
+        None
+    }
+
+    /// 커서가 표의 빈 칸에 있으면(글자가 없어 자리를 알 수 없다) 그 칸의 자리: (쪽, x, 기준선 y).
+    fn empty_cell_spot(&self, c: &Caret) -> Option<(u32, f32, f32)> {
+        // 커서가 제 글자 곁에 있으면 빈 칸이 아니다
+        if let Some(g) = c.gi.map(|gi| self.glyph(gi)) {
+            if g.file == Some(c.pos.file) && (g.s as usize..=g.e as usize).contains(&c.pos.off) { return None; }
+        }
+        let text = self.world.text_of(c.pos.file)?;
+        let at = edit::table_where(&text, c.pos.off).filter(|t| t.empty)?;
+        let (page, x, y, w, h) = self.cell_rect(c.pos.file, &at.call, at.col, at.row, c.page as usize)?;
+        Some((page, x + (w / 2.0).min(5.0), y + h / 2.0 + c.size * 0.35))
+    }
+
+    /// 표의 빈 칸을 눌렀으면 그 칸에 커서를 놓는다(빈 칸에는 누를 글자가 없다).
+    fn empty_cell_click(&mut self, page: usize, x: f32, y: f32) -> bool {
+        let boxes = self.page_boxes(page);
+        let Some(b) = boxes.iter().filter(|b| b.grid.is_some() && b.has(x, y)).max_by_key(|b| b.depth) else { return false };
+        let (cw, rh) = (b.col_widths(), b.row_heights());
+        let (Some(col), Some(row)) = ((0..cw.len()).rev().find(|&i| x >= b.lefts[i]), (0..rh.len()).rev().find(|&i| y >= b.tops[i])) else { return false };
+        let (x0, x1, y0, y1) = (b.lefts[col], b.lefts[col] + cw[col], b.tops[row], b.tops[row] + rh[row]);
+        // 그 칸에 글자가 있으면 보통의 누르기다
+        let n = self.ix.glyphs.len();
+        if self.ix.glyphs[b.g0.min(n)..b.g1.min(n)].iter().any(|g| { let gx = (g.x0 + g.x1) / 2.0; gx >= x0 && gx <= x1 && g.y >= y0 && g.y - g.size * 0.5 <= y1 }) { return false; }
+        let Some((file, range)) = b.grid.clone() else { return false };
+        let Some(pos) = self.world.text_of(file).and_then(|t| edit::table_cell(&t, &range, col, row)).map(|v| v.0) else { return false };
+        self.lock = None; self.anchor = None; self.elem = None;
+        self.caret = Some(self.locate(Pos { file, off: pos }, false, Some((page as u32, x, y))));
+        true
+    }
+
     // ───────────── 그림
 
     /// 누른 자리에 놓인 그림의 원고 자리(여럿이 겹치면 가장 작은 것).
@@ -1126,7 +1171,8 @@ impl Session {
             boxes.iter().filter(|x| src_of(x).is_some_and(|s| s == want))
                 .min_by(|p, q| p.dist(px, py).partial_cmp(&q.dist(px, py)).unwrap()).map(|x| (x, want.clone()));
         // 2) 누른 자리를 품고 이 요소의 글만 담은 상자들(바깥 것부터)
-        if found.is_none() && near.is_none() {
+        let mut inferred = false;
+        if found.is_none() {
             let n = self.ix.glyphs.len();
             let mut cands: Vec<&Bx> = boxes.iter().filter(|x| x.has(px, py)).filter(|x| {
                 let (mut any, mut ok) = (false, true);
@@ -1142,11 +1188,23 @@ impl Session {
                 found = cands.first().map(|x| (*x, (el.file, el.range.clone())));
             } else {
                 // 이 요소가 그려 낸 상자(템플릿 함수가 만든 상자·표): 원고 자리를 아는 가장 바깥 것
-                for x in cands {
+                for x in &cands {
                     let Some(s) = src_of(x) else { continue };
                     if self.world.text_of(s.0).is_some_and(|t| edit::resize_kind(&t, &s.1).is_some()) {
-                        found = Some((x, s));
+                        found = Some((*x, s));
                         break;
+                    }
+                }
+                // 채움도 테두리도 없어 출처가 남지 않은 상자: 이 요소가 부른 템플릿 함수의 본문이 곧 상자라면,
+                // 이 요소의 글만 담은 가장 바깥 묶음이 그 상자다
+                if found.is_none() {
+                    // 그 묶음은 이 요소가 이 쪽에 찍은 글자를 빠짐없이 담아야 한다
+                    // (틀이 따로 없는 상자는 묶음이 생기지 않아, 낱말 하나만 담은 작은 묶음이 걸릴 수 있다)
+                    let count = |r: std::ops::Range<usize>| self.ix.glyphs[r.start.min(n)..r.end.min(n)].iter().filter(|g| inside(g)).count();
+                    let total = self.ix.page_ranges.get(page).map(|&(a, b)| count(a..b)).unwrap_or(0);
+                    if let (Some(x), Some(s)) = (cands.iter().find(|x| total > 0 && count(x.g0..x.g1) == total), self.fn_body(&el.name)) {
+                        found = Some((*x, s));
+                        inferred = true;
                     }
                 }
             }
@@ -1165,6 +1223,8 @@ impl Session {
             copies += v.as_ref().unwrap_or(&boxes).iter().filter(|x| src_of(x).is_some_and(|s| s.0 == file && s.1 == range)).count();
             if copies > 999 { break; }
         }
+        // 미루어 안 상자는 지면에서 셀 수 없으므로, 그 템플릿 함수를 부른 곳의 수로 센다
+        if inferred { copies = self.world.text_of(el.file).map(|t| edit::count_calls(&t, &el.name)).unwrap_or(1); }
         let local = {
             let site = if el.file == file { Some(text.clone()) } else { self.world.text_of(el.file) };
             site.is_some_and(|st| edit::box_can_local(&text, &range, Some((&st, el.range.start))))
@@ -1203,6 +1263,13 @@ impl Session {
             "line": self.world.source_of(b.file).and_then(|s| s.lines().byte_to_line(b.range.start)).unwrap_or(0) + 1,
             "own": own, "local": b.local,
         })
+    }
+
+    /// 템플릿 함수 `name`의 본문이 곧 상자 하나라면 그 부름의 원고 자리(교재의 원고 파일들에서 찾는다).
+    fn fn_body(&self, name: &str) -> Option<(FileId, std::ops::Range<usize>)> {
+        let ids: Vec<FileId> = self.world.files.lock().unwrap().iter()
+            .filter(|(_, e)| e.as_ref().is_ok_and(|e| e.in_project && e.source.is_some())).map(|(id, _)| *id).collect();
+        ids.into_iter().find_map(|id| self.world.text_of(id).and_then(|t| edit::fn_sized_body(&t, name)).map(|r| (id, r)))
     }
 
     fn refresh_box(&mut self, near: Option<(FileId, std::ops::Range<usize>, f32, f32)>) {
@@ -1845,9 +1912,14 @@ impl Session {
                 // 그림 위를 누르면 그림을 고른다
                 if !extend && self.pick_image(page, x, y) { return; }
                 self.elem = None;
+                if !extend && self.empty_cell_click(page, x, y) { return; }
                 self.click(page, x, y, extend, req["dbl"].as_bool().unwrap_or(false), req["tpl"].as_bool().unwrap_or(false));
             }
             "imageReplace" => self.image_replace(req["path"].as_str().unwrap_or("")),
+            "tableOp" => {
+                let kind = req["kind"].as_str().unwrap_or("").to_string();
+                self.apply(0, false, |w| { let (t, p) = edit::table_op(&w.text, w.caret, &kind)?; w.text = t; w.caret = p; w.anchor = p; Ok(()) });
+            }
             "move" => self.mv(req["dir"].as_str().unwrap_or(""), req["shift"].as_bool().unwrap_or(false)),
             "insert" => {
                 let typing = !text.chars().any(|c| c.is_whitespace()) && self.sel_range().is_none();
@@ -1990,6 +2062,11 @@ impl Session {
             }
         }
         let look = self.look();
+        // 커서가 든 표의 칸(줄·칸을 넣고 지울 수 있는 표일 때)
+        let cell = self.caret.and_then(|c| {
+            let t = self.world.text_of(c.pos.file)?;
+            edit::table_where(&t, c.pos.off).map(|a| json!({ "col": a.col, "row": a.row, "cols": a.ncols, "rows": a.nrows }))
+        });
         let dirty: Vec<String> = self.world.dirty_files().iter().map(|id| id.vpath().file_name().unwrap_or("").to_string()).collect();
         let msg = self.msg.clone();
         json!({
@@ -1999,8 +2076,11 @@ impl Session {
             "pages": pages,
             "caret": self.caret.map(|c| {
                 // 빈 문단(Enter 직후)에는 글자가 없으므로, 그 문단이 놓일 자리를 어림해 그린다
-                let (x, y) = self.empty_par_spot(&c).unwrap_or((c.x, c.y));
-                json!({ "page": c.page, "x": x, "y": y - c.size * 0.88, "h": c.size * 1.2 })
+                let (page, x, y) = match self.empty_cell_spot(&c) {
+                    Some(s) => s,
+                    None => { let (x, y) = self.empty_par_spot(&c).unwrap_or((c.x, c.y)); (c.page, x, y) }
+                };
+                json!({ "page": page, "x": x, "y": y - c.size * 0.88, "h": c.size * 1.2 })
             }),
             "lock": self.lock.as_ref().map(|l| json!({ "page": l.page, "x": l.x, "y": l.y, "w": l.w, "h": l.h, "reason": l.reason })),
             "sel": sel,
@@ -2018,6 +2098,7 @@ impl Session {
             "timing": self.timing,
             "problems": [],
             "elem": self.elem_view(),
+            "cell": cell,
             "box": self.cbox.as_ref().and_then(|e| e.bx.as_ref()).map(|b| self.box_json(b, false)),
         })
     }

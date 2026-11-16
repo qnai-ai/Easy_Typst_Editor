@@ -1278,6 +1278,72 @@
   "ja": "選んだ画像ファイルを本のフォルダーにコピーできませんでした。",
   "es": "No se pudo copiar el archivo de imagen elegido a la carpeta del libro."
  },
+ "위에 줄 넣기": {
+  "en": "Insert row above",
+  "zh": "在上方插入行",
+  "ja": "上に行を挿入",
+  "es": "Insertar fila encima"
+ },
+ "아래에 줄 넣기": {
+  "en": "Insert row below",
+  "zh": "在下方插入行",
+  "ja": "下に行を挿入",
+  "es": "Insertar fila debajo"
+ },
+ "왼쪽에 칸 넣기": {
+  "en": "Insert column left",
+  "zh": "在左侧插入列",
+  "ja": "左に列を挿入",
+  "es": "Insertar columna a la izquierda"
+ },
+ "오른쪽에 칸 넣기": {
+  "en": "Insert column right",
+  "zh": "在右侧插入列",
+  "ja": "右に列を挿入",
+  "es": "Insertar columna a la derecha"
+ },
+ "줄 지우기": {
+  "en": "Delete row",
+  "zh": "删除行",
+  "ja": "行を削除",
+  "es": "Eliminar fila"
+ },
+ "칸 지우기": {
+  "en": "Delete column",
+  "zh": "删除列",
+  "ja": "列を削除",
+  "es": "Eliminar columna"
+ },
+ "표 안에서 오른쪽 누르기": {
+  "en": "Right-click in a table",
+  "zh": "在表格中右键单击",
+  "ja": "表の中で右クリック",
+  "es": "Clic derecho en una tabla"
+ },
+ "줄·칸 넣기와 지우기": {
+  "en": "Insert or delete rows and columns",
+  "zh": "插入或删除行和列",
+  "ja": "行・列の挿入と削除",
+  "es": "Insertar o eliminar filas y columnas"
+ },
+ "이 표는 원고에 칸이 하나씩 적혀 있지 않아(코드로 만든 표, 합친 칸, 머리줄 묶음) 줄·칸을 넣거나 지울 수 없습니다.": {
+  "en": "The cells of this table are not written one by one in the source (a table built by code, merged cells, or a header group), so rows and columns cannot be inserted or deleted.",
+  "zh": "此表格的单元格在源文件中不是逐个写出的（由代码生成的表格、合并单元格或表头组），无法插入或删除行列。",
+  "ja": "この表のセルはソースに一つずつ書かれていない（コードで作った表、結合セル、ヘッダーグループ）ため、行・列の挿入や削除はできません。",
+  "es": "Las celdas de esta tabla no están escritas una a una en el fuente (tabla creada por código, celdas combinadas o grupo de cabecera), así que no se pueden insertar ni eliminar filas o columnas."
+ },
+ "마지막 줄은 지울 수 없습니다. 표를 통째로 지우려면 Alt+누르기로 골라 지워 주세요.": {
+  "en": "The last row cannot be deleted. To delete the whole table, pick it with Alt+click and delete it.",
+  "zh": "不能删除最后一行。要删除整个表格，请用 Alt+单击选中后删除。",
+  "ja": "最後の行は削除できません。表ごと削除するには、Alt+クリックで選んで削除してください。",
+  "es": "La última fila no se puede eliminar. Para borrar toda la tabla, elígela con Alt+clic y elimínala."
+ },
+ "마지막 칸은 지울 수 없습니다. 표를 통째로 지우려면 Alt+누르기로 골라 지워 주세요.": {
+  "en": "The last column cannot be deleted. To delete the whole table, pick it with Alt+click and delete it.",
+  "zh": "不能删除最后一列。要删除整个表格，请用 Alt+单击选中后删除。",
+  "ja": "最後の列は削除できません。表ごと削除するには、Alt+クリックで選んで削除してください。",
+  "es": "La última columna no se puede eliminar. Para borrar toda la tabla, elígela con Alt+clic y elimínala."
+ },
  "언어": {
   "en": "Language",
   "zh": "语言",

@@ -48,9 +48,18 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
 - **Multi-file projects.** Edits go to whichever included file the text came from (`content/ch01.typ`, …).
 - **Template text is protected.** Page numbers, outlines, headers and other computed text are locked — click them and the editor explains why.
 - **Move or delete whole blocks.** Alt+click any element (a placed label, a heading line, a template element) to drag it or delete it.
-- **Resize boxes and table columns with the mouse.** Pick a box, table or grid (Alt+click) and drag the handle on its right edge,
-  or a line between two columns. The editor rewrites `width:` or the `columns:` entry in the source and keeps the unit you wrote
-  (`60mm` stays mm, `80%` stays %). A box that comes from a template function changes everywhere it is used, and the editor says how many places.
+- **Resize boxes and tables with the mouse.** Click into a box or table and faint handles appear on its edges: drag the right edge
+  for the width, the bottom edge for the height, a line between two columns or rows for that column or row. The editor rewrites
+  `width:` / `height:` / `columns:` / `rows:` in the source and keeps the unit you wrote (`60mm` stays mm, `80%` stays %).
+  A value given as a variable is changed where the variable is set.
+- **One template box, not all of them.** Dragging a box that a template function draws changes only the one you dragged: the function
+  gets a parameter (`#let key(body, width: 100%) = block(width: width, ..)`) and the call gets the value (`#key(width: 80%)[..]`).
+  Hold Shift while dragging to change every place the template is used.
+- **Font size and colour.** Toolbar buttons and Ctrl+[ / Ctrl+]. If the selection is the whole content of a `#text(..)[..]`, its
+  argument is changed; otherwise the selection is wrapped in `#text(size: ..)[..]` / `#text(fill: ..)[..]`.
+- **Images.** Click an image to pick it, drag to resize (the aspect ratio is kept), or replace the file: the new file is copied
+  next to the old one and the path in the source is rewritten.
+- **Table rows and columns.** Right-click in a table to insert or delete a row or a column. Empty cells can be clicked and typed into.
 - **Safe by design.** Every edit is checked against the syntax tree and rolled back if it would break compilation; nothing touches the disk until you save;
   the original is backed up before each save; and it refuses to overwrite a file another program changed in the meantime.
 - **Developer view.** Optionally shows the source line you are editing.
@@ -77,13 +86,16 @@ You can also open a file directly: `EasyTypstEditor.exe "C:\path\to\main.typ"`, 
 | Home · End · Ctrl+Home · Ctrl+End | Line start · end · document start · end |
 | Ctrl+X · Ctrl+C · Ctrl+V | Cut · copy · paste (also in the right-click menu) |
 | Ctrl+B · Ctrl+I · Ctrl+U · Ctrl+Shift+X | Bold · italic · underline · strikethrough |
+| Ctrl+] · Ctrl+[ | Larger · smaller text |
 | Ctrl+L · Ctrl+E · Ctrl+R · Ctrl+J | Align left · center · right · back to the template's alignment |
 | Enter · Shift+Enter · Tab | New paragraph · line break · tab |
 | Ctrl+F · Ctrl+H · F3 · Shift+F3 | Find · replace · next · previous match |
 | Ctrl+Z · Ctrl+Y | Undo · redo (consecutive typing or deleting is one step) |
 | Ctrl+S · Ctrl+O | Save · open |
 | Alt+click | Pick a whole element (then drag, arrow keys, or Delete) |
-| Drag a handle of the picked element | Change the width of a box, or the width of a table / grid column |
+| Drag a handle (click into a box or table to see them) | Width and height of a box · width of a column · height of a row. Shift: every use of the template |
+| Click an image | Pick it: resize with the handles, or replace the file |
+| Right-click in a table | Insert or delete a row or a column |
 | Ctrl+wheel · Ctrl+Plus · Ctrl+Minus · Ctrl+0 | Zoom in/out · fit width |
 | Ctrl+G · Page Up · Page Down | Go to page · scroll a screen |
 | F1 | Show all shortcuts |
@@ -119,10 +131,12 @@ Headless mode for development: `EasyTypstEditor.exe --serve 47615 main.typ`, the
 ## Known limitations
 
 - Windows only for now (the UI is a WebView; macOS/Linux ports are welcome).
-- Font size, color and images are not editable yet; tables can only have their column widths changed.
-- Width handles appear for boxes the editor can trace back to the source: tables, grids, boxes with a fill or stroke, and boxes written directly
-  in the document. An invisible box created inside a template function cannot be traced, and widths given as a variable or an expression
-  are not rewritten (`fr` and `auto` columns are converted to mm when you drag them). Heights are not adjustable.
+- Handles appear for boxes the editor can trace back to the source: tables, grids, boxes with a fill or a border, images, and boxes
+  written directly in the document. An invisible box created inside a template function cannot be traced, and a size written as an
+  expression (`if`, a function call) is not rewritten.
+- Rows and columns can be inserted or deleted only in tables whose cells are written one by one in the source: not in tables built
+  by code (`..rows.map(..)`), and not when there are merged cells or `table.header(..)` groups.
+- The caret in an empty paragraph (right after Enter) is drawn at an estimated position.
 - Find works on the text as printed on the page. "Replace all" changes only matches whose source is plain text
   (matches inside template-generated text, or spanning markup, are skipped and counted).
 - If the same text appears several times on a page and cannot be told apart by context, it is locked (safer than editing the wrong one).

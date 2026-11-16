@@ -2348,6 +2348,33 @@ pub fn has_named(text: &str, r: &Range<usize>, key: &str) -> bool {
     find_node(&root, r, SyntaxKind::FuncCall).is_some_and(|f| named_arg(&f, key).is_some())
 }
 
+/// 템플릿 함수 `name`의 본문이 곧 상자 하나(`#let name(..) = block(..)[..]`)면 그 부름의 범위.
+/// 채움도 테두리도 없는 상자는 지면에 출처가 남지 않아, 함수의 생김새로 미루어 안다.
+pub fn fn_sized_body(text: &str, name: &str) -> Option<Range<usize>> {
+    fn go(n: &LinkedNode, name: &str) -> Option<Range<usize>> {
+        if n.kind() == SyntaxKind::Closure {
+            let ch: Vec<_> = n.children().collect();
+            if ch.first().is_some_and(|c| c.kind() == SyntaxKind::Ident && c.get().full_text() == name) {
+                let body = ch.last()?;
+                // 표·격자는 지면에 출처가 남으므로 여기서는 상자만 본다
+                return (body.kind() == SyntaxKind::FuncCall && SIZED.contains(&callee_name(body).as_str())).then(|| body.range());
+            }
+        }
+        n.children().find_map(|c| go(&c, name))
+    }
+    let node = tree(text);
+    go(&LinkedNode::new(&node), name)
+}
+
+/// 본문에서 `name`을 부른 곳의 수.
+pub fn count_calls(text: &str, name: &str) -> usize {
+    fn go(n: &LinkedNode, name: &str) -> usize {
+        (n.kind() == SyntaxKind::FuncCall && callee_name(n) == name) as usize + n.children().map(|c| go(&c, name)).sum::<usize>()
+    }
+    let node = tree(text);
+    go(&LinkedNode::new(&node), name)
+}
+
 /// 이 부름이 템플릿 함수(`#let 이름(..) = ..`) 안에 있으면 그 함수의 이름.
 pub fn closure_name(text: &str, r: &Range<usize>) -> Option<String> {
     let node = tree(text);
@@ -2406,6 +2433,263 @@ pub fn image_replace(def: &str, r: &Range<usize>, site: Option<(&str, usize)>, n
     let (at_site, range) = image_path_at(def, r, site).ok_or("이 그림의 파일 이름은 원고에 글자로 적혀 있지 않아 여기서 바꿀 수 없습니다.")?;
     let lit = format!("\"{}\"", new.replace('\\', "/").replace('"', "\\\""));
     Ok(if at_site { BoxEdit { def: vec![], site: vec![(range, lit)], local: true } } else { BoxEdit { def: vec![(range, lit)], site: vec![], local: false } })
+}
+
+// ───────────────────────── 표의 줄·칸
+
+const NO_TABLE: &str = "이 표는 원고에 칸이 하나씩 적혀 있지 않아(코드로 만든 표, 합친 칸, 머리줄 묶음) 줄·칸을 넣거나 지울 수 없습니다.";
+
+/// 칸이 원고에 하나씩 적힌 표·격자.
+struct Tbl {
+    call: Range<usize>,
+    ncols: usize,
+    /// 칸마다의 원고 범위(왼쪽 위부터 줄 차례로)
+    items: Vec<Range<usize>>,
+    /// `columns:`가 배열이면 그 항목들, 수면 그 수의 범위
+    cols_arr: Option<Vec<Range<usize>>>,
+    cols_int: Option<Range<usize>>,
+    /// `rows:`가 배열이면 그 항목들
+    rows_arr: Option<Vec<Range<usize>>>,
+    /// 여는 괄호 바로 뒤(인자를 새로 넣을 자리)
+    lp: usize,
+}
+
+/// 쉼표로 늘어놓은 배열의 항목 범위들. 펼침(`..`)이나 이름 붙은 항목이 있으면 None.
+fn list_ranges(arr: &LinkedNode) -> Option<Vec<Range<usize>>> {
+    let mut v = vec![];
+    for c in arr.children() {
+        match c.kind() {
+            SyntaxKind::LeftParen | SyntaxKind::RightParen | SyntaxKind::Comma | SyntaxKind::Space | SyntaxKind::LineComment | SyntaxKind::BlockComment => {}
+            SyntaxKind::Spread | SyntaxKind::Named | SyntaxKind::Keyed => return None,
+            _ => v.push(c.range()),
+        }
+    }
+    Some(v)
+}
+
+fn tbl(f: &LinkedNode, text: &str) -> Option<Tbl> {
+    let name = callee_name(f);
+    if name != "table" && name != "grid" { return None; }
+    let args = f.children().find(|c| c.kind() == SyntaxKind::Args)?;
+    let lp = args.children().next().filter(|c| c.kind() == SyntaxKind::LeftParen)?.range().end;
+    let mut items = vec![];
+    let mut closed = false;
+    for c in args.children() {
+        match c.kind() {
+            SyntaxKind::LeftParen | SyntaxKind::Comma | SyntaxKind::Space | SyntaxKind::LineComment | SyntaxKind::BlockComment | SyntaxKind::Named => {}
+            SyntaxKind::RightParen => closed = true,
+            SyntaxKind::Spread => return None,
+            // 합친 칸·머리줄 묶음·괘선(`table.cell(..)`, `table.header(..)`, `table.hline()` …)이 있으면 칸을 셀 수 없다
+            SyntaxKind::FieldAccess => return None,
+            SyntaxKind::FuncCall if callee_name(&c).contains('.') => return None,
+            // 괄호 뒤에 붙여 쓴 글 상자
+            _ if closed => return None,
+            _ => items.push(c.range()),
+        }
+    }
+    let (cols_arr, cols_int, ncols) = match named_arg(f, "columns") {
+        None => (None, None, 1),
+        Some(v) if v.kind() == SyntaxKind::Array => { let l = list_ranges(&v)?; let n = l.len(); (Some(l), None, n) }
+        Some(v) if v.kind() == SyntaxKind::Int => { let n: usize = text[v.range()].trim().parse().ok()?; (None, Some(v.range()), n) }
+        Some(_) => return None,
+    };
+    if ncols == 0 || items.is_empty() { return None; }
+    let rows_arr = named_arg(f, "rows").filter(|v| v.kind() == SyntaxKind::Array).and_then(|v| list_ranges(&v));
+    Some(Tbl { call: f.range(), ncols, items, cols_arr, cols_int, rows_arr, lp })
+}
+
+/// `pos`가 든 칸을 가진 가장 안쪽 표: (표, 칸 번호).
+fn table_find(root: &LinkedNode, text: &str, pos: usize) -> Option<(Tbl, usize)> {
+    for side in [Side::Before, Side::After] {
+        let Some(leaf) = root.leaf_at(pos, side) else { continue };
+        let mut n = leaf;
+        loop {
+            if n.kind() == SyntaxKind::Closure { break; }
+            if n.kind() == SyntaxKind::FuncCall {
+                if let Some(t) = tbl(&n, text) {
+                    if let Some(i) = t.items.iter().position(|r| r.start <= pos && pos <= r.end) { return Some((t, i)); }
+                }
+            }
+            match n.parent() { Some(p) => n = p.clone(), None => break }
+        }
+    }
+    None
+}
+
+fn node_at<'a>(node: &LinkedNode<'a>, start: usize, kind: SyntaxKind) -> Option<LinkedNode<'a>> {
+    if node.range().start == start && node.kind() == kind { return Some(node.clone()); }
+    for c in node.children() {
+        let r = c.range();
+        if r.start <= start && start < r.end.max(r.start + 1) { if let Some(f) = node_at(&c, start, kind) { return Some(f); } }
+    }
+    None
+}
+
+fn cell_blank(text: &str, r: &Range<usize>) -> bool {
+    let t = &text[r.clone()];
+    t.starts_with('[') && t.ends_with(']') && t[1..t.len() - 1].trim().is_empty()
+}
+/// 칸 안에서 커서를 둘 자리.
+fn cell_caret(text: &str, r: &Range<usize>) -> usize { if text[r.clone()].starts_with('[') { r.start + 1 } else { r.start } }
+
+/// 커서가 든 표의 칸.
+pub struct TableAt { pub call: Range<usize>, pub col: usize, pub row: usize, pub ncols: usize, pub nrows: usize, pub empty: bool }
+
+pub fn table_where(text: &str, pos: usize) -> Option<TableAt> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    let (t, i) = table_find(&root, text, pos)?;
+    Some(TableAt { col: i % t.ncols, row: i / t.ncols, ncols: t.ncols, nrows: t.items.len().div_ceil(t.ncols), empty: cell_blank(text, &t.items[i]), call: t.call })
+}
+
+/// 표 `call`의 (col, row) 칸: (그 칸에 커서를 둘 자리, 칸이 비었는지). 글 상자(`[..]`)로 적힌 칸만.
+pub fn table_cell(text: &str, call: &Range<usize>, col: usize, row: usize) -> Option<(usize, bool)> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    let f = find_node(&root, call, SyntaxKind::FuncCall)?;
+    let t = tbl(&f, text)?;
+    if col >= t.ncols { return None; }
+    let r = t.items.get(row * t.ncols + col)?;
+    text[r.clone()].starts_with('[').then(|| (r.start + 1, cell_blank(text, r)))
+}
+
+/// 쉼표 목록에서 항목 하나를 지울 범위: 뒤의 쉼표와 공백까지, 마지막 항목이면 앞의 쉼표부터.
+fn list_del(text: &str, r: &Range<usize>) -> Range<usize> {
+    let rest = text[r.end..].trim_start_matches([' ', '\t']);
+    if rest.starts_with(',') {
+        let mut e = text.len() - rest.len() + 1;
+        let after = &text[e..];
+        if after.trim_start_matches([' ', '\t']).starts_with(['\n', '\r']) || after.trim_start_matches([' ', '\t']).is_empty() {
+            // 줄의 마지막 항목: 앞의 공백을 지워 줄 끝에 빈칸이 남지 않게 한다
+            let s = text[..r.start].trim_end_matches([' ', '\t']).len();
+            if !text[..s].ends_with(['\n', '\r']) && !text[..s].ends_with('(') { return s..e; }
+            return r.start..e;
+        }
+        e += after.len() - after.trim_start_matches(' ').len();
+        r.start..e
+    } else {
+        let head = text[..r.start].trim_end();
+        if head.ends_with(',') { head.len() - 1..r.end } else { r.clone() }
+    }
+}
+
+/// 배열에서 `i`번째 항목을 지우는 고침. 항목이 하나만 남으면 `(값,)`으로 적어 배열로 남긴다.
+fn arr_del(text: &str, items: &[Range<usize>], i: usize) -> Edit {
+    if items.len() == 2 {
+        let keep = &text[items[1 - i].clone()];
+        let comma = text[items[1].end..].trim_start().starts_with(',');
+        return (items[0].start..items[1].end, if comma { keep.to_string() } else { format!("{keep},") });
+    }
+    (list_del(text, &items[i]), String::new())
+}
+
+/// 표의 줄·칸을 넣거나 지운다. `pos`: 커서(그 칸이 기준이다).
+/// `kind`: rowAbove · rowBelow · colLeft · colRight · rowDel · colDel. 돌려주는 것: (새 본문, 새 커서 자리).
+pub fn table_op(text: &str, pos: usize, kind: &str) -> R<(String, usize)> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    let (t, idx) = table_find(&root, text, pos).ok_or(NO_TABLE)?;
+    let (n, nc) = (t.items.len(), t.ncols);
+    let (row, col) = (idx / nc, idx % nc);
+    let nrows = n.div_ceil(nc);
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let cells = |k: usize| vec!["[]"; k].join(", ");
+    let line_start = |p: usize| text[..p].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_first = |p: usize| text[line_start(p)..p].trim().is_empty();
+    // 항목 뒤에 쉼표가 있으면 그 쉼표의 끝
+    let comma_after = |e: usize| { let rest = text[e..].trim_start_matches([' ', '\t']); rest.starts_with(',').then(|| text.len() - rest.len() + 1) };
+    let mut ed: Vec<Edit> = vec![];
+    let (mut tr, mut tc) = (row, col);
+    match kind {
+        "rowAbove" | "rowBelow" => {
+            let at = if kind == "rowAbove" { row } else { row + 1 };
+            if at < nrows {
+                let first = t.items[at * nc].start;
+                if line_first(first) { ed.push((first..first, format!("{},{eol}{}", cells(nc), &text[line_start(first)..first]))); }
+                else { ed.push((first..first, format!("{}, ", cells(nc)))); }
+            } else {
+                // 맨 끝에 덧붙인다(마지막 줄이 덜 찼으면 먼저 채운다)
+                let k = (nc - n % nc) % nc + nc;
+                let last = &t.items[n - 1];
+                let head = t.items[(nrows - 1) * nc].start;
+                let fill = (nc - n % nc) % nc;
+                let body = if fill == 0 { cells(nc) } else { cells(k) };
+                match (comma_after(last.end), line_first(head) && fill == 0) {
+                    (Some(c), true) => ed.push((c..c, format!("{eol}{}{body},", &text[line_start(head)..head]))),
+                    (None, true) => ed.push((last.end..last.end, format!(",{eol}{}{body}", &text[line_start(head)..head]))),
+                    (Some(c), false) => ed.push((c..c, format!(" {body},"))),
+                    (None, false) => ed.push((last.end..last.end, format!(", {body}"))),
+                }
+            }
+            if let Some(rs) = t.rows_arr.as_ref().filter(|rs| !rs.is_empty()) {
+                if at < rs.len() { ed.push((rs[at].start..rs[at].start, "auto, ".into())); }
+                else if rs.len() == nrows { let e = rs[rs.len() - 1].end; ed.push((e..e, ", auto".into())); }
+            }
+            tr = at;
+        }
+        "rowDel" => {
+            if nrows <= 1 { return Err("마지막 줄은 지울 수 없습니다. 표를 통째로 지우려면 Alt+누르기로 골라 지워 주세요.".into()); }
+            let (a, b) = (row * nc, (row * nc + nc).min(n));
+            let (first, last_end) = (t.items[a].start, t.items[b - 1].end);
+            match comma_after(last_end) {
+                Some(e) => {
+                    let le = text[e..].find('\n').map(|i| e + i + 1).unwrap_or(text.len());
+                    if line_first(first) && text[e..le].trim().is_empty() { ed.push((line_start(first)..le, String::new())); }
+                    else { let e2 = e + (text[e..].len() - text[e..].trim_start_matches(' ').len()); ed.push((first..e2, String::new())); }
+                }
+                None => {
+                    let head = text[..first].trim_end();
+                    ed.push((if head.ends_with(',') { head.len() - 1 } else { first }..last_end, String::new()));
+                }
+            }
+            if let Some(rs) = t.rows_arr.as_ref().filter(|rs| rs.len() > 1) {
+                if row < rs.len() { ed.push(arr_del(text, rs, row)); }
+            }
+            tr = row.saturating_sub(1);
+        }
+        "colLeft" | "colRight" => {
+            let at = if kind == "colLeft" { col } else { col + 1 };
+            for r in 0..nrows {
+                let k = r * nc + at;
+                if at < nc && k < n { let p = t.items[k].start; ed.push((p..p, "[], ".into())); }
+                else if k >= 1 && k <= n && (at == nc || k == n) { let e = t.items[k - 1].end; ed.push((e..e, ", []".into())); }
+            }
+            match (&t.cols_arr, &t.cols_int) {
+                (Some(cs), _) => {
+                    let spec = text[cs[col.min(cs.len() - 1)].clone()].to_string();
+                    if at < cs.len() { ed.push((cs[at].start..cs[at].start, format!("{spec}, "))); }
+                    else { let e = cs[cs.len() - 1].end; ed.push((e..e, format!(", {spec}"))); }
+                }
+                (None, Some(r)) => ed.push((r.clone(), (nc + 1).to_string())),
+                (None, None) => ed.push((t.lp..t.lp, "columns: 2, ".into())),
+            }
+            tc = at;
+        }
+        "colDel" => {
+            if nc <= 1 { return Err("마지막 칸은 지울 수 없습니다. 표를 통째로 지우려면 Alt+누르기로 골라 지워 주세요.".into()); }
+            for r in 0..nrows {
+                let k = r * nc + col;
+                if k < n { ed.push((list_del(text, &t.items[k]), String::new())); }
+            }
+            match (&t.cols_arr, &t.cols_int) {
+                (Some(cs), _) => ed.push(arr_del(text, cs, col)),
+                (None, Some(r)) => ed.push((r.clone(), (nc - 1).to_string())),
+                (None, None) => {}
+            }
+            tc = col.min(nc - 2);
+        }
+        _ => return Err(NO_TABLE.into()),
+    }
+    let out = apply_edits(text, &ed);
+    let node2 = tree(&out);
+    if bad(&node2) { return Err(NO_TABLE.into()); }
+    // 새 표에서 커서를 둘 칸
+    let root2 = LinkedNode::new(&node2);
+    let caret = node_at(&root2, t.call.start, SyntaxKind::FuncCall).and_then(|f| tbl(&f, &out)).and_then(|t2| {
+        let k = (tr * t2.ncols + tc).min(t2.items.len().saturating_sub(1));
+        t2.items.get(k).map(|r| cell_caret(&out, r))
+    }).unwrap_or(t.call.start);
+    Ok((out, caret))
 }
 
 #[cfg(test)]
@@ -2724,6 +3008,53 @@ mod tests {
         assert_eq!(apply_edits(t, &e.site), t.replace("qr/b.svg", "qr/c.png"));
         // 식으로 만든 경로는 바꿀 수 없다
         let t = "#image(\"fig/\" + name)"; assert!(image_replace(t, &call(t, "image"), Some((t, 2)), "x.png").is_err());
+    }
+    const TB: &str = "#table(columns: (auto, 1fr), align: center,\n  [가], [나],\n  [다], [라],\n)";
+    fn top(t: &str, at: &str, kind: &str) -> String { let (o, c) = table_op(t, t.find(at).unwrap(), kind).unwrap(); format!("{}|{}", &o[..c], &o[c..]) }
+    #[test] fn tb_rows() {
+        assert_eq!(top(TB, "다", "rowBelow"), "#table(columns: (auto, 1fr), align: center,\n  [가], [나],\n  [다], [라],\n  [|], [],\n)");
+        assert_eq!(top(TB, "가", "rowBelow"), "#table(columns: (auto, 1fr), align: center,\n  [가], [나],\n  [|], [],\n  [다], [라],\n)");
+        assert_eq!(top(TB, "나", "rowAbove"), "#table(columns: (auto, 1fr), align: center,\n  [], [|],\n  [가], [나],\n  [다], [라],\n)");
+        assert_eq!(top(TB, "라", "rowDel"), "#table(columns: (auto, 1fr), align: center,\n  [가], [|나],\n)");
+        assert_eq!(top(TB, "가", "rowDel"), "#table(columns: (auto, 1fr), align: center,\n  [|다], [라],\n)");
+        // 한 줄에 다 적은 표, 끝에 쉼표가 없는 표
+        let t = "#table(columns: 2, [가], [나], [다], [라])";
+        assert_eq!(top(t, "다", "rowBelow"), "#table(columns: 2, [가], [나], [다], [라], [|], [])");
+        assert_eq!(top(t, "가", "rowAbove"), "#table(columns: 2, [|], [], [가], [나], [다], [라])");
+        assert_eq!(top(t, "라", "rowDel"), "#table(columns: 2, [가], [|나])");
+        assert_eq!(top(t, "나", "rowDel"), "#table(columns: 2, [다], [|라])");
+        // 줄 높이가 줄마다 적힌 표
+        let t = "#table(columns: 2, rows: (8mm, auto), [가], [나], [다], [라])";
+        assert_eq!(top(t, "가", "rowBelow"), "#table(columns: 2, rows: (8mm, auto, auto), [가], [나], [|], [], [다], [라])");
+        assert_eq!(top(t, "가", "rowDel"), "#table(columns: 2, rows: (auto,), [|다], [라])");
+    }
+    #[test] fn tb_cols() {
+        assert_eq!(top(TB, "가", "colRight"), "#table(columns: (auto, auto, 1fr), align: center,\n  [가], [|], [나],\n  [다], [], [라],\n)");
+        assert_eq!(top(TB, "라", "colRight"), "#table(columns: (auto, 1fr, 1fr), align: center,\n  [가], [나], [],\n  [다], [라], [|],\n)");
+        assert_eq!(top(TB, "다", "colLeft"), "#table(columns: (auto, auto, 1fr), align: center,\n  [], [가], [나],\n  [|], [다], [라],\n)");
+        assert_eq!(top(TB, "나", "colDel"), "#table(columns: (auto,), align: center,\n  [|가],\n  [다],\n)");
+        assert_eq!(top(TB, "다", "colDel"), "#table(columns: (1fr,), align: center,\n  [나],\n  [|라],\n)");
+        let t = "#grid(columns: 3, [가], [나], [다], [라], [마], [바])";
+        assert_eq!(top(t, "마", "colDel"), "#grid(columns: 2, [가], [다], [라], [|바])");
+        assert_eq!(top(t, "바", "colRight"), "#grid(columns: 4, [가], [나], [다], [], [라], [마], [바], [|])");
+    }
+    #[test] fn tb_guard() {
+        // 마지막 줄·칸, 코드로 만든 표, 합친 칸
+        assert!(table_op("#table(columns: 2, [가], [나])", 20, "rowDel").is_err());
+        assert!(table_op("#table([가], [나])", 9, "colDel").is_err());
+        let t = "#table(columns: 2, ..rows.map(r => [가]))"; assert!(table_op(t, t.find("가").unwrap(), "rowBelow").is_err());
+        let t = "#table(columns: 2, table.cell(colspan: 2)[가], [나], [다])"; assert!(table_op(t, t.find("나").unwrap(), "rowBelow").is_err());
+        // 빈 칸에 글자를 넣을 수 있다
+        let (o, c) = table_op(TB, TB.find("다").unwrap(), "rowBelow").unwrap();
+        let mut x = Work::new(o, c, c); insert(&mut x, "새").unwrap(); assert!(x.text.contains("[새], [],"));
+        let w = table_where(&x.text, x.caret).unwrap(); assert_eq!((w.col, w.row, w.ncols, w.nrows, w.empty), (0, 2, 2, 3, false));
+        assert_eq!(table_cell(&x.text, &w.call, 1, 2).map(|v| v.1), Some(true));
+    }
+    #[test] fn fn_body() {
+        let t = "#let quote(body, by) = block(width: 100%, inset: 2mm)[#body \\ #by]\n#let sec(n) = { v(1em); block(n) }\n#quote[가][나]\n#quote[다][라]";
+        assert_eq!(fn_sized_body(t, "quote").map(|r| &t[r.start..r.start + 5]), Some("block"));
+        assert!(fn_sized_body(t, "sec").is_none() && fn_sized_body(t, "none").is_none());
+        assert_eq!(count_calls(t, "quote"), 2);
     }
     #[test] fn bx_map_pos() {
         let e: Vec<Edit> = vec![(5..5, "ab".into()), (10..12, "x".into())];

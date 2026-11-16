@@ -845,6 +845,15 @@ function showMenu(x, y) {
     null,
     ['요소 고르기', 'Alt+' + T('누르기'), open, () => setPick(true)],
   ];
+  // 표 안에서: 줄·칸 넣기와 지우기
+  if (open && view.cell && view.caret) {
+    const c = view.cell, op = kind => () => act('tableOp', { kind });
+    items.push(null,
+      ['위에 줄 넣기', '', true, op('rowAbove')], ['아래에 줄 넣기', '', true, op('rowBelow')],
+      ['왼쪽에 칸 넣기', '', true, op('colLeft')], ['오른쪽에 칸 넣기', '', true, op('colRight')],
+      null,
+      ['줄 지우기', '', c.rows > 1, op('rowDel')], ['칸 지우기', '', c.cols > 1, op('colDel')]);
+  }
   m.textContent = '';
   for (const it of items) {
     if (!it) { m.append(document.createElement('hr')); continue; }
@@ -887,6 +896,7 @@ const KEYS = [
     ['Shift+<누르기>', '커서에서 누른 곳까지 선택'],
     ['Alt+<누르기>', '요소 고르기(통째로 지우기·옮기기)'],
     ['<손잡이 끌기>', '상자·표의 너비와 높이, 칸 너비와 줄 높이 바꾸기'],
+    ['<표 안에서 오른쪽 누르기>', '줄·칸 넣기와 지우기'],
   ]],
   ['찾기와 보기', [
     ['Ctrl+F / Ctrl+H', '찾기 / 바꾸기'],
