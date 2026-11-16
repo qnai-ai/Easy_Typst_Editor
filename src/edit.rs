@@ -18,15 +18,21 @@ const INLINE: &[&str] = &[
 ];
 
 #[derive(Clone, Copy, PartialEq)]
-pub enum Style { Bold, Under }
+pub enum Style { Bold, Italic, Under, Strike }
 
+#[derive(Clone)]
 pub struct Work {
     pub text: String,
     pub caret: usize,
     pub anchor: usize,
+    /// 지울 글자 없이 글 상자의 가장자리에 닿았다(커서를 지면에서 옆 글로 옮겨야 한다).
+    pub edge: bool,
+    /// 사용자에게 알릴 말(통째로 지운 요소 이름 등).
+    pub note: Option<String>,
 }
 
 impl Work {
+    pub fn new(text: String, caret: usize, anchor: usize) -> Work { Work { text, caret, anchor, edge: false, note: None } }
     pub fn sel(&self) -> Option<(usize, usize)> {
         if self.caret == self.anchor { None } else { Some((self.caret.min(self.anchor), self.caret.max(self.anchor))) }
     }
@@ -131,14 +137,19 @@ struct Wrap {
     close: Range<usize>,
     content: Range<usize>,
     kind: WK,
+    /// 글줄에 낀 것이 아니라 제 문단을 혼자 차지하는 덩어리인지
+    blocky: bool,
 }
 
 impl Wrap {
     fn is_style(&self, st: Style) -> bool {
         match (&self.kind, st) {
             (WK::Star, Style::Bold) => true,
+            (WK::Under, Style::Italic) => true,
             (WK::Func(n, false), Style::Bold) => n == "strong",
+            (WK::Func(n, false), Style::Italic) => n == "emph",
             (WK::Func(n, false), Style::Under) => n == "underline" || n == "u",
+            (WK::Func(n, false), Style::Strike) => n == "strike",
             _ => false,
         }
     }
@@ -148,6 +159,17 @@ impl Wrap {
     fn is_hang(&self, text: &str) -> bool {
         matches!(&self.kind, WK::Func(n, true) if n == "par") && text[self.open.clone()].contains("hanging-indent")
     }
+    /// `#align(center)[..]`처럼 문단 하나를 감싼 정렬이면 그 정렬 이름.
+    fn align_of<'a>(&self, text: &'a str) -> Option<&'a str> {
+        if !matches!(&self.kind, WK::Func(n, true) if n == "align") { return None; }
+        let how = text[self.open.clone()].strip_prefix("#align(")?.strip_suffix(")[")?;
+        ["left", "center", "right"].contains(&how).then_some(how)
+    }
+    /// 문단을 감싼 꾸밈(내어쓰기·정렬): 글자 흐름에서는 없는 것처럼 다룬다.
+    fn is_parwrap(&self, text: &str) -> bool { self.is_hang(text) || self.align_of(text).is_some() }
+    /// 글줄 안에서 글자와 함께 흐르는 꾸밈인지: 커서와 지우기가 표식을 그냥 넘어간다.
+    /// `#lk("a")[낱말]`처럼 템플릿이 만든 꾸밈도 글줄에 끼어 있으면 여기에 든다.
+    fn flows(&self, text: &str) -> bool { self.inline() || self.is_parwrap(text) || !self.blocky }
 }
 
 /// 노드가 글을 감싸는 꾸밈(굵게·기울임·`#이름[..]`)이면 그 구조.
@@ -162,6 +184,7 @@ fn wrap_of(node: &LinkedNode) -> Option<Wrap> {
             Some(Wrap {
                 open: f.range(), close: l.range(), content: f.range().end..l.range().start,
                 kind: if mk == SyntaxKind::Star { WK::Star } else { WK::Under },
+                blocky: false,
             })
         }
         SyntaxKind::FuncCall => {
@@ -174,11 +197,13 @@ fn wrap_of(node: &LinkedNode) -> Option<Wrap> {
             if blocks.len() != 1 || ach.last()?.kind() != SyntaxKind::ContentBlock { return None; }
             let cb = blocks[0].range();
             let hash = node.prev_sibling_with_trivia().filter(|h| h.kind() == SyntaxKind::Hash)?;
+            let name = callee.get().full_text().to_string();
             Some(Wrap {
                 open: hash.range().start..cb.start + 1,
                 close: cb.end - 1..cb.end,
                 content: cb.start + 1..cb.end - 1,
-                kind: WK::Func(callee.get().full_text().to_string(), ach.len() > 1),
+                blocky: block_like(node, &name),
+                kind: WK::Func(name, ach.len() > 1),
             })
         }
         _ => None,
@@ -209,7 +234,7 @@ fn block_at(root: &LinkedNode, text: &str, p: usize) -> Option<Range<usize>> {
     let mut m = markup_at(root, p)?;
     for w in wraps_at(root, p) {
         if w.content != m { continue; }
-        if w.inline() || w.is_hang(text) {
+        if w.flows(text) {
             m = markup_at(root, w.open.start).filter(|o| o.start <= w.open.start && w.close.end <= o.end)?;
         } else { break; }
     }
@@ -301,9 +326,9 @@ fn checked(w: &mut Work, r: Range<usize>, with: &str) -> R<()> {
     }
     go(&root, &r, &mut near);
     if near.is_empty() { return Err("이 자리는 지면에서 바로 고칠 수 없습니다.".into()); }
-    let mut w2 = Work { text: w.text.clone(), caret: r.start, anchor: r.end };
+    let mut w2 = Work::new(w.text.clone(), r.start, r.end);
     let (c0, a0) = (w.caret, w.anchor);
-    let mut extra = Work { text: String::new(), caret: c0, anchor: a0 };
+    let mut extra = Work::new(String::new(), c0, a0);
     near.sort_by_key(|x| std::cmp::Reverse(x.open.start));
     for wp in near {
         let name = if wp.kind == WK::Star { "#strong[" } else { "#emph[" };
@@ -365,8 +390,12 @@ fn insert_plain(w: &mut Work, s: &str) -> R<()> {
 
 /// 글자를 넣는다. 붙여넣기의 줄바꿈: 한 줄 바꿈은 강제 줄바꿈, 빈 줄은 새 문단.
 pub fn insert(w: &mut Work, s: &str) -> R<()> {
-    if w.sel().is_some() { delete_sel(w)?; }
     let s = s.replace("\r\n", "\n").replace('\r', "\n");
+    // 선택한 글 위에 입력하면 그 글의 꾸밈(굵게 등)을 새 글이 물려받는다
+    if w.sel().is_some() {
+        delete_sel_opt(w, false)?;
+        if s.is_empty() { cleanup_empty(w); return Ok(()); }
+    }
     if !s.contains('\n') { return insert_plain(w, &s); }
     let mut blank = 0;
     let mut first = true;
@@ -383,9 +412,16 @@ pub fn insert(w: &mut Work, s: &str) -> R<()> {
 
 // ───────────────────────── 지우기
 
-enum Tg { Del(Range<usize>, bool), Move(usize), Stop(Option<&'static str>) }
-
-const CANT: &str = "이 요소는 지면에서 지울 수 없습니다.";
+enum Tg {
+    /// 구간을 지운다(둘째 값: 구조가 그대로인지 확인할지).
+    Del(Range<usize>, bool),
+    /// 꾸밈 표식을 건너 커서만 옮긴다(지면에서는 같은 자리).
+    Move(usize),
+    /// 요소를 통째로 지운다(이름은 알림에 쓴다).
+    Kill(Range<usize>, String),
+    /// 글 상자의 가장자리: 여기서는 지울 글자가 없다. 커서를 지면에서 옆 글로 옮긴다.
+    Edge,
+}
 
 fn func_of<'a>(leaf: &LinkedNode<'a>) -> Option<LinkedNode<'a>> {
     let mut n = leaf.parent()?.clone();
@@ -402,13 +438,119 @@ fn hash_start(f: &LinkedNode) -> Option<usize> {
     f.prev_sibling_with_trivia().filter(|h| h.kind() == SyntaxKind::Hash).map(|h| h.range().start)
 }
 
+fn blank(k: SyntaxKind) -> bool {
+    matches!(k, SyntaxKind::Space | SyntaxKind::Parbreak | SyntaxKind::LineComment | SyntaxKind::BlockComment)
+}
+
+/// 요소 안에 지면에서 고칠 본문 글(대괄호 안의 글)이 있는지.
+fn has_body(f: &LinkedNode) -> bool {
+    for c in f.children() {
+        if c.kind() == SyntaxKind::Markup && c.children().any(|m| !blank(m.kind())) { return true; }
+        if has_body(&c) { return true; }
+    }
+    false
+}
+
+/// 글 상자는 있는데 속이 모두 빈 요소인지(`#ex[][]`, `#nt("문맥")[]` 따위).
+fn hollow(f: &LinkedNode) -> bool {
+    fn go(n: &LinkedNode, blocks: &mut usize) -> bool {
+        for c in n.children() {
+            if c.kind() != SyntaxKind::Markup {
+                if !go(&c, blocks) { return false; }
+                continue;
+            }
+            *blocks += 1;
+            for m in c.children() {
+                match m.kind() {
+                    k if blank(k) => {}
+                    SyntaxKind::Hash | SyntaxKind::Semicolon => {}
+                    SyntaxKind::FuncCall => {
+                        let mut b = 0;
+                        if !go(&m, &mut b) || b == 0 { return false; }
+                    }
+                    _ => return false,
+                }
+            }
+        }
+        true
+    }
+    let mut blocks = 0;
+    go(f, &mut blocks) && blocks > 0
+}
+
+/// 대괄호(`[`·`]`)가 속한 글 상자가 비었는지.
+fn empty_block(bracket: &LinkedNode) -> bool {
+    bracket.parent().is_some_and(|cb| {
+        cb.kind() == SyntaxKind::ContentBlock
+            && cb.children().filter(|c| c.kind() == SyntaxKind::Markup).all(|m| m.children().all(|x| blank(x.kind())))
+    })
+}
+
+/// `#요소`를 지울 범위: `#`부터 뒤의 `;`까지, 제 줄을 혼자 차지하면 줄째로.
+fn kill_range(text: &str, f: &LinkedNode) -> Option<Range<usize>> {
+    let h = hash_start(f)?;
+    let mut end = f.range().end;
+    if text[end..].starts_with(';') { end += 1; }
+    let ls = text[..h].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let le = text[end..].find('\n').map(|i| end + i + 1).unwrap_or(text.len());
+    if text[ls..h].trim().is_empty() && text[end..le].trim().is_empty() { return Some(ls..le); }
+    Some(h..end)
+}
+
+/// 공백·문단 나눔의 앞이나 뒤에 따로 선 덩어리(블록 요소, 설정문 등)가 붙어 있는지.
+/// 그런 자리의 공백은 지우지 않는다(덩어리가 앞뒤 문단에 달라붙지 않게).
+fn beside_solid(l: &LinkedNode, text: &str) -> bool {
+    // 같은 줄의 띄어쓰기 한 칸은 언제나 지울 수 있다(덩어리는 줄을 달리해 선다)
+    if l.kind() == SyntaxKind::Space && !l.get().full_text().contains('\n') { return false; }
+    let solid = |n: &LinkedNode| -> bool {
+        if !n.prev_sibling_with_trivia().is_some_and(|h| h.kind() == SyntaxKind::Hash) { return false; }
+        match n.kind() {
+            SyntaxKind::FuncCall => match wrap_of(n) {
+                Some(wp) => !wp.flows(text),
+                None => block_like(n, &callee_name(n)),
+            },
+            SyntaxKind::Ident | SyntaxKind::FieldAccess => false,
+            _ => true,
+        }
+    };
+    let prev = match l.prev_sibling() { Some(s) if s.kind() == SyntaxKind::Semicolon => s.prev_sibling(), o => o };
+    if prev.is_some_and(|n| solid(&n)) { return true; }
+    match l.next_sibling() {
+        Some(h) if h.kind() == SyntaxKind::Hash => h.next_sibling_with_trivia().is_some_and(|n| solid(&n)),
+        _ => false,
+    }
+}
+
+/// 잎에서 올라가 마크업의 직계 자식이 되는 노드.
+fn markup_child<'a>(leaf: &LinkedNode<'a>) -> Option<LinkedNode<'a>> {
+    let mut n = leaf.clone();
+    for _ in 0..12 {
+        if n.parent_kind() == Some(SyntaxKind::Markup) { return Some(n); }
+        n = n.parent()?.clone();
+    }
+    None
+}
+
+/// 글이 다 지워진 따옴표 문자열만 남은 요소(`#sub("")`)면 통째로 지운다.
+/// 대괄호 글이 있거나 다른 문자열 인자에 글이 남아 있으면 그대로 둔다.
+fn dead_str(root: &LinkedNode, text: &str, p: usize) -> Option<Tg> {
+    let leaf = root.leaf_at(p, Side::Before)?;
+    if leaf.kind() != SyntaxKind::Str || leaf.range().len() != 2 { return None; }
+    let f = func_of(&leaf)?;
+    fn live(n: &LinkedNode) -> bool {
+        n.children().any(|c| (c.kind() == SyntaxKind::Str && c.range().len() > 2) || live(&c))
+    }
+    if has_body(&f) || live(&f) { return None; }
+    kill_range(text, &f).map(|k| Tg::Kill(k, callee_name(&f)))
+}
+
 fn back_target(root: &LinkedNode, text: &str, p: usize) -> Tg {
     if let Some(sr) = str_at(root, p) {
-        if p <= sr.start { return Tg::Stop(None); }
+        if p <= sr.start { return dead_str(root, text, p).unwrap_or(Tg::Edge); }
         let g = text[sr.start..p].graphemes(true).next_back().map(|g| g.len()).unwrap_or(0);
         return Tg::Del(p - g..p, true);
     }
-    let Some(leaf) = root.leaf_at(p, Side::Before) else { return Tg::Stop(None) };
+    let Some(leaf) = root.leaf_at(p, Side::Before) else { return Tg::Edge };
     let r = leaf.range();
     let in_markup = leaf.parent_kind() == Some(SyntaxKind::Markup);
     match leaf.kind() {
@@ -416,11 +558,8 @@ fn back_target(root: &LinkedNode, text: &str, p: usize) -> Tg {
             let g = text[r.start..p].graphemes(true).next_back().map(|g| g.len()).unwrap_or(0);
             Tg::Del(p - g..p, true)
         }
-        SyntaxKind::Space if in_markup => {
-            if leaf.index() == 0 { Tg::Stop(None) } else { Tg::Del(r.start..p, true) }
-        }
-        SyntaxKind::Parbreak if in_markup => {
-            if leaf.index() == 0 { Tg::Stop(None) } else { Tg::Del(r.start..p, true) }
+        SyntaxKind::Space | SyntaxKind::Parbreak if in_markup => {
+            if leaf.index() == 0 || beside_solid(&leaf, text) { Tg::Edge } else { Tg::Del(r.start..p, true) }
         }
         SyntaxKind::Escape | SyntaxKind::Shorthand | SyntaxKind::SmartQuote if in_markup => Tg::Del(r, true),
         SyntaxKind::Linebreak if in_markup => {
@@ -430,40 +569,67 @@ fn back_target(root: &LinkedNode, text: &str, p: usize) -> Tg {
         SyntaxKind::Semicolon => Tg::Move(r.start),
         SyntaxKind::Star | SyntaxKind::Underscore => match leaf.parent().and_then(wrap_of) {
             Some(_) => Tg::Move(r.start),
-            None => Tg::Stop(Some(CANT)),
+            None => Tg::Edge,
         },
+        // `]` 바로 뒤: 글줄에 낀 꾸밈이면 그 안으로, 글이 없는 요소면 통째로
         SyntaxKind::RightBracket => match func_of(&leaf) {
-            Some(f) => match wrap_of(&f) {
-                Some(wp) if wp.inline() || wp.is_hang(text) => Tg::Move(r.start),
-                _ => Tg::Stop(Some(CANT)),
-            },
-            None => Tg::Stop(Some(CANT)),
+            Some(f) => {
+                if let Some(wp) = wrap_of(&f) {
+                    if wp.close == r && wp.flows(text) { return Tg::Move(r.start); }
+                }
+                if f.range().end == p && !has_body(&f) {
+                    if let Some(k) = kill_range(text, &f) { return Tg::Kill(k, callee_name(&f)); }
+                }
+                Tg::Edge
+            }
+            None => Tg::Edge,
         },
+        // 글 상자의 맨 앞
         SyntaxKind::LeftBracket => match func_of(&leaf) {
-            Some(f) => match wrap_of(&f) {
-                Some(wp) if wp.inline() => Tg::Move(wp.open.start),
-                _ => Tg::Stop(None),
-            },
-            None => Tg::Stop(None),
+            Some(f) => {
+                // 빈 글 상자에서 한 번 더 지우면, 속이 다 빈 요소는 통째로 걷어 낸다
+                if empty_block(&leaf) && hollow(&f) {
+                    if let Some(k) = kill_range(text, &f) { return Tg::Kill(k, callee_name(&f)); }
+                }
+                if let Some(wp) = wrap_of(&f) {
+                    if wp.content.start == r.end && wp.flows(text) { return Tg::Move(wp.open.start); }
+                }
+                Tg::Edge
+            }
+            None => Tg::Edge,
         },
         SyntaxKind::RightParen => match func_of(&leaf) {
-            Some(f) if callee_name(&f) == "h" && f.range().end == p => match hash_start(&f) {
-                Some(h) => Tg::Del(h..p, false),
-                None => Tg::Stop(Some(CANT)),
-            },
-            _ => Tg::Stop(Some(CANT)),
+            Some(f) if f.range().end == p && hash_start(&f).is_some() => {
+                if callee_name(&f) == "h" {
+                    let end = if text[p..].starts_with(';') { p + 1 } else { p };
+                    Tg::Del(hash_start(&f).unwrap()..end, false)
+                } else if !has_body(&f) {
+                    match kill_range(text, &f) { Some(k) => Tg::Kill(k, callee_name(&f)), None => Tg::Edge }
+                } else { Tg::Edge }
+            }
+            _ => Tg::Edge,
         },
-        _ => Tg::Stop(Some(CANT)),
+        // `#이름`처럼 글줄에 낀 낱개 요소는 통째로
+        _ => match markup_child(&leaf) {
+            Some(n) if matches!(n.kind(), SyntaxKind::Ident | SyntaxKind::FieldAccess) && n.range().end == p => match hash_start(&n) {
+                Some(h) => {
+                    let end = if text[p..].starts_with(';') { p + 1 } else { p };
+                    Tg::Kill(h..end, text[n.range()].to_string())
+                }
+                None => Tg::Edge,
+            },
+            _ => Tg::Edge,
+        },
     }
 }
 
 fn fwd_target(root: &LinkedNode, text: &str, p: usize) -> Tg {
     if let Some(sr) = str_at(root, p) {
-        if p >= sr.end { return Tg::Stop(None); }
+        if p >= sr.end { return dead_str(root, text, p).unwrap_or(Tg::Edge); }
         let g = text[p..sr.end].graphemes(true).next().map(|g| g.len()).unwrap_or(0);
         return Tg::Del(p..p + g, true);
     }
-    let Some(leaf) = root.leaf_at(p, Side::After) else { return Tg::Stop(None) };
+    let Some(leaf) = root.leaf_at(p, Side::After) else { return Tg::Edge };
     let r = leaf.range();
     let in_markup = leaf.parent_kind() == Some(SyntaxKind::Markup);
     let last = |l: &LinkedNode| l.parent().map(|p| p.children().len() == l.index() + 1).unwrap_or(false);
@@ -473,7 +639,7 @@ fn fwd_target(root: &LinkedNode, text: &str, p: usize) -> Tg {
             Tg::Del(p..p + g, true)
         }
         SyntaxKind::Space | SyntaxKind::Parbreak if in_markup => {
-            if last(&leaf) { Tg::Stop(None) } else { Tg::Del(p..r.end, true) }
+            if last(&leaf) || beside_solid(&leaf, text) { Tg::Edge } else { Tg::Del(p..r.end, true) }
         }
         SyntaxKind::Escape | SyntaxKind::Shorthand | SyntaxKind::SmartQuote if in_markup => Tg::Del(r, true),
         SyntaxKind::Linebreak if in_markup => {
@@ -483,28 +649,40 @@ fn fwd_target(root: &LinkedNode, text: &str, p: usize) -> Tg {
         SyntaxKind::Semicolon => Tg::Move(r.end),
         SyntaxKind::Star | SyntaxKind::Underscore => match leaf.parent().and_then(wrap_of) {
             Some(_) => Tg::Move(r.end),
-            None => Tg::Stop(Some(CANT)),
+            None => Tg::Edge,
         },
-        SyntaxKind::Hash => match leaf.next_sibling() {
-            Some(f) if f.kind() == SyntaxKind::FuncCall => match wrap_of(&f) {
-                Some(wp) if wp.inline() || wp.is_hang(text) => Tg::Move(wp.open.end),
-                _ if callee_name(&f) == "h" => {
-                    let mut end = f.range().end;
-                    if text[end..].starts_with(';') { end += 1; }
-                    Tg::Del(r.start..end, false)
+        SyntaxKind::Hash => match leaf.next_sibling_with_trivia() {
+            Some(f) if f.kind() == SyntaxKind::FuncCall => {
+                let mut end = f.range().end;
+                if text[end..].starts_with(';') { end += 1; }
+                match wrap_of(&f) {
+                    Some(wp) if wp.flows(text) => Tg::Move(wp.open.end),
+                    _ if callee_name(&f) == "h" => Tg::Del(r.start..end, false),
+                    _ if !has_body(&f) => match kill_range(text, &f) { Some(k) => Tg::Kill(k, callee_name(&f)), None => Tg::Edge },
+                    _ => Tg::Edge,
                 }
-                _ => Tg::Stop(Some(CANT)),
-            },
-            _ => Tg::Stop(Some(CANT)),
+            }
+            Some(n) if matches!(n.kind(), SyntaxKind::Ident | SyntaxKind::FieldAccess) => {
+                let mut end = n.range().end;
+                if text[end..].starts_with(';') { end += 1; }
+                Tg::Kill(r.start..end, text[n.range()].to_string())
+            }
+            _ => Tg::Edge,
         },
+        // 글 상자의 맨 끝
         SyntaxKind::RightBracket => match func_of(&leaf) {
-            Some(f) => match wrap_of(&f) {
-                Some(wp) if wp.inline() || wp.is_hang(text) => Tg::Move(r.end),
-                _ => Tg::Stop(None),
-            },
-            None => Tg::Stop(None),
+            Some(f) => {
+                if empty_block(&leaf) && hollow(&f) {
+                    if let Some(k) = kill_range(text, &f) { return Tg::Kill(k, callee_name(&f)); }
+                }
+                if let Some(wp) = wrap_of(&f) {
+                    if wp.close == r && wp.flows(text) { return Tg::Move(r.end); }
+                }
+                Tg::Edge
+            }
+            None => Tg::Edge,
         },
-        _ => Tg::Stop(Some(CANT)),
+        _ => Tg::Edge,
     }
 }
 
@@ -516,19 +694,50 @@ fn unchecked(w: &mut Work, r: Range<usize>, with: &str, after: bool) -> R<()> {
     Ok(())
 }
 
-/// 내용이 비어 버린 꾸밈(`**`, `#u[]`)을 걷어 낸다.
+/// 구간을 지운다. 지운 자리에서 앞뒤가 달라붙어 뜻이 바뀌면 고쳐서 지운다:
+/// `#이름` 뒤에 글자가 붙으면 `;`를 두고, 줄 머리 기호(`-`, `=` 등)가 드러나면 `\`를 붙인다.
+fn del_checked(w: &mut Work, r: Range<usize>) -> R<()> {
+    let glue = {
+        let node = tree(&w.text);
+        let root = LinkedNode::new(&node);
+        match expr_ends_at(&root, r.start) {
+            Some(k) => {
+                let c = next_char(&w.text, r.end);
+                let ident_like = matches!(k, SyntaxKind::Ident | SyntaxKind::FieldAccess)
+                    && c.is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '-');
+                Some(needs_guard(c) || ident_like)
+            }
+            None => None,
+        }
+    };
+    if glue == Some(true) { return checked(w, r, ";"); }
+    let first = match checked(w, r.clone(), "") { Ok(()) => return Ok(()), Err(e) => e };
+    if glue.is_some() && checked(w, r.clone(), ";").is_ok() { return Ok(()); }
+    if next_char(&w.text, r.end).is_some_and(|c| "-+=/.*_#$<@[]~`:".contains(c)) && checked(w, r, "\\").is_ok() {
+        // 커서는 `\` 앞에 둔다(`\`와 그 글자는 한 덩어리)
+        w.caret -= 1;
+        w.anchor = w.caret;
+        return Ok(());
+    }
+    Err(first)
+}
+
+/// 내용이 비어 버린 꾸밈(`**`, `#u[]`, 글줄에 낀 `#lk("a")[]`)을 걷어 낸다.
 fn cleanup_empty(w: &mut Work) {
     for _ in 0..6 {
         let node = tree(&w.text);
         let root = LinkedNode::new(&node);
         let p = w.caret;
         let Some(wp) = wraps_at(&root, p).into_iter().next() else { return };
-        if !wp.content.is_empty() || !(wp.inline() || wp.is_hang(&w.text)) { return; }
+        if !wp.content.is_empty() || !wp.flows(&w.text) { return; }
         let mut end = wp.close.end;
         if matches!(wp.kind, WK::Func(..)) && w.text[end..].starts_with(';') { end += 1; }
         let mut t = w.text.clone();
         t.replace_range(wp.open.start..end, "");
         if bad(&tree(&t)) { return; }
+        if let WK::Func(n, _) = &wp.kind {
+            if !wp.inline() && !wp.is_parwrap(&w.text) { w.note = Some(n.clone()); }
+        }
         w.rep(wp.open.start..end, "", false);
         w.anchor = w.caret;
     }
@@ -536,50 +745,128 @@ fn cleanup_empty(w: &mut Work) {
 
 fn del_one(w: &mut Work, fwd: bool) -> R<()> {
     let mut p = w.caret;
-    for _ in 0..10 {
+    w.edge = false;
+    for _ in 0..12 {
         let node = tree(&w.text);
         let root = LinkedNode::new(&node);
         let tg = if fwd { fwd_target(&root, &w.text, p) } else { back_target(&root, &w.text, p) };
         match tg {
-            Tg::Move(q) => { if q == p { return Ok(()); } p = q; }
-            Tg::Stop(None) => return Ok(()),
-            Tg::Stop(Some(m)) => return Err(m.into()),
+            Tg::Move(q) => { if q == p { break; } p = q; }
+            Tg::Edge => break,
+            Tg::Kill(r, name) => {
+                // 통째로 지울 수 없는 자리면 건너뛴다
+                if unchecked(w, r.clone(), "", false).is_err() { break; }
+                w.caret = r.start; w.anchor = r.start;
+                w.note = Some(name);
+                return Ok(());
+            }
             Tg::Del(r, check) => {
-                if r.is_empty() { return Ok(()); }
+                if r.is_empty() { break; }
                 w.caret = p; w.anchor = p;
-                if check { checked(w, r, "")?; } else { unchecked(w, r, "", false)?; }
+                if check { del_checked(w, r)?; } else { unchecked(w, r, "", false)?; }
                 w.anchor = w.caret;
                 cleanup_empty(w);
                 return Ok(());
             }
         }
     }
+    w.edge = true;
     Ok(())
 }
 
 pub fn backspace(w: &mut Work) -> R<()> { if w.sel().is_some() { delete_sel(w) } else { del_one(w, false) } }
 pub fn delete(w: &mut Work) -> R<()> { if w.sel().is_some() { delete_sel(w) } else { del_one(w, true) } }
 
-const CROSS: &str = "서로 다른 글 상자에 걸친 선택은 한꺼번에 고칠 수 없습니다. 한 문단(글 상자) 안에서 선택해 주세요.";
-
-fn same_block(root: &LinkedNode, text: &str, a: usize, b: usize) -> R<()> {
-    match (str_at(root, a), str_at(root, b)) {
-        (Some(x), Some(y)) if x == y => return Ok(()),
-        (None, None) => {}
-        _ => return Err(CROSS.into()),
+/// Ctrl+Backspace / Ctrl+Delete: 낱말 하나(와 그 옆 공백)를 지운다.
+pub fn del_word(w: &mut Work, fwd: bool) -> R<()> {
+    if w.sel().is_some() { return delete_sel(w); }
+    let p = w.caret;
+    let q = {
+        let node = tree(&w.text);
+        let root = LinkedNode::new(&node);
+        let text = &w.text;
+        // 한 줄 안의 낱말 사이 공백(지워도 되는 것)
+        let space = |q: usize, side: Side| -> Option<Range<usize>> {
+            let back = matches!(side, Side::Before);
+            let l = root.leaf_at(q, side)?;
+            // 글 상자의 맨 앞(뒤로 지울 때)·맨 뒤(앞으로 지울 때) 공백은 건드리지 않는다
+            let inner = if back { l.index() > 0 } else { l.parent().is_some_and(|m| m.children().len() > l.index() + 1) };
+            let ok = l.kind() == SyntaxKind::Space && l.parent_kind() == Some(SyntaxKind::Markup)
+                && !text[l.range()].contains('\n') && inner && !beside_solid(&l, text);
+            ok.then(|| l.range())
+        };
+        // 낱말이 든 글 조각(따옴표 문자열 안쪽 또는 본문 글자 잎)
+        let piece = |q: usize, side: Side| -> Option<Range<usize>> {
+            if let Some(sr) = str_at(&root, q) { return Some(sr); }
+            let l = root.leaf_at(q, side)?;
+            is_markup_text(&l).then(|| l.range())
+        };
+        let mut q = p;
+        if fwd {
+            if let Some(r) = piece(q, Side::After) {
+                let t = &text[q..r.end];
+                let lead = t.len() - t.trim_start().len();
+                q += lead + t[lead..].split_word_bounds().next().map(|s| s.len()).unwrap_or(0);
+                let rest = &text[q..r.end];
+                q += rest.len() - rest.trim_start().len();
+            }
+            if let Some(r) = space(q, Side::After) { q = r.end; }
+        } else {
+            if let Some(r) = space(q, Side::Before) { q = r.start; }
+            if let Some(r) = piece(q, Side::Before) {
+                let t = text[r.start..q].trim_end();
+                q = r.start + t.len() - t.split_word_bounds().next_back().map(|s| s.len()).unwrap_or(0);
+            }
+        }
+        q
+    };
+    if q == p { return del_one(w, fwd); }
+    let r = q.min(p)..q.max(p);
+    w.edge = false;
+    w.caret = r.start; w.anchor = r.start;
+    // 한꺼번에는 못 지우는 자리면(꾸밈 표식 옆 등) 한 글자 지우기로 물러선다
+    if del_checked(w, r).is_err() {
+        w.caret = p; w.anchor = p;
+        return del_one(w, fwd);
     }
-    match (block_at(root, text, a), block_at(root, text, b)) {
+    w.anchor = w.caret;
+    cleanup_empty(w);
+    Ok(())
+}
+
+const MIXED: &str = "제목처럼 따옴표 안에 든 글과 본문에 걸친 선택은 한꺼번에 고칠 수 없습니다. 따로따로 선택해 주세요.";
+
+/// 선택의 두 끝이 함께 고칠 수 있는 자리인지: 따옴표 문자열은 같은 문자열 안에서만.
+fn sel_ok(root: &LinkedNode, a: usize, b: usize) -> R<()> {
+    match (str_at(root, a), str_at(root, b)) {
         (Some(x), Some(y)) if x == y => Ok(()),
-        _ => Err(CROSS.into()),
+        (None, None) => Ok(()),
+        _ => Err(MIXED.into()),
     }
 }
 
-/// 선택 구간에서 지울 조각을 모은다(꾸밈 표식은 남긴다).
+/// 선택에 통째로 들어가도 지우지 않는 것: 설정·정의·불러오기(지면에 보이지 않는 원고의 뼈대).
+fn keep_whole(c: &LinkedNode) -> bool {
+    let frame = |k: SyntaxKind| matches!(k, SyntaxKind::LetBinding | SyntaxKind::SetRule | SyntaxKind::ShowRule
+        | SyntaxKind::ModuleImport | SyntaxKind::ModuleInclude | SyntaxKind::LineComment | SyntaxKind::BlockComment);
+    if frame(c.kind()) { return true; }
+    match c.kind() {
+        SyntaxKind::Hash => c.next_sibling_with_trivia().is_some_and(|n| frame(n.kind())),
+        SyntaxKind::Semicolon => c.prev_sibling_with_trivia().is_some_and(|n| frame(n.kind())),
+        _ => false,
+    }
+}
+
+/// 선택 구간에서 지울 조각을 모은다(꾸밈 표식과 글 상자의 틀은 남긴다).
 fn collect_del(node: &LinkedNode, a: usize, b: usize, out: &mut Vec<Range<usize>>, sig: &mut Sig) {
     for c in node.children() {
         let r = c.range();
         if r.end <= a || r.start >= b { continue; }
         if a <= r.start && r.end <= b {
+            if keep_whole(&c) { continue; }
+            // 남기는 것(설정문·주석)의 앞뒤 공백도 남긴다: 줄이 달라붙으면 뜻이 바뀐다
+            if matches!(c.kind(), SyntaxKind::Space | SyntaxKind::Parbreak)
+                && (c.prev_sibling_with_trivia().is_some_and(|n| keep_whole(&n)) || c.next_sibling_with_trivia().is_some_and(|n| keep_whole(&n))) { continue; }
             add_sig(c.get(), sig, -1);
             out.push(r);
         } else if matches!(c.kind(), SyntaxKind::Text | SyntaxKind::Space | SyntaxKind::Parbreak) {
@@ -597,9 +884,14 @@ fn descend_del(node: &LinkedNode, a: usize, b: usize, out: &mut Vec<Range<usize>
     }
 }
 
-pub fn delete_sel(w: &mut Work) -> R<()> {
+/// 선택한 글을 지운다. 여러 글 상자에 걸쳐 있으면 상자마다 그 안의 글만 지우고 틀은 남긴다.
+pub fn delete_sel(w: &mut Work) -> R<()> { delete_sel_opt(w, true) }
+
+/// `tidy`가 거짓이면 비어 버린 꾸밈을 걷지 않는다(선택 위에 바로 입력할 때: 새 글이 그 꾸밈을 물려받는다).
+fn delete_sel_opt(w: &mut Work, tidy: bool) -> R<()> {
     if w.sel().is_none() { return Ok(()); }
-    if delete_sel_once(w).is_ok() { return Ok(()); }
+    w.edge = false;
+    if delete_sel_once(w, tidy).is_ok() { return Ok(()); }
     // *굵게* 표식이 낱말에 붙어 깨지는 경우: 함수 꼴로 바꾼 뒤 다시
     let (a, b) = w.sel().unwrap();
     let node = tree(&w.text);
@@ -607,21 +899,21 @@ pub fn delete_sel(w: &mut Work) -> R<()> {
     let mut ws = vec![];
     all_wraps(&root, &mut ws);
     ws.retain(|x| matches!(x.kind, WK::Star | WK::Under) && x.open.start <= b + 1 && x.close.end + 1 >= a);
-    if ws.is_empty() { return delete_sel_once(w); }
+    if ws.is_empty() { return delete_sel_once(w, tidy); }
     let saved = (w.text.clone(), w.caret, w.anchor);
     w.anchor = a; w.caret = b;
     ws.sort_by_key(|x| std::cmp::Reverse(x.open.start));
     for wp in &ws { to_func(w, wp); }
-    let r = delete_sel_once(w);
+    let r = delete_sel_once(w, tidy);
     if r.is_err() { w.text = saved.0; w.caret = saved.1; w.anchor = saved.2; }
     r
 }
 
-fn delete_sel_once(w: &mut Work) -> R<()> {
+fn delete_sel_once(w: &mut Work, tidy: bool) -> R<()> {
     let Some((a, b)) = w.sel() else { return Ok(()) };
     let node = tree(&w.text);
     let root = LinkedNode::new(&node);
-    same_block(&root, &w.text, a, b)?;
+    sel_ok(&root, a, b)?;
     if str_at(&root, a).is_some() {
         w.caret = a; w.anchor = a;
         return checked(w, a..b, "").map(|_| { w.caret = a; w.anchor = a; });
@@ -638,7 +930,7 @@ fn delete_sel_once(w: &mut Work) -> R<()> {
         return Err("이 선택은 지면에서 한꺼번에 지울 수 없습니다. 더 좁게 선택해 주세요.".into());
     }
     w.text = t; w.caret = a; w.anchor = a;
-    cleanup_empty(w);
+    if tidy { cleanup_empty(w); }
     Ok(())
 }
 
@@ -655,7 +947,7 @@ pub fn enter(w: &mut Work) -> R<()> {
         Ctx::Str(_) => return Err("제목처럼 따옴표 안에 든 글에서는 문단을 나눌 수 없습니다.".into()),
         Ctx::No => return Err("이 자리에서는 문단을 나눌 수 없습니다.".into()),
     }
-    let splittable = |wp: &Wrap| wp.inline() || wp.is_hang(&w.text);
+    let splittable = |wp: &Wrap| wp.inline() || wp.is_parwrap(&w.text);
     // 꾸밈의 맨 앞·맨 뒤라면 그 바깥으로
     loop {
         let Some(wp) = wraps_at(&root, p).into_iter().next() else { break };
@@ -752,9 +1044,18 @@ pub fn hanging(w: &mut Work, delta: i32) -> R<()> {
         return Ok(());
     }
     if delta < 0 { return Err("이 문단에는 내어쓰기가 없습니다.".into()); }
-    let m = block_at(&root, &w.text, p).ok_or("이 글에는 내어쓰기를 줄 수 없습니다.")?;
-    let mnode = find_node(&root, &m, SyntaxKind::Markup).ok_or("이 글에는 내어쓰기를 줄 수 없습니다.")?;
-    // 커서가 든 문단: 문단 나눔 사이
+    let (s, e) = para_at(&root, &w.text, p).ok_or("빈 문단에는 내어쓰기를 줄 수 없습니다.")?;
+    let close = if needs_guard(next_char(&w.text, e)) { "];" } else { "]" };
+    w.rep(e..e, close, false);
+    w.rep(s..s, "#par(hanging-indent: 1em)[", true);
+    if bad(&tree(&w.text)) { return Err("이 문단에는 내어쓰기를 줄 수 없습니다.".into()); }
+    Ok(())
+}
+
+/// 커서가 든 문단의 범위(문단 나눔 사이, 앞뒤 공백 제외).
+fn para_at(root: &LinkedNode, text: &str, p: usize) -> Option<(usize, usize)> {
+    let m = block_at(root, text, p)?;
+    let mnode = find_node(root, &m, SyntaxKind::Markup)?;
     let (mut s, mut e) = (None::<usize>, None::<usize>);
     for c in mnode.children() {
         let r = c.range();
@@ -766,12 +1067,76 @@ pub fn hanging(w: &mut Work, delta: i32) -> R<()> {
         if s.is_none() { s = Some(r.start); }
         e = Some(r.end);
     }
-    let (Some(s), Some(e)) = (s, e) else { return Err("빈 문단에는 내어쓰기를 줄 수 없습니다.".into()) };
+    Some((s?, e?))
+}
+
+/// 세 번 누르기: 커서가 든 문단(따옴표 문자열 안이면 그 문자열 전체).
+pub fn para_range(text: &str, p: usize) -> Option<(usize, usize)> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    if let Some(sr) = str_at(&root, p) { return Some((sr.start, sr.end)); }
+    let (mut s, mut e) = para_at(&root, text, p)?;
+    // 문단을 감싼 꾸밈(내어쓰기·정렬)이면 그 안쪽 글만
+    loop {
+        let Some(wp) = wraps_at(&root, s + 1).into_iter().find(|x| x.open.start == s && x.close.end >= e && x.is_parwrap(text)) else { break };
+        let inner = text[wp.content.clone()].trim();
+        if inner.is_empty() { break; }
+        s = wp.content.start + text[wp.content.clone()].find(inner).unwrap_or(0);
+        e = s + inner.len();
+    }
+    Some((s, e))
+}
+
+/// Ctrl+A: 커서가 든 글 상자 전체(앞뒤 공백 제외). 따옴표 문자열 안이면 그 문자열 전체.
+pub fn block_range(text: &str, p: usize) -> Option<(usize, usize)> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    if let Some(sr) = str_at(&root, p) { return Some((sr.start, sr.end)); }
+    let m = block_at(&root, text, p)?;
+    let inner = text[m.clone()].trim();
+    if inner.is_empty() { return None; }
+    let s = m.start + text[m.clone()].find(inner).unwrap_or(0);
+    Some((s, s + inner.len()))
+}
+
+/// 문단 정렬: `how`가 "center"·"right"·"left"면 문단을 `#align(..)[..]`로 감싸고, None이면 벗긴다(템플릿 기본 정렬).
+pub fn align(w: &mut Work, how: Option<&str>) -> R<()> {
+    let node = tree(&w.text);
+    let root = LinkedNode::new(&node);
+    let p = w.caret;
+    if !matches!(ctx(&root, p), Ctx::Markup) { return Err("이 글에는 정렬을 줄 수 없습니다.".into()); }
+    if let Some(wp) = wraps_at(&root, p).into_iter().find(|x| x.align_of(&w.text).is_some()) {
+        let cur = wp.align_of(&w.text).unwrap().to_string();
+        match how {
+            Some(h) if h == cur => return Ok(()),
+            Some(h) => {
+                let s = wp.open.start + "#align(".len();
+                w.rep(s..s + cur.len(), h, false);
+            }
+            None => {
+                let mut end = wp.close.end;
+                if w.text[end..].starts_with(';') { end += 1; }
+                w.rep(wp.close.start..end, "", false);
+                w.rep(wp.open.clone(), "", false);
+            }
+        }
+        if bad(&tree(&w.text)) { return Err("정렬을 바꾸지 못했습니다.".into()); }
+        return Ok(());
+    }
+    let Some(how) = how else { return Ok(()) };
+    let (s, e) = para_at(&root, &w.text, p).ok_or("빈 문단에는 정렬을 줄 수 없습니다.")?;
     let close = if needs_guard(next_char(&w.text, e)) { "];" } else { "]" };
     w.rep(e..e, close, false);
-    w.rep(s..s, "#par(hanging-indent: 1em)[", true);
-    if bad(&tree(&w.text)) { return Err("이 문단에는 내어쓰기를 줄 수 없습니다.".into()); }
+    w.rep(s..s, &format!("#align({how})["), true);
+    if bad(&tree(&w.text)) { return Err("이 문단에는 정렬을 줄 수 없습니다.".into()); }
     Ok(())
+}
+
+/// 커서가 든 문단에 걸린 정렬("center" 등). 없으면 None.
+pub fn align_state(text: &str, p: usize) -> Option<String> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    wraps_at(&root, p).into_iter().find_map(|x| x.align_of(text).map(|s| s.to_string()))
 }
 
 // ───────────────────────── 굵게·밑줄
@@ -784,17 +1149,19 @@ fn text_leaves(node: &LinkedNode, a: usize, b: usize, out: &mut Vec<Range<usize>
     }
 }
 
-/// (굵게, 밑줄) 상태.
-pub fn fmt_state(text: &str, a: usize, b: usize) -> (bool, bool) {
+pub const STYLES: [Style; 4] = [Style::Bold, Style::Italic, Style::Under, Style::Strike];
+
+/// 글자 꾸밈 상태: [굵게, 기울임, 밑줄, 취소선].
+pub fn fmt_state(text: &str, a: usize, b: usize) -> [bool; 4] {
     let node = tree(text);
     let root = LinkedNode::new(&node);
     let has = |p: usize, st: Style| wraps_at(&root, p).iter().any(|w| w.is_style(st));
-    if a == b { return (has(a, Style::Bold), has(a, Style::Under)); }
+    if a == b { return STYLES.map(|st| has(a, st)); }
     let mut leaves = vec![];
     text_leaves(&root, a, b, &mut leaves);
-    if leaves.is_empty() { return (false, false); }
+    if leaves.is_empty() { return [false; 4]; }
     let all = |st: Style| leaves.iter().all(|r| has(r.start.max(a) + 1, st) || has(r.start.max(a), st) && has(r.end.min(b), st));
-    (all(Style::Bold), all(Style::Under))
+    STYLES.map(all)
 }
 
 fn all_wraps(node: &LinkedNode, out: &mut Vec<Wrap>) {
@@ -837,7 +1204,7 @@ fn remove_style(w: &mut Work, st: Style) -> R<()> {
         let oe = snap(&root, &wp.content, b.min(ce), true);
         let func = matches!(wp.kind, WK::Func(..));
         let open_txt = w.text[wp.open.clone()].to_string();
-        let close_txt = if func { "]" } else { "*" };
+        let close_txt = match wp.kind { WK::Func(..) => "]", WK::Star => "*", WK::Under => "_" };
         if !func {
             // *…* 꼴: 낱말 한가운데에 표식이 놓이면 깨지므로 그때는 함수 꼴로 바꿔 다시
             let risky = |p: usize| wordy(prev_char(&w.text, p)) && wordy(next_char(&w.text, p));
@@ -901,7 +1268,7 @@ fn runs(node: &LinkedNode, a: usize, b: usize, out: &mut Vec<Range<usize>>) {
     flush(&mut cur, out);
 }
 
-fn add_style(w: &mut Work, st: Style, under_name: &str) -> R<()> {
+fn add_style(w: &mut Work, st: Style, func_open: &str) -> R<()> {
     let Some((a, b)) = w.sel() else { return Ok(()) };
     let node = tree(&w.text);
     let root = LinkedNode::new(&node);
@@ -922,14 +1289,15 @@ fn add_style(w: &mut Work, st: Style, under_name: &str) -> R<()> {
         sorted.sort_by_key(|r| std::cmp::Reverse(r.start));
         for r in sorted {
             let t = &w.text;
-            let star_ok = st == Style::Bold && pass == 0
+            // 굵게·기울임은 되도록 짧은 표식(`*`, `_`)으로, 낱말 한가운데 등 표식이 깨지는 자리에서는 함수 꼴로
+            let mark = match st { Style::Bold => Some("*"), Style::Italic => Some("_"), _ => None };
+            let mark_ok = mark.is_some() && pass == 0
                 && !(wordy(prev_char(t, r.start)) && wordy(next_char(t, r.start)))
                 && !(wordy(prev_char(t, r.end)) && wordy(next_char(t, r.end)))
                 && prev_char(t, r.start) != Some('\\')
-                && !t[r.clone()].contains('*');
-            let (open, close) = if star_ok { ("*".to_string(), "*".to_string()) } else {
-                let o = if st == Style::Bold { "#strong[" } else { under_name };
-                (o.to_string(), if needs_guard(next_char(t, r.end)) { "];".to_string() } else { "]".to_string() })
+                && !t[r.clone()].contains(mark.unwrap());
+            let (open, close) = if mark_ok { (mark.unwrap().to_string(), mark.unwrap().to_string()) } else {
+                (func_open.to_string(), if needs_guard(next_char(t, r.end)) { "];".to_string() } else { "]".to_string() })
             };
             w.rep(r.end..r.end, &close, false);
             w.rep(r.start..r.start, &open, true);
@@ -940,21 +1308,28 @@ fn add_style(w: &mut Work, st: Style, under_name: &str) -> R<()> {
     Err("이 선택에는 서식을 줄 수 없습니다.".into())
 }
 
-/// 굵게·밑줄을 켜거나 끈다. `under_fn`: 밑줄에 쓸 함수 이름(책의 템플릿에 `u`가 있으면 그것).
+/// 굵게·기울임·밑줄·취소선을 켜거나 끈다. `under_fn`: 밑줄에 쓸 함수 이름(책의 템플릿에 `u`가 있으면 그것).
+/// 여러 글 상자에 걸친 선택이면 상자마다 따로 꾸민다.
 pub fn toggle(w: &mut Work, st: Style, under_fn: &str) -> R<()> {
     let Some((a, b)) = w.sel() else { return Err("먼저 서식을 바꿀 글자를 끌어서 선택해 주세요.".into()) };
     let node = tree(&w.text);
     let root = LinkedNode::new(&node);
     if str_at(&root, a).is_some() || str_at(&root, b).is_some() {
-        return Err("제목처럼 따옴표 안에 든 글에는 굵게·밑줄을 줄 수 없습니다.".into());
+        return Err("제목처럼 따옴표 안에 든 글에는 굵게·밑줄 같은 꾸밈을 줄 수 없습니다.".into());
     }
-    same_block(&root, &w.text, a, b)?;
-    let (bold, under) = fmt_state(&w.text, a, b);
-    let on = if st == Style::Bold { bold } else { under };
+    let on = fmt_state(&w.text, a, b)[STYLES.iter().position(|x| *x == st).unwrap()];
     // 표시를 선택 범위로 맞춘다(시작 = anchor, 끝 = caret)
     w.anchor = a; w.caret = b;
     remove_style(w, st)?;
-    if !on { add_style(w, st, &format!("#{under_fn}["))?; }
+    if !on {
+        let open = match st {
+            Style::Bold => "#strong[".to_string(),
+            Style::Italic => "#emph[".to_string(),
+            Style::Under => format!("#{under_fn}["),
+            Style::Strike => "#strike[".to_string(),
+        };
+        add_style(w, st, &open)?;
+    }
     Ok(())
 }
 
@@ -1060,17 +1435,46 @@ fn block_like(f: &LinkedNode, name: &str) -> bool {
         _ => false,
     };
     if hash_start(f).is_some() {
-        // 마크업: 앞뒤가 문단 나눔이어야 한다
-        let prev = f.prev_sibling_with_trivia().and_then(|h| h.prev_sibling_with_trivia());
-        let prev = match prev { Some(p) if p.kind() == SyntaxKind::Space => p.prev_sibling_with_trivia(), o => o };
-        let next = match f.next_sibling_with_trivia() { Some(n) if n.kind() == SyntaxKind::Space => n.next_sibling_with_trivia(), o => o };
-        return prev.map_or(true, |p| p.kind() == SyntaxKind::Parbreak) && next.map_or(true, |n| n.kind() == SyntaxKind::Parbreak);
+        // 마크업: 여러 문단을 담았으면 덩어리, 아니면 같은 문단에 함께 흐르는 글이 없어야 덩어리
+        let multi = f.children().filter(|c| c.kind() == SyntaxKind::Args)
+            .flat_map(|a| a.children().collect::<Vec<_>>())
+            .filter(|c| c.kind() == SyntaxKind::ContentBlock)
+            .flat_map(|cb| cb.children().collect::<Vec<_>>())
+            .any(|m| m.kind() == SyntaxKind::Markup && m.children().any(|x| x.kind() == SyntaxKind::Parbreak));
+        return multi || !(company(f, false) || company(f, true));
     }
     match f.parent_kind() {
         Some(SyntaxKind::Code) => f.prev_sibling().map_or(true, |p| blocky(&p)) && f.next_sibling().map_or(true, |n| blocky(&n)),
         Some(SyntaxKind::Args) => f.parent().and_then(|a| a.parent().cloned()).is_some_and(|c| BLOCKY.contains(&callee_name(&c).as_str())),
         _ => false,
     }
+}
+
+/// 마크업의 `#요소` 한쪽 옆(같은 문단)에 함께 흐르는 글이 있는지.
+/// 글자·굵게 따위가 있으면 그렇고, 다른 `#요소`는 원고의 같은 줄에 나란히 있을 때만 그렇게 본다
+/// (`#제목(..)` 다음 줄의 `#본문[..]`처럼 줄을 달리한 요소들은 저마다 따로 선 덩어리).
+fn company(f: &LinkedNode, fwd: bool) -> bool {
+    fn side<'a>(n: &LinkedNode<'a>, fwd: bool) -> Option<LinkedNode<'a>> {
+        if fwd { n.next_sibling_with_trivia() } else { n.prev_sibling_with_trivia() }
+    }
+    // 뒤로 갈 때는 이 요소의 `#`부터 건넌다
+    let mut cur = if fwd { side(f, fwd) } else { f.prev_sibling_with_trivia().and_then(|h| side(&h, fwd)) };
+    let mut newline = false;
+    while let Some(x) = cur {
+        match x.kind() {
+            SyntaxKind::Space => { if x.get().full_text().contains('\n') { newline = true; } }
+            SyntaxKind::Parbreak => return false,
+            SyntaxKind::LineComment | SyntaxKind::BlockComment | SyntaxKind::Semicolon => {}
+            SyntaxKind::Text | SyntaxKind::Strong | SyntaxKind::Emph | SyntaxKind::Escape | SyntaxKind::Shorthand
+            | SyntaxKind::SmartQuote | SyntaxKind::Linebreak | SyntaxKind::Link | SyntaxKind::Raw | SyntaxKind::Equation => return true,
+            SyntaxKind::Hash if fwd => return !newline,
+            SyntaxKind::Hash => {}
+            // 다른 `#요소`(뒤로 갈 때는 요소가 `#`보다 먼저 나온다)
+            _ => return !newline,
+        }
+        cur = side(&x, fwd);
+    }
+    false
 }
 
 
@@ -1147,10 +1551,10 @@ mod tests {
         // `|` 커서, `<`..`>` 대신 `{`,`}` 로 선택
         if let (Some(a), Some(b)) = (text.find('{'), text.find('}')) {
             let t = text.replace(['{', '}'], "");
-            Work { text: t, anchor: a, caret: b - 1 }
+            Work::new(t, b - 1, a)
         } else {
             let p = text.find('|').unwrap();
-            Work { text: text.replace('|', ""), caret: p, anchor: p }
+            Work::new(text.replace('|', ""), p, p)
         }
     }
     fn show(w: &Work) -> String { let mut t = w.text.clone(); t.insert(w.caret, '|'); t }
@@ -1197,5 +1601,77 @@ mod tests {
         hanging(&mut x, -1).unwrap(); hanging(&mut x, -1).unwrap(); assert_eq!(x.text, "앞\n\n가나 다\n\n뒤");
     }
     #[test] fn del_sel_keep_marks() { let mut x = w("a *b{c* d}e"); delete_sel(&mut x).unwrap(); assert_eq!(show(&x), "a #strong[b|]e"); }
-    #[test] fn del_sel_cross() { let mut x = w("#ex[a{b][c}d]"); assert!(delete_sel(&mut x).is_err()); }
+    #[test] fn del_sel_cross() { let mut x = w("#ex[a{b][c}d]"); delete_sel(&mut x).unwrap(); assert_eq!(show(&x), "#ex[a|][d]"); }
+    #[test] fn del_sel_items() { let mut x = w("가{나\n\n#ex[a][b]\n\n#let k = 1\n\n다}라"); delete_sel(&mut x).unwrap(); assert_eq!(show(&x), "가|\n\n#let k = 1\n\n라"); }
+    #[test] fn del_sel_str_mixed() { let mut x = w("#unit(title: \"듣{다\")[가}나]"); assert!(delete_sel(&mut x).is_err()); }
+    // 글줄에 낀 템플릿 꾸밈(#lk 등)은 굵게처럼 그냥 넘어가며 지운다
+    #[test] fn bs_into_custom() { let mut x = w("a #lk(\"a\")[bc]| d"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "a #lk(\"a\")[b|] d"); }
+    #[test] fn bs_out_of_custom() { let mut x = w("a #lk(\"a\")[|bc] d"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "a|#lk(\"a\")[bc] d"); }
+    #[test] fn bs_empty_custom() { let mut x = w("a #lk(\"a\")[b|] d"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "a | d"); assert_eq!(x.note.as_deref(), Some("lk")); }
+    #[test] fn bs_sweep() {
+        let mut x = w("#ex(0)[I #lk(\"a\")[saw] #pt[the] cat.|][나]");
+        let mut n = 0;
+        while !x.edge && n < 60 { backspace(&mut x).unwrap(); n += 1; }
+        assert_eq!(show(&x), "#ex(0)[|][나]");
+    }
+    // 글 상자의 가장자리: 지울 것이 없으면 가장자리라고 알린다(커서를 지면에서 옮긴다)
+    #[test] fn bs_edge_block() { let mut x = w("#ex[The][|가]"); backspace(&mut x).unwrap(); assert!(x.edge); assert_eq!(show(&x), "#ex[The][|가]"); }
+    #[test] fn bs_edge_after_block() { let mut x = w("#ex[a][b]\n\n|가"); backspace(&mut x).unwrap(); assert!(x.edge); assert_eq!(x.text, "#ex[a][b]\n\n가"); }
+    #[test] fn bs_edge_set() { let mut x = w("가\n\n#set text(red)\n\n|나"); backspace(&mut x).unwrap(); assert!(x.edge); }
+    #[test] fn bs_join_par_keeps() { let mut x = w("가 #lk(\"a\")[나]\n\n|다"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "가 #lk(\"a\")[나]|다"); }
+    // 속이 다 빈 요소는 한 번 더 지우면 통째로 사라진다
+    #[test] fn bs_hollow() { let mut x = w("가\n\n#ex(0)[][|][#nt(\"문맥\")[]]\n\n나"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "가\n\n|\n나"); assert_eq!(x.note.as_deref(), Some("ex")); }
+    #[test] fn bs_not_hollow() { let mut x = w("#ex(0)[a][|]"); backspace(&mut x).unwrap(); assert!(x.edge); assert_eq!(x.text, "#ex(0)[a][]"); }
+    // 글이 없는 낱개 요소는 통째로
+    #[test] fn bs_atom_call() { let mut x = w("가 #pos(\"명\")| 나"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "가 | 나"); assert_eq!(x.note.as_deref(), Some("pos")); }
+    #[test] fn bs_atom_ident() { let mut x = w("가 #gp;|나"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "가 |나"); }
+    #[test] fn del_atom_call() { let mut x = w("가 |#pos(\"명\") 나"); delete(&mut x).unwrap(); assert_eq!(show(&x), "가 | 나"); }
+    #[test] fn del_into_custom() { let mut x = w("a |#lk(\"a\")[bc] d"); delete(&mut x).unwrap(); assert_eq!(show(&x), "a #lk(\"a\")[|c] d"); }
+    #[test] fn del_edge_block() { let mut x = w("#ex[The|][가]"); delete(&mut x).unwrap(); assert!(x.edge); }
+    // 지운 자리에서 앞뒤가 달라붙어 뜻이 바뀌지 않게
+    #[test] fn bs_glue_ident() { let mut x = w("#gp |다"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "#gp;|다"); }
+    #[test] fn bs_line_marker() { let mut x = w("가\n\nA|- b"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "가\n\n|\\- b"); }
+    // 낱말 지우기
+    #[test] fn bs_word() { let mut x = w("The big cat|"); del_word(&mut x, false).unwrap(); assert_eq!(show(&x), "The big |"); del_word(&mut x, false).unwrap(); assert_eq!(show(&x), "The |"); }
+    #[test] fn del_word_fwd() { let mut x = w("The |big cat"); del_word(&mut x, true).unwrap(); assert_eq!(show(&x), "The |cat"); }
+    #[test] fn bs_word_str() { let mut x = w("#sub(\"낱말 익히기|\")"); del_word(&mut x, false).unwrap(); assert_eq!(x.text, "#sub(\"낱말 \")"); }
+    // 선택 위에 입력하면 꾸밈을 물려받는다
+    #[test] fn type_over_bold() { let mut x = w("The *{cat}* sat"); insert(&mut x, "dog").unwrap(); assert_eq!(show(&x), "The *dog|* sat"); }
+    #[test] fn type_over_custom() { let mut x = w("a #lk(\"a\")[{bc}] d"); insert(&mut x, "xy").unwrap(); assert_eq!(show(&x), "a #lk(\"a\")[xy|] d"); }
+    // 기울임·취소선·정렬
+    #[test] fn italic_on() { let mut x = w("The {cat} sat"); toggle(&mut x, Style::Italic, "underline").unwrap(); assert_eq!(x.text, "The _cat_ sat"); }
+    #[test] fn italic_off() { let mut x = w("The _{cat}_ sat"); toggle(&mut x, Style::Italic, "underline").unwrap(); assert_eq!(x.text, "The cat sat"); }
+    #[test] fn italic_midword() { let mut x = w("un{believ}able"); toggle(&mut x, Style::Italic, "underline").unwrap(); assert_eq!(x.text, "un#emph[believ]able"); }
+    #[test] fn strike_on_off() { let mut x = w("The {cat} sat"); toggle(&mut x, Style::Strike, "underline").unwrap(); assert_eq!(x.text, "The #strike[cat] sat"); x.anchor = 12; x.caret = 15; toggle(&mut x, Style::Strike, "underline").unwrap(); assert_eq!(x.text, "The cat sat"); }
+    #[test] fn bold_cross() { let mut x = w("#ex[a {b][c} d]"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "#ex[a *b*][*c* d]"); }
+    #[test] fn align_par() {
+        let mut x = w("앞\n\n가|나 다\n\n뒤"); align(&mut x, Some("center")).unwrap(); assert_eq!(x.text, "앞\n\n#align(center)[가나 다]\n\n뒤");
+        assert_eq!(align_state(&x.text, x.caret).as_deref(), Some("center"));
+        align(&mut x, Some("right")).unwrap(); assert_eq!(x.text, "앞\n\n#align(right)[가나 다]\n\n뒤");
+        align(&mut x, None).unwrap(); assert_eq!(x.text, "앞\n\n가나 다\n\n뒤");
+    }
+    #[test] fn ranges() {
+        let t = "#ex[The cat.\n\nA dog.][나]";
+        assert_eq!(para_range(t, 6), Some((4, 12)));
+        assert_eq!(block_range(t, 6), Some((4, 20)));
+        // 줄을 달리한 요소들은 저마다 따로 선 덩어리: 문단·글 상자를 그 안에서 찾는다
+        let t = "#head(\"가\")\n#prose[\n첫 문단이다.\n\n둘째 문단.\n]";
+        let p = t.find("둘째").unwrap() + 3;
+        assert_eq!(para_range(t, p).map(|(s, e)| &t[s..e]), Some("둘째 문단."));
+        assert_eq!(block_range(t, p).map(|(s, e)| &t[s..e]), Some("첫 문단이다.\n\n둘째 문단."));
+    }
+    // 글이 다 지워져 혼자 남은 낱개 요소도 이어서 지워진다
+    #[test] fn bs_lone_atom() {
+        let mut x = w("#entry(mean: [#pos(\"명\") |])");
+        backspace(&mut x).unwrap(); assert_eq!(show(&x), "#entry(mean: [#pos(\"명\")|])");
+        backspace(&mut x).unwrap(); assert_eq!(show(&x), "#entry(mean: [|])");
+    }
+    #[test] fn bs_dead_str() {
+        let mut x = w("가\n\n#sub(\"기|\")\n\n나");
+        backspace(&mut x).unwrap(); assert_eq!(show(&x), "가\n\n#sub(\"|\")\n\n나");
+        backspace(&mut x).unwrap(); assert_eq!(show(&x), "가\n\n|\n나"); assert_eq!(x.note.as_deref(), Some("sub"));
+        let mut y = w("#unit(title: \"|\", root: \"audi\")"); backspace(&mut y).unwrap(); assert!(y.edge);
+    }
+    #[test] fn bs_edge_stacked() { let mut x = w("#head(\"가\")\n#fsub[|나]"); backspace(&mut x).unwrap(); assert!(x.edge); assert_eq!(x.text, "#head(\"가\")\n#fsub[나]"); }
+    #[test] fn bs_same_line_wraps() { let mut x = w("#lk(\"a\")[가] #pt[|나]"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "#lk(\"a\")[가]|#pt[나]"); }
 }

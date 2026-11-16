@@ -8,7 +8,6 @@ mod recover;
 mod session;
 mod world;
 
-use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -123,7 +122,7 @@ fn serve(server: Server, app: Arc<App>) {
             }
             "/api/find" => {
                 let g = app.session.lock().unwrap();
-                let v = match g.as_ref() { Some(s) => s.find(jb["q"].as_str().unwrap_or("")), None => json!([]) };
+                let v = match g.as_ref() { Some(s) => s.find(jb["q"].as_str().unwrap_or(""), jb["case"].as_bool().unwrap_or(false)), None => json!({ "hits": [] }) };
                 drop(g);
                 respond_json(req, &v);
             }
@@ -221,6 +220,8 @@ fn run_window(url: &str, app: Arc<App>) {
     use tao::event_loop::{ControlFlow, EventLoop};
     use tao::window::WindowBuilder;
     use wry::WebViewBuilder;
+    #[cfg(windows)]
+    use wry::WebViewBuilderExtWindows;
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -230,8 +231,11 @@ fn run_window(url: &str, app: Arc<App>) {
         .expect("창을 만들지 못했습니다");
     let data = data_dir().join("webview");
     let mut ctx = wry::WebContext::new(Some(data));
-    let _webview = WebViewBuilder::new_with_web_context(&mut ctx)
-        .with_url(url)
+    let builder = WebViewBuilder::new_with_web_context(&mut ctx).with_url(url);
+    // 브라우저의 가속키(Ctrl+F, F3, Ctrl+P, F5, Ctrl+R …)는 끈다: 같은 글쇠를 편집기의 단축키로 쓴다
+    #[cfg(windows)]
+    let builder = builder.with_browser_accelerator_keys(false);
+    let _webview = builder
         .build(&window)
         .expect("Could not create the web view (Microsoft Edge WebView2 Runtime is required)");
     event_loop.run(move |event, _, control_flow| {

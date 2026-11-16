@@ -32,9 +32,14 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
 ## Features
 
 - **What you see is the real output.** Typst 0.15.1 is embedded, so pages, fonts and page breaks match `typst compile`.
-- **Click and type.** Insert, delete, paste, select by drag / double-click / Shift+arrows.
-- **Formatting that writes clean Typst:** Ctrl+B → `*bold*`, Ctrl+U → `#underline[...]` (or your template's own `#u[...]`),
-  Enter → new paragraph, Shift+Enter → `\` line break, Tab, hanging indent.
+- **Click and type, like a word processor.** Insert, delete, paste, select by drag / double-click (word) / triple-click (paragraph) /
+  Shift+arrows, move by word and paragraph, find and replace. See [Keyboard](#keyboard).
+- **Hold Backspace and it keeps going.** Deleting walks straight through inline template markup such as `#lk("a")[word]`,
+  removes elements that end up empty, and steps from one text box into the next, so a run of entries can be cleared with the key alone.
+  A selection may span several text boxes: the text inside each is deleted and the structure is kept.
+- **Formatting that writes clean Typst:** Ctrl+B → `*bold*`, Ctrl+I → `_italic_`, Ctrl+U → `#underline[...]` (or your template's own `#u[...]`),
+  strikethrough, paragraph alignment (`#align(center)[...]`), Enter → new paragraph, Shift+Enter → `\` line break, Tab, hanging indent.
+  Typing over a selection keeps its formatting.
 - **Multi-file projects.** Edits go to whichever included file the text came from (`content/ch01.typ`, …).
 - **Template text is protected.** Page numbers, outlines, headers and other computed text are locked — click them and the editor explains why.
 - **Move or delete whole blocks.** Alt+click any element (a placed label, a heading line, a template element) to drag it or delete it.
@@ -56,13 +61,23 @@ You can also open a file directly: `EasyTypstEditor.exe "C:\path\to\main.typ"`, 
 
 | Keys | Action |
 |---|---|
-| Click / drag / Shift+arrows / double-click | Caret / select / select word |
-| Ctrl+B · Ctrl+U | Bold · underline |
+| Click / drag / Shift+click / Shift+arrows | Caret / select |
+| Double-click · triple-click · Ctrl+A | Select word · paragraph · the whole text box |
+| Backspace · Delete | Delete a character; hold to keep deleting across markup and text boxes |
+| Ctrl+Backspace · Ctrl+Delete | Delete a word |
+| Ctrl+← · Ctrl+→ · Ctrl+↑ · Ctrl+↓ | Move by word · by paragraph |
+| Home · End · Ctrl+Home · Ctrl+End | Line start · end · document start · end |
+| Ctrl+X · Ctrl+C · Ctrl+V | Cut · copy · paste (also in the right-click menu) |
+| Ctrl+B · Ctrl+I · Ctrl+U · Ctrl+Shift+X | Bold · italic · underline · strikethrough |
+| Ctrl+L · Ctrl+E · Ctrl+R · Ctrl+J | Align left · center · right · back to the template's alignment |
 | Enter · Shift+Enter · Tab | New paragraph · line break · tab |
-| Ctrl+Z · Ctrl+Y | Undo · redo |
+| Ctrl+F · Ctrl+H · F3 · Shift+F3 | Find · replace · next · previous match |
+| Ctrl+Z · Ctrl+Y | Undo · redo (consecutive typing or deleting is one step) |
 | Ctrl+S · Ctrl+O | Save · open |
 | Alt+click | Pick a whole element (then drag, arrow keys, or Delete) |
-| Ctrl+wheel | Zoom |
+| Ctrl+wheel · Ctrl+Plus · Ctrl+Minus · Ctrl+0 | Zoom in/out · fit width |
+| Ctrl+G · Page Up · Page Down | Go to page · scroll a screen |
+| F1 | Show all shortcuts |
 
 ## How it works
 
@@ -75,8 +90,8 @@ Each edit is applied to the source in memory, the document is re-typeset increme
 src/world.rs    Typst World: files in memory, written to disk only on save
 src/index.rs    glyph ↔ source index (recomputed only for changed pages)
 src/recover.rs  verifying / recovering source positions
-src/edit.rs     source edits (insert, delete, bold, underline, paragraphs, indent, elements) + unit tests
-src/session.rs  editing session: caret, selection, undo, save
+src/edit.rs     source edits (insert, delete, formatting, paragraphs, indent, alignment, elements) + unit tests
+src/session.rs  editing session: caret, selection, movement, find/replace, undo, save
 src/lang.rs     UI language (strings in ui/i18n.json)
 src/main.rs     window (WebView2) + local UI server on 127.0.0.1
 ui/index.html   the UI
@@ -95,7 +110,9 @@ Headless mode for development: `EasyTypstEditor.exe --serve 47615 main.typ`, the
 ## Known limitations
 
 - Windows only for now (the UI is a WebView; macOS/Linux ports are welcome).
-- Font size, color, alignment, tables, images and find/replace are not editable yet.
+- Font size, color, tables and images are not editable yet.
+- Find works on the text as printed on the page. "Replace all" changes only matches whose source is plain text
+  (matches inside template-generated text, or spanning markup, are skipped and counted).
 - If the same text appears several times on a page and cannot be told apart by context, it is locked (safer than editing the wrong one).
 
 ## Bugs & suggestions — fixed within 24 hours

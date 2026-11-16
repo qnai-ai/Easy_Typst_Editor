@@ -40,9 +40,13 @@ struct Step {
     after: String,
     caret_before: Option<Pos>,
     caret_after: Option<Pos>,
-    typing: bool,
+    /// 이어지는 같은 갈래의 걸음은 하나로 합친다: 0 = 따로, 1 = 글자 입력, 2 = 글자 지우기
+    kind: u8,
     time: Instant,
 }
+
+/// 찾기에서 줄이 바뀌는 자리(공백 없이 줄만 넘어간 곳)를 나타내는 표식.
+const SOFT: char = '\u{1}';
 
 struct Comp { file: FileId, base_text: String, base_caret: usize, base_anchor: usize, caret_before: Option<Pos> }
 
@@ -246,7 +250,10 @@ impl Session {
         }
         // 글자가 없는 자리(탭 뒤, 빈 문단 등): 가장 가까운 앞 글자의 오른쪽
         if i0 > 0 {
-            let cands: Vec<usize> = v[i0.saturating_sub(4)..i0].iter().map(|x| x.1 as usize).collect();
+            // 원고에서 바로 앞에 있는 글자(같은 글자가 여러 곳에 찍혔으면 그중 가까운 것)
+            let s_last = v[i0 - 1].0;
+            let from = v[..i0].partition_point(|x| x.0 < s_last);
+            let cands: Vec<usize> = v[from..i0].iter().map(|x| x.1 as usize).collect();
             if let Some(gi) = best(&cands).or(cands.last().copied()) {
                 let g = self.glyph(gi);
                 let mut cr = self.caret_on(gi, g.e as usize);
@@ -298,7 +305,7 @@ impl Session {
 
     // ───────────── 마우스
 
-    fn click(&mut self, page: usize, x: f32, y: f32, extend: bool, dbl: bool) {
+    fn click(&mut self, page: usize, x: f32, y: f32, extend: bool, dbl: bool, tpl: bool) {
         self.goal_x = None;
         let Some((gi, _inside)) = self.hit(page, x, y) else {
             if !extend { self.lock = None; }
@@ -325,6 +332,15 @@ impl Session {
         let idx = (frac * (bounds.len() - 1) as f32).round() as usize;
         let off = bounds[idx.min(bounds.len() - 1)];
         let new = self.caret_on(gi, off);
+        if tpl {
+            if let Some(t) = self.world.text_of(new.pos.file) {
+                if let Some((s, e)) = edit::para_range(&t, off) {
+                    self.caret = Some(new);
+                    self.select(new.pos.file, s, e);
+                    return;
+                }
+            }
+        }
         if dbl && charlevel(&g) {
             if let Some(t) = self.world.text_of(new.pos.file) {
                 let (ws, we) = edit::word_at(&t, off.min(g.e as usize - 1).max(g.s as usize));
@@ -445,18 +461,71 @@ impl Session {
         None
     }
 
+    /// Ctrl+←/→: 낱말 단위로 옮긴다. 왼쪽은 낱말의 처음으로, 오른쪽은 다음 낱말의 처음으로.
+    fn word_step(&self, c: &Caret, fwd: bool) -> Option<Caret> {
+        let text = self.world.text_of(c.pos.file)?;
+        let class = |ch: char| if ch.is_whitespace() { 0u8 } else if ch.is_alphanumeric() || ch == '\'' || ch == '’' { 2 } else { 1 };
+        let mut cur = *c;
+        let (mut seen, mut spaced, mut moved) = (0u8, false, false);
+        for _ in 0..300 {
+            let Some(nx) = self.step(&cur, fwd) else { break };
+            let (lo, hi) = if fwd { (cur.pos.off, nx.pos.off) } else { (nx.pos.off, cur.pos.off) };
+            let chunk = if nx.pos.file == cur.pos.file && hi > lo && hi - lo <= 64 { text.get(lo..hi) } else { None };
+            // 글이 이어지지 않는 자리(다른 글 상자): 아직 안 움직였으면 거기까지만
+            let Some(chunk) = chunk else { if !moved { cur = nx; moved = true; } break };
+            let cls = if fwd { chunk.chars().next() } else { chunk.chars().next_back() }.map(class).unwrap_or(0);
+            if cls == 0 {
+                if !fwd && seen != 0 { break; }
+                spaced = true;
+            } else {
+                if fwd && spaced && moved { break; }
+                if seen != 0 && seen != cls { break; }
+                seen = cls;
+            }
+            cur = nx; moved = true;
+        }
+        moved.then_some(cur)
+    }
+
+    fn doc_end(&self, last: bool) -> Option<Caret> {
+        let n = self.ix.glyphs.len();
+        if last { (0..n).rev().find(|&i| editable(self.glyph(i))).map(|i| self.caret_on(i, self.glyph(i).e as usize)) }
+        else { (0..n).find(|&i| editable(self.glyph(i))).map(|i| self.caret_on(i, self.glyph(i).s as usize)) }
+    }
+
+    /// Ctrl+↑/↓: 문단의 처음으로 / 다음 문단의 처음으로.
+    fn para_step(&self, c: &Caret, down: bool) -> Option<Caret> {
+        let text = self.world.text_of(c.pos.file)?;
+        let (s, e) = edit::para_range(&text, c.pos.off)?;
+        if down {
+            let end = self.locate(Pos { file: c.pos.file, off: e }, true, self.hint());
+            return self.step(&end, true);
+        }
+        if c.pos.off > s { return Some(self.locate(Pos { file: c.pos.file, off: s }, false, self.hint())); }
+        let prev = self.step(c, false)?;
+        let t2 = self.world.text_of(prev.pos.file)?;
+        let (s2, _) = edit::para_range(&t2, prev.pos.off)?;
+        Some(self.locate(Pos { file: prev.pos.file, off: s2 }, false, Some((prev.page, prev.x, prev.y))))
+    }
+
     fn mv(&mut self, dir: &str, shift: bool) {
         let Some(c) = self.caret else { return };
         let sel = self.sel_range();
         let new = match dir {
-            "left" | "wordleft" => {
+            "left" => {
                 if !shift && sel.is_some() { let (a, _) = sel.unwrap(); Some(self.locate(Pos { file: c.pos.file, off: a }, false, self.hint())) }
                 else { self.step(&c, false) }
             }
-            "right" | "wordright" => {
+            "right" => {
                 if !shift && sel.is_some() { let (_, b) = sel.unwrap(); Some(self.locate(Pos { file: c.pos.file, off: b }, true, self.hint())) }
                 else { self.step(&c, true) }
             }
+            "wordleft" => self.word_step(&c, false),
+            "wordright" => self.word_step(&c, true),
+            "docstart" => self.doc_end(false),
+            "docend" => self.doc_end(true),
+            "paraup" => self.para_step(&c, false),
+            "paradown" => self.para_step(&c, true),
             "up" => self.vertical(&c, false),
             "down" => self.vertical(&c, true),
             "home" | "end" => c.gi.and_then(|gi| {
@@ -469,12 +538,194 @@ impl Session {
         if matches!(dir, "up" | "down") { if self.goal_x.is_none() { self.goal_x = Some(c.x); } } else { self.goal_x = None; }
         let Some(new) = new else { return };
         if shift {
-            if new.pos.file != c.pos.file { return; }
+            if new.pos.file != c.pos.file {
+                self.msg = Some(("다른 원고 파일에 걸쳐서는 선택할 수 없습니다.".into(), "warn"));
+                return;
+            }
             if self.anchor.is_none() { self.anchor = Some(c.pos); }
         } else { self.anchor = None; }
         self.caret = Some(new);
         if self.anchor == Some(new.pos) { self.anchor = None; }
         self.lock = None;
+    }
+
+    /// 원고의 구간을 선택한다(시작 = 고정점, 끝 = 커서).
+    fn select(&mut self, file: FileId, s: usize, e: usize) {
+        let hint = self.hint();
+        self.anchor = Some(Pos { file, off: s });
+        self.caret = Some(self.locate(Pos { file, off: e }, true, hint));
+        if s == e { self.anchor = None; }
+        self.lock = None;
+    }
+
+    /// Ctrl+A: 커서가 든 글 상자 전체를 선택한다.
+    fn select_all(&mut self) {
+        let Some(c) = self.caret else {
+            self.msg = Some(("먼저 고칠 자리를 눌러 커서를 놓아 주세요.".into(), "info"));
+            return;
+        };
+        let Some(text) = self.world.text_of(c.pos.file) else { return };
+        if let Some((s, e)) = edit::block_range(&text, c.pos.off) { self.select(c.pos.file, s, e); }
+    }
+
+    // ───────────── 찾기·바꾸기
+
+    /// 지면에서 글을 찾는다. 돌려주는 것은 찾은 곳마다 걸린 글리프들(지면 순서).
+    /// 공백은 몇 칸이든 한 칸으로 보고, 줄이 바뀌는 자리는 공백이 있든 없든 맞는 것으로 본다.
+    fn hits(&self, q: &str, case: bool) -> Vec<Vec<usize>> {
+        let fold = |c: char| if case { c } else { c.to_lowercase().next().unwrap_or(c) };
+        let mut pat: Vec<char> = vec![];
+        for c in q.trim().chars() {
+            if c.is_whitespace() { if pat.last() != Some(&' ') { pat.push(' '); } } else { pat.push(fold(c)); }
+        }
+        let mut out = vec![];
+        if pat.is_empty() { return out; }
+        for &(a, b) in &self.ix.page_ranges {
+            let mut s: Vec<(char, usize)> = Vec::with_capacity(b - a + 16);
+            let mut line = u32::MAX;
+            for gi in a..b {
+                let g = &self.ix.glyphs[gi];
+                if g.line != line {
+                    if line != u32::MAX && s.last().is_some_and(|l| l.0 != ' ') { s.push((SOFT, gi)); }
+                    line = g.line;
+                }
+                for c in self.ix.text_of(gi).chars() {
+                    if c.is_whitespace() { if s.last().is_some_and(|l| l.0 != ' ') { s.push((' ', gi)); } } else { s.push((fold(c), gi)); }
+                }
+            }
+            let mut i = 0;
+            while i < s.len() {
+                if s[i].0 != pat[0] { i += 1; continue; }
+                let (mut x, mut y) = (i, 0);
+                let mut gis: Vec<usize> = vec![];
+                while y < pat.len() && x < s.len() {
+                    let (c, gi) = s[x];
+                    if c == SOFT { if pat[y] == ' ' { y += 1; } x += 1; continue; }
+                    if c != pat[y] { break; }
+                    if c != ' ' && gis.last() != Some(&gi) { gis.push(gi); }
+                    x += 1; y += 1;
+                }
+                if y == pat.len() && !gis.is_empty() {
+                    out.push(gis);
+                    if out.len() >= 3000 { return out; }
+                    i = x.max(i + 1);
+                } else { i += 1; }
+            }
+        }
+        out
+    }
+
+    /// 찾은 곳이 원고의 한 구간으로 이어지면 그 구간.
+    fn hit_range(&self, gis: &[usize]) -> Option<(FileId, usize, usize)> {
+        let f = self.glyph(*gis.first()?).file?;
+        let (mut s, mut e) = (usize::MAX, 0);
+        for &gi in gis {
+            let g = self.glyph(gi);
+            if !editable(g) || g.file != Some(f) { return None; }
+            s = s.min(g.s as usize); e = e.max(g.e as usize);
+        }
+        (e > s).then_some((f, s, e))
+    }
+
+    /// 찾은 곳의 원고 글이 지면의 글과 글자 그대로 같은지(사이에 꾸밈 표식이나 다른 요소가 끼지 않았는지).
+    fn hit_clean(&self, gis: &[usize], file: FileId, s: usize, e: usize) -> bool {
+        let Some(text) = self.world.text_of(file) else { return false };
+        let Some(src) = text.get(s..e) else { return false };
+        let strip = |t: &str| t.chars().filter(|c| !c.is_whitespace() && *c != '\\').collect::<String>();
+        let page: String = gis.iter().map(|&gi| self.ix.text_of(gi)).collect();
+        strip(src) == strip(&page)
+    }
+
+    fn hit_rects(&self, gis: &[usize]) -> Vec<Value> {
+        let mut rects = vec![];
+        let mut cur: Option<(u32, u32, f32, f32, f32, f32)> = None; // page, line, x0, x1, y, size
+        for &gi in gis {
+            let g = self.glyph(gi);
+            match &mut cur {
+                Some(c) if c.0 == g.page && c.1 == g.line => { c.2 = c.2.min(g.x0); c.3 = c.3.max(g.x1); c.5 = c.5.max(g.size); }
+                _ => {
+                    if let Some(c) = cur.take() { rects.push(json!([c.0, c.2, c.4 - c.5 * 0.88, c.3 - c.2, c.5 * 1.2])); }
+                    cur = Some((g.page, g.line, g.x0, g.x1, g.y, g.size));
+                }
+            }
+        }
+        if let Some(c) = cur { rects.push(json!([c.0, c.2, c.4 - c.5 * 0.88, c.3 - c.2, c.5 * 1.2])); }
+        rects
+    }
+
+    /// 화면의 찾기 창에 보낼 결과.
+    pub fn find(&self, q: &str, case: bool) -> Value {
+        let hits = self.hits(q, case);
+        let list: Vec<Value> = hits.iter().map(|h| json!({
+            "page": self.glyph(h[0]).page,
+            "rects": self.hit_rects(h),
+            "ok": self.hit_range(h).is_some(),
+        })).collect();
+        json!({ "hits": list, "rev": self.rev })
+    }
+
+    /// `i`번째 찾은 곳을 선택한다. 지면에서 고칠 수 없는 글이면 선택하지 않는다.
+    fn find_select(&mut self, q: &str, case: bool, i: usize) -> bool {
+        let hits = self.hits(q, case);
+        let Some(h) = hits.get(i) else { return false };
+        match self.hit_range(h) {
+            Some((f, s, e)) => {
+                let g = self.glyph(h[0]);
+                // 같은 원고 글이 여러 곳에 찍히는 경우(템플릿)에도 찾은 그 자리에 커서가 놓이도록
+                self.caret = Some(Caret { pos: Pos { file: f, off: s }, aff_end: false, gi: Some(h[0]), page: g.page, x: g.x0, y: g.y, size: g.size });
+                self.select(f, s, e);
+                true
+            }
+            None => {
+                self.caret = None; self.anchor = None;
+                self.msg = Some(("찾은 글이 템플릿이 만든 글이거나 여러 요소에 걸쳐 있어, 지면에서 바로 바꿀 수 없습니다.".into(), "info"));
+                false
+            }
+        }
+    }
+
+    fn replace_one(&mut self, q: &str, case: bool, i: usize, with: &str) {
+        if !self.find_select(q, case, i) { return; }
+        self.apply(0, true, |w| edit::insert(w, with));
+    }
+
+    fn replace_all(&mut self, q: &str, case: bool, with: &str) {
+        let hits = self.hits(q, case);
+        let mut by_file: Vec<(FileId, Vec<(usize, usize)>)> = vec![];
+        let mut skipped = 0usize;
+        for h in &hits {
+            match self.hit_range(h) {
+                Some((f, s, e)) if self.hit_clean(h, f, s, e) => {
+                    match by_file.iter_mut().find(|x| x.0 == f) { Some(x) => x.1.push((s, e)), None => by_file.push((f, vec![(s, e)])) }
+                }
+                _ => skipped += 1,
+            }
+        }
+        let mut done = 0usize;
+        for (file, mut rs) in by_file {
+            rs.sort(); rs.dedup();
+            let Some(before) = self.world.text_of(file) else { continue };
+            let mut w = Work::new(before.clone(), 0, 0);
+            let (mut n, mut floor) = (0usize, usize::MAX);
+            for &(s, e) in rs.iter().rev() {
+                if e > floor { continue; }
+                let mut t = w.clone();
+                t.anchor = s; t.caret = e;
+                if edit::insert(&mut t, with).is_ok() { w = t; n += 1; floor = s; } else { skipped += 1; }
+            }
+            if n == 0 { continue; }
+            match self.try_text(file, &w.text) {
+                Ok(()) => {
+                    self.push_undo(Step { file, before, after: w.text, caret_before: None, caret_after: None, kind: 0, time: Instant::now() });
+                    done += n;
+                }
+                Err(_) => skipped += n,
+            }
+        }
+        if done > 0 { self.caret = None; self.anchor = None; }
+        let mut m = crate::lang::f("{0}곳을 바꿨습니다.", &[&done]);
+        if skipped > 0 { m.push(' '); m.push_str(&crate::lang::f("{0}곳은 지면에서 바로 바꿀 수 없어 건너뛰었습니다.", &[&skipped])); }
+        self.msg = Some((m, if done == 0 && skipped > 0 { "warn" } else { "info" }));
     }
 
     fn sel_range(&self) -> Option<(usize, usize)> {
@@ -538,9 +789,9 @@ impl Session {
 
     fn apply_file(&mut self, file: FileId, new_text: String) -> bool {
         let Some(before) = self.world.text_of(file) else { return false };
-        let w = Work { text: new_text, caret: 0, anchor: 0 };
+        let w = Work::new(new_text, 0, 0);
         if !self.commit(file, &before, &w) { return false; }
-        self.push_undo(Step { file, before, after: w.text, caret_before: None, caret_after: None, typing: false, time: Instant::now() });
+        self.push_undo(Step { file, before, after: w.text, caret_before: None, caret_after: None, kind: 0, time: Instant::now() });
         true
     }
 
@@ -612,7 +863,7 @@ impl Session {
         if let Some(cp) = self.comp.take() {
             if let Some(now) = self.world.text_of(cp.file) {
                 if now != cp.base_text {
-                    self.push_undo(Step { file: cp.file, before: cp.base_text, after: now, caret_before: cp.caret_before, caret_after: self.caret.map(|c| c.pos), typing: false, time: Instant::now() });
+                    self.push_undo(Step { file: cp.file, before: cp.base_text, after: now, caret_before: cp.caret_before, caret_after: self.caret.map(|c| c.pos), kind: 0, time: Instant::now() });
                 }
             }
         }
@@ -620,9 +871,9 @@ impl Session {
 
     fn push_undo(&mut self, st: Step) {
         self.redo.clear();
-        if st.typing {
+        if st.kind != 0 {
             if let Some(last) = self.undo.last_mut() {
-                if last.typing && last.file == st.file && last.caret_after == st.caret_before && st.time.duration_since(last.time).as_millis() < 1500 {
+                if last.kind == st.kind && last.file == st.file && last.caret_after == st.caret_before && st.time.duration_since(last.time).as_millis() < 1500 {
                     last.after = st.after; last.caret_after = st.caret_after; last.time = st.time;
                     return;
                 }
@@ -636,11 +887,11 @@ impl Session {
         let c = self.caret?;
         let text = self.world.text_of(c.pos.file)?;
         let anchor = match self.anchor { Some(a) if a.file == c.pos.file => a.off, _ => c.pos.off };
-        Some((c.pos.file, Work { text, caret: c.pos.off, anchor }))
+        Some((c.pos.file, Work::new(text, c.pos.off, anchor)))
     }
 
     /// 연산을 적용하고 다시 조판한다. 조판이 깨지면 되돌린다.
-    fn apply(&mut self, typing: bool, aff_end: bool, f: impl FnOnce(&mut Work) -> edit::R<()>) -> bool {
+    fn apply(&mut self, kind: u8, aff_end: bool, f: impl FnOnce(&mut Work) -> edit::R<()>) -> bool {
         let Some((file, mut w)) = self.work() else {
             self.msg = Some(("먼저 고칠 자리를 눌러 커서를 놓아 주세요.".into(), "info"));
             return false;
@@ -653,21 +904,141 @@ impl Session {
         self.caret = Some(self.locate(Pos { file, off: w.caret }, aff_end, hint));
         self.anchor = if w.anchor != w.caret { Some(Pos { file, off: w.anchor }) } else { None };
         if w.text != before {
-            self.push_undo(Step { file, before, after: w.text, caret_before, caret_after: self.caret.map(|c| c.pos), typing, time: Instant::now() });
+            self.push_undo(Step { file, before, after: w.text, caret_before, caret_after: self.caret.map(|c| c.pos), kind, time: Instant::now() });
         }
+        if let Some(name) = &w.note { self.note_killed(name); }
         true
+    }
+
+    fn note_killed(&mut self, name: &str) {
+        self.msg = Some((crate::lang::f("#{0} 요소를 통째로 지웠습니다. 되돌리려면 Ctrl+Z를 누르세요.", &[&name]), "info"));
+    }
+
+    /// 파일 본문을 바꿔 조판해 본다. 조판이 깨지면 본문을 되돌리고 오류를 돌려준다
+    /// (지면과 색인은 앞선 조판 그대로이므로 다시 조판할 필요가 없다).
+    fn try_text(&mut self, file: FileId, text: &str) -> Result<(), String> {
+        let Some(before) = self.world.text_of(file) else { return Err(String::new()) };
+        if before == text { return Ok(()); }
+        self.set_text(file, text);
+        match self.compile() {
+            Ok(()) => Ok(()),
+            Err(e) => { self.set_text(file, &before); Err(e) }
+        }
     }
 
     fn commit(&mut self, file: FileId, before: &str, w: &Work) -> bool {
         if w.text == before { return true; }
-        self.set_text(file, &w.text);
-        if let Err(e) = self.compile() {
-            self.set_text(file, before);
-            let _ = self.compile();
+        if let Err(e) = self.try_text(file, &w.text) {
             self.msg = Some((format!("이 수정은 조판 오류가 나서 적용하지 않았습니다. ({e})"), "error"));
             return false;
         }
         true
+    }
+
+    /// 지면에서 옆 글로 커서를 옮긴다(글 상자의 가장자리처럼 더 지울 것이 없는 자리에서). 자리가 바뀌면 true.
+    fn hop(&mut self, fwd: bool) -> bool {
+        let Some(c) = self.caret else { return false };
+        let Some(gi) = c.gi else { return false };
+        let g = self.glyph(gi);
+        let mut new: Option<Caret> = None;
+        // 커서가 이 글자에서 떨어진 자리(요소 뒤 등)에 있었으면 먼저 이 글자 곁으로
+        if editable(g) && g.file == Some(c.pos.file) {
+            if !fwd && c.pos.off > g.e as usize { new = Some(self.caret_on(gi, g.e as usize)); }
+            if fwd && c.pos.off < g.s as usize { new = Some(self.caret_on(gi, g.s as usize)); }
+        }
+        let mut i = gi;
+        for _ in 0..6 {
+            if new.is_some_and(|n| n.pos != c.pos) { break; }
+            let Some(n) = self.next_editable(i, fwd) else { return false };
+            let ng = self.glyph(n);
+            new = Some(self.caret_on(n, if fwd { ng.s } else { ng.e } as usize));
+            i = n;
+        }
+        match new {
+            Some(n) if n.pos != c.pos => { self.caret = Some(n); self.anchor = None; true }
+            _ => false,
+        }
+    }
+
+    /// Backspace·Delete를 `n`번(낱말 단위 포함). 글줄에 낀 꾸밈은 그냥 넘어가며 지우고,
+    /// 글 상자의 가장자리에 닿으면 커서를 지면의 옆 글로 옮겨, 누르고 있기만 해도 이어서 지워지게 한다.
+    fn del_many(&mut self, fwd: bool, word: bool, n: usize) {
+        let op = |w: &mut Work| -> edit::R<()> {
+            w.edge = false; w.note = None;
+            if word { edit::del_word(w, fwd) } else if fwd { edit::delete(w) } else { edit::backspace(w) }
+        };
+        let mut left = n.clamp(1, 80);
+        let mut killed: Option<String> = None;
+        let mut free = 0;
+        while left > 0 {
+            let Some((file, w0)) = self.work() else {
+                self.msg = Some(("먼저 고칠 자리를 눌러 커서를 놓아 주세요.".into(), "info"));
+                return;
+            };
+            let caret_before = self.caret.map(|c| c.pos);
+            // 1) 조판 없이 이어서 지울 수 있는 데까지 지운다
+            let mut trail: Vec<Work> = vec![];
+            let (mut edge, mut err) = (false, None::<String>);
+            while trail.len() < left {
+                let prev = trail.last().unwrap_or(&w0);
+                let mut t = prev.clone();
+                match op(&mut t) {
+                    Err(e) => { err = Some(e); break; }
+                    Ok(()) if t.edge || t.text == prev.text => { edge = true; break; }
+                    Ok(()) => trail.push(t),
+                }
+            }
+            // 2) 조판한다. 깨지면: 한두 걸음 더 지워 보고(빈 껍데기가 조판을 깨는 경우), 그래도 안 되면 한 걸음씩
+            let l0 = trail.len();
+            let mut ok_len = 0;
+            let mut fail: Option<String> = None;
+            if l0 > 0 {
+                let mut cands = vec![l0, l0 + 1, l0 + 2];
+                if l0 > 1 { cands.extend([1, 2, 3]); }
+                let mut tried: Vec<usize> = vec![];
+                for k in cands {
+                    if tried.contains(&k) { continue; }
+                    tried.push(k);
+                    while trail.len() < k {
+                        let prev = trail.last().unwrap();
+                        let mut t = prev.clone();
+                        match op(&mut t) {
+                            Ok(()) if !t.edge && t.text != prev.text => trail.push(t),
+                            _ => break,
+                        }
+                    }
+                    if trail.len() < k { continue; }
+                    match self.try_text(file, &trail[k - 1].text) {
+                        Ok(()) => { ok_len = k; break; }
+                        Err(e) => { fail.get_or_insert(e); }
+                    }
+                }
+                if ok_len == 0 {
+                    // 어떻게 지워도 조판이 깨지는 글자: 알리고 건너뛴다
+                    self.msg = Some((format!("이 글자는 지우면 조판 오류가 나서 건너뛰었습니다. ({})", fail.unwrap_or_default()), "error"));
+                    self.hop(fwd);
+                    return;
+                }
+                let w = trail[ok_len - 1].clone();
+                for t in &trail[..ok_len] { if let Some(nm) = &t.note { killed = Some(nm.clone()); } }
+                let hint = self.hint();
+                self.caret = Some(self.locate(Pos { file, off: w.caret }, !fwd, hint));
+                self.anchor = None;
+                self.push_undo(Step { file, before: w0.text, after: w.text, caret_before, caret_after: self.caret.map(|c| c.pos), kind: 2, time: Instant::now() });
+                left = left.saturating_sub(ok_len.min(l0).max(1));
+                if ok_len < l0 { continue; }
+            }
+            if let Some(e) = err { self.msg = Some((e, "warn")); return; }
+            if edge {
+                let spot = |c: Option<Caret>| c.map(|c| (c.page, c.x, c.y));
+                let from = spot(self.caret);
+                if !self.hop(fwd) { break; }
+                // 보이는 자리가 그대로면(빈 글 상자에서 바로 곁의 글자로) 이 누름으로 이어서 지운다
+                let same = matches!((from, spot(self.caret)), (Some(a), Some(b)) if a.0 == b.0 && (a.1 - b.1).abs() < 0.5 && (a.2 - b.2).abs() < 0.5);
+                if same && free < 3 { free += 1; } else { left = left.saturating_sub(1); }
+            } else if l0 == 0 { break; }
+        }
+        if let Some(name) = killed { self.note_killed(&name); }
     }
 
     fn compose(&mut self, text: &str, end: bool) {
@@ -677,7 +1048,7 @@ impl Session {
         }
         let cp = self.comp.as_ref().unwrap();
         let file = cp.file;
-        let mut w = Work { text: cp.base_text.clone(), caret: cp.base_caret, anchor: cp.base_anchor };
+        let mut w = Work::new(cp.base_text.clone(), cp.base_caret, cp.base_anchor);
         let cur = self.world.text_of(file).unwrap_or_default();
         let ok = match edit::insert(&mut w, text) {
             Ok(()) => self.commit(file, &cur, &w),
@@ -742,23 +1113,44 @@ impl Session {
             "click" => self.click(
                 req["page"].as_u64().unwrap_or(0) as usize,
                 req["x"].as_f64().unwrap_or(0.0) as f32, req["y"].as_f64().unwrap_or(0.0) as f32,
-                req["extend"].as_bool().unwrap_or(false), req["dbl"].as_bool().unwrap_or(false)),
+                req["extend"].as_bool().unwrap_or(false), req["dbl"].as_bool().unwrap_or(false), req["tpl"].as_bool().unwrap_or(false)),
             "move" => self.mv(req["dir"].as_str().unwrap_or(""), req["shift"].as_bool().unwrap_or(false)),
             "insert" => {
                 let typing = !text.chars().any(|c| c.is_whitespace()) && self.sel_range().is_none();
-                self.apply(typing, true, |w| edit::insert(w, text));
+                self.apply(typing as u8, true, |w| edit::insert(w, text));
             }
             "compose" => self.compose(text, false),
             "composeEnd" => self.compose(text, true),
-            "backspace" => { self.apply(false, true, edit::backspace); }
-            "delete" => { self.apply(false, false, edit::delete); }
-            "enter" => { self.apply(false, false, edit::enter); }
-            "linebreak" => { self.apply(false, false, edit::linebreak); }
-            "tab" => { let wd = self.tab_width(); self.apply(false, true, |w| edit::tab(w, wd)); }
-            "bold" => { let u = self.under_fn.clone(); self.apply(false, true, |w| edit::toggle(w, Style::Bold, &u)); }
-            "underline" => { let u = self.under_fn.clone(); self.apply(false, true, |w| edit::toggle(w, Style::Under, &u)); }
-            "indent" => { self.apply(false, true, |w| edit::hanging(w, 1)); }
-            "outdent" => { self.apply(false, true, |w| edit::hanging(w, -1)); }
+            "backspace" | "delete" | "wordBack" | "wordDel" => {
+                let n = req["n"].as_u64().unwrap_or(1) as usize;
+                self.del_many(matches!(op, "delete" | "wordDel"), matches!(op, "wordBack" | "wordDel"), n);
+            }
+            "enter" => { self.apply(0, false, edit::enter); }
+            "linebreak" => { self.apply(0, false, edit::linebreak); }
+            "tab" => { let wd = self.tab_width(); self.apply(0, true, |w| edit::tab(w, wd)); }
+            "bold" | "italic" | "underline" | "strike" => {
+                let st = match op { "bold" => Style::Bold, "italic" => Style::Italic, "underline" => Style::Under, _ => Style::Strike };
+                let u = self.under_fn.clone();
+                self.apply(0, true, |w| edit::toggle(w, st, &u));
+            }
+            "indent" => { self.apply(0, true, |w| edit::hanging(w, 1)); }
+            "outdent" => { self.apply(0, true, |w| edit::hanging(w, -1)); }
+            "align" => {
+                let how = req["how"].as_str().filter(|h| ["left", "center", "right"].contains(h)).map(|h| h.to_string());
+                self.apply(0, true, |w| edit::align(w, how.as_deref()));
+            }
+            "selectAll" => self.select_all(),
+            "findSel" | "replace" | "replaceAll" => {
+                let q = req["q"].as_str().unwrap_or("");
+                let case = req["case"].as_bool().unwrap_or(false);
+                let i = req["i"].as_u64().unwrap_or(0) as usize;
+                let with = req["with"].as_str().unwrap_or("");
+                match op {
+                    "findSel" => { self.find_select(q, case, i); }
+                    "replace" => self.replace_one(q, case, i, with),
+                    _ => self.replace_all(q, case, with),
+                }
+            }
             "undo" => self.undo_redo(true),
             "redo" => self.undo_redo(false),
             "save" => { self.save(); }
@@ -825,12 +1217,14 @@ impl Session {
             json!([p.frame.width().to_pt(), p.frame.height().to_pt(), h])
         }).collect();
         let (sel, sel_text) = self.sel_view();
-        let mut fmt = (false, false);
+        let mut fmt = [false; 4];
+        let mut align = None::<String>;
         let mut where_ = Value::Null;
         if let Some(c) = &self.caret {
             if let Some(src) = self.world.source_of(c.pos.file) {
                 let (a, b) = self.sel_range().unwrap_or((c.pos.off, c.pos.off));
                 fmt = edit::fmt_state(src.text(), a, b);
+                align = edit::align_state(src.text(), c.pos.off);
                 let line = src.lines().byte_to_line(c.pos.off.min(src.text().len())).unwrap_or(0) + 1;
                 where_ = json!({ "file": c.pos.file.vpath().get_without_slash(), "line": line });
             }
@@ -846,7 +1240,8 @@ impl Session {
             "lock": self.lock.as_ref().map(|l| json!({ "page": l.page, "x": l.x, "y": l.y, "w": l.w, "h": l.h, "reason": l.reason })),
             "sel": sel,
             "selText": sel_text,
-            "fmt": { "bold": fmt.0, "underline": fmt.1 },
+            "fmt": { "bold": fmt[0], "italic": fmt[1], "underline": fmt[2], "strike": fmt[3], "align": align },
+            "rev": self.rev,
             "dirty": dirty,
             "canUndo": !self.undo.is_empty() || self.comp.is_some(),
             "canRedo": !self.redo.is_empty(),
@@ -858,28 +1253,6 @@ impl Session {
             "problems": [],
             "elem": self.elem_view(),
         })
-    }
-
-    /// 지면에서 글을 찾는다(쪽, 첫 글자·끝 글자 자리).
-    pub fn find(&self, q: &str) -> Value {
-        let mut out = vec![];
-        if q.is_empty() { return json!(out); }
-        for (p, &(a, b)) in self.ix.page_ranges.iter().enumerate() {
-            let mut text = String::new();
-            let mut map: Vec<(usize, usize)> = vec![];
-            for gi in a..b { map.push((text.len(), gi)); text.push_str(self.ix.text_of(gi)); }
-            let mut from = 0;
-            while let Some(i) = text[from..].find(q) {
-                let (s, e) = (from + i, from + i + q.len());
-                let g0 = map[map.partition_point(|m| m.0 <= s).saturating_sub(1)].1;
-                let g1 = map[map.partition_point(|m| m.0 < e).saturating_sub(1)].1;
-                let (ga, gb) = (self.glyph(g0), self.glyph(g1));
-                out.push(json!({ "page": p, "x0": ga.x0, "x1": gb.x1, "y": ga.y - ga.size * 0.3, "y1": gb.y - gb.size * 0.3, "kind": ga.kind }));
-                from = e;
-                if out.len() >= 50 { return json!(out); }
-            }
-        }
-        json!(out)
     }
 
     pub fn page_svg(&self, i: usize) -> Option<String> {
