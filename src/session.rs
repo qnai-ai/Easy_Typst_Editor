@@ -472,6 +472,35 @@ impl Session {
         v
     }
 
+    /// 커서가 글자 없는 빈 문단에 있으면(Enter 직후), 그 문단이 놓일 자리를 어림한다: (x, 기준선 y).
+    /// 빈 문단은 조판 결과에 흔적이 없어서, 앞 문단의 마지막 줄 아래에 줄 간격만큼 내려 잡는다.
+    fn empty_par_spot(&self, c: &Caret) -> Option<(f32, f32)> {
+        let gi = c.gi?;
+        let g = self.glyph(gi);
+        if g.file != Some(c.pos.file) || !editable(g) { return None; }
+        let text = self.world.text_of(c.pos.file)?;
+        let (a, b) = (g.e as usize, c.pos.off);
+        if b <= a || b > text.len() { return None; }
+        // 앞 글자와 커서 사이에 문단 나눔이 있고 글자는 없어야 하며, 커서 뒤로도 그 줄에 글이 없어야 한다
+        if !edit::blank_gap(&text, a, b) { return None; }
+        let rest = text[b..].trim_start_matches([' ', '\t', '\r', ']', '*', '_', ';']);
+        if !(rest.is_empty() || rest.starts_with('\n')) { return None; }
+        // 앞 문단의 마지막 줄: 줄의 왼쪽 끝과, 그 윗줄과의 간격
+        let start = edit::para_range(&text, g.s as usize).map(|r| r.0).unwrap_or(0) as u32;
+        let near = g.size * 0.4;
+        let (mut x, mut pitch) = (g.x0, g.size * 1.45);
+        let mut i = gi;
+        while i > 0 {
+            i -= 1;
+            let p = self.glyph(i);
+            if p.page != g.page || p.file != g.file || p.s < start || p.s > g.s { break; }
+            if (p.y - g.y).abs() < near { x = x.min(p.x0); continue; }
+            if p.y < g.y && g.y - p.y < g.size * 3.0 { pitch = g.y - p.y; }
+            break;
+        }
+        Some((x, g.y + pitch + g.size * 0.45))
+    }
+
     fn hint(&self) -> Option<(u32, f32, f32)> { self.caret.map(|c| (c.page, c.x, c.y)) }
 
     // ───────────── 마우스
@@ -1779,7 +1808,11 @@ impl Session {
             "title": self.title,
             "path": self.main_path.display().to_string(),
             "pages": pages,
-            "caret": self.caret.map(|c| json!({ "page": c.page, "x": c.x, "y": c.y - c.size * 0.88, "h": c.size * 1.2 })),
+            "caret": self.caret.map(|c| {
+                // 빈 문단(Enter 직후)에는 글자가 없으므로, 그 문단이 놓일 자리를 어림해 그린다
+                let (x, y) = self.empty_par_spot(&c).unwrap_or((c.x, c.y));
+                json!({ "page": c.page, "x": x, "y": y - c.size * 0.88, "h": c.size * 1.2 })
+            }),
             "lock": self.lock.as_ref().map(|l| json!({ "page": l.page, "x": l.x, "y": l.y, "w": l.w, "h": l.h, "reason": l.reason })),
             "sel": sel,
             "selText": sel_text,

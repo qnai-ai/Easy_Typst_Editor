@@ -84,7 +84,7 @@ fn markup_at(node: &LinkedNode, p: usize) -> Option<Range<usize>> {
         for c in node.children() {
             let cr = c.range();
             if cr.start < p && p < cr.end {
-                if c.kind() == SyntaxKind::Text { return Some(r); }
+                if matches!(c.kind(), SyntaxKind::Text | SyntaxKind::Space | SyntaxKind::Parbreak) { return Some(r); }
                 return markup_at(&c, p);
             }
         }
@@ -1193,6 +1193,29 @@ pub fn para_range(text: &str, p: usize) -> Option<(usize, usize)> {
     Some((s, e))
 }
 
+/// 원고의 `a`와 `b` 사이에 문단 나눔이 있고 본문 글자는 없는지(커서가 글자 없는 빈 문단에 있는지 가릴 때).
+pub fn blank_gap(text: &str, a: usize, b: usize) -> bool {
+    if a >= b || b > text.len() { return false; }
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    fn go(n: &LinkedNode, a: usize, b: usize, brk: &mut bool) -> bool {
+        for c in n.children() {
+            let r = c.range();
+            if r.end <= a || r.start >= b { continue; }
+            match c.kind() {
+                SyntaxKind::Parbreak => *brk = true,
+                SyntaxKind::Text | SyntaxKind::Escape | SyntaxKind::Shorthand | SyntaxKind::SmartQuote | SyntaxKind::Linebreak
+                    if c.parent_kind() == Some(SyntaxKind::Markup) => return false,
+                SyntaxKind::Equation | SyntaxKind::Raw => return false,
+                _ => if !go(&c, a, b, brk) { return false; },
+            }
+        }
+        true
+    }
+    let mut brk = false;
+    go(&root, a, b, &mut brk) && brk
+}
+
 /// Ctrl+A: 커서가 든 글 상자 전체(앞뒤 공백 제외). 따옴표 문자열 안이면 그 문자열 전체.
 pub fn block_range(text: &str, p: usize) -> Option<(usize, usize)> {
     let node = tree(text);
@@ -2270,6 +2293,13 @@ mod tests {
     #[test] fn bs_hangul_str() { let mut x = w("#sub(\"낱말 익히|기\")"); backspace(&mut x).unwrap(); assert_eq!(x.text, "#sub(\"낱말 익기\")"); }
     #[test] fn paste_lines() { let mut x = w("가|나"); insert(&mut x, "A\nB\n\nC").unwrap(); assert_eq!(x.text, "가A\\ B\n\nC나"); }
     #[test] fn enter_plain() { let mut x = w("가|나"); enter(&mut x).unwrap(); assert_eq!(show(&x), "가\n\n|나"); }
+    #[test] fn enter_end_type() {
+        // 상자 안 마지막 문단 끝에서 Enter를 친 뒤에도 글자가 들어가야 한다
+        let mut x = w("#key[\n  가.|\n]"); enter(&mut x).unwrap(); insert(&mut x, "나").unwrap(); assert_eq!(show(&x), "#key[\n  가.\n\n나|\n]");
+        let mut x = w("가.|\n\n다."); enter(&mut x).unwrap(); insert(&mut x, "나").unwrap(); assert_eq!(show(&x), "가.\n\n나|\n\n다.");
+        assert!(blank_gap("가.\n\n\n\n다.", 4, 6) && !blank_gap("가. 나\n\n다", 4, 10) && !blank_gap("가.\n다", 4, 5));
+        assert!(blank_gap("#text(9pt)[가.]\n\n#text(9pt)[]", 15, 29));
+    }
     #[test] fn enter_bold() { let mut x = w("*가|나*"); enter(&mut x).unwrap(); assert_eq!(show(&x), "*가*\n\n*|나*"); }
     #[test] fn lb() { let mut x = w("가|나"); linebreak(&mut x).unwrap(); assert_eq!(show(&x), "가\\ |나"); }
     #[test] fn tab_bs() { let mut x = w("가|나"); tab(&mut x, 12.0).unwrap(); assert_eq!(show(&x), "가#h(12.0pt)|나"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "가|나"); }
