@@ -1168,6 +1168,63 @@ impl Session {
         true
     }
 
+    /// 원고 범위 [a, b)의 글자가 지면에 굵게 찍혔는지: (굵은 글자 수, 굵기를 알 수 있는 글자 수).
+    fn bold_count(&self, file: FileId, a: usize, b: usize) -> (usize, usize) {
+        let Some(v) = self.ix.by_file.get(&file) else { return (0, 0) };
+        let from = v.partition_point(|&(s, _)| (s as usize) < a);
+        let (mut nb, mut n) = (0, 0);
+        for &(s, gi) in &v[from..] {
+            if s as usize >= b { break; }
+            match self.ix.glyphs[gi as usize].bold { 1 => { nb += 1; n += 1; } 0 => n += 1, _ => {} }
+        }
+        (nb, n)
+    }
+
+    /// 굵게 켜고 끄기. 원고의 표식만 보지 않고 지면에 실제로 찍힌 굵기를 따른다:
+    /// `#text(weight: "bold")`나 템플릿·show 규칙이 굵게 만든 글자도 굵은 글자로 보고 푼다.
+    fn toggle_bold(&mut self) {
+        let Some((file, mut w)) = self.work() else {
+            self.msg = Some(("먼저 고칠 자리를 눌러 커서를 놓아 주세요.".into(), "info"));
+            return;
+        };
+        let before = w.text.clone();
+        let caret_before = self.caret.map(|c| c.pos);
+        let Some((a, b)) = w.sel() else {
+            self.msg = Some(("먼저 서식을 바꿀 글자를 끌어서 선택해 주세요.".into(), "warn"));
+            return;
+        };
+        let (nb, n) = self.bold_count(file, a, b);
+        let on = edit::fmt_state(&w.text, a, b)[0] || (n > 0 && nb == n);
+        // 1) 굵기를 만든 꾸밈을 원고에서 걷어 낸다
+        if let Err(e) = edit::bold_strip(&mut w, on) { self.msg = Some((e, "warn")); return; }
+        let mut more = w.text == before;
+        if !more {
+            if !self.commit(file, &before, &w) { return; }
+            // 걷어 냈는데도 지면의 굵기가 그대로이면(바깥 꾸밈이나 템플릿이 준 굵기) 덧씌워야 한다
+            if let Some((a, b)) = w.sel() {
+                let (nb, n) = self.bold_count(file, a, b);
+                more = if on { nb > 0 } else { n > 0 && nb < n };
+            }
+        }
+        // 2) 덧씌운다: 끌 때는 `#text(weight: "regular")[..]`, 켤 때는 `*..*`
+        if more {
+            let mut w2 = w.clone();
+            match edit::bold_wrap(&mut w2, on) {
+                Ok(()) => {
+                    let mid = w.text.clone();
+                    if self.commit(file, &mid, &w2) { w = w2; } else if mid == before { return; }
+                }
+                Err(e) => if w.text == before { self.msg = Some((e, "warn")); return; },
+            }
+        }
+        let hint = self.hint();
+        self.caret = Some(self.locate(Pos { file, off: w.caret }, true, hint));
+        self.anchor = if w.anchor != w.caret { Some(Pos { file, off: w.anchor }) } else { None };
+        if w.text != before {
+            self.push_undo(Step { file, before, after: w.text, caret_before, caret_after: self.caret.map(|c| c.pos), kind: 0, time: Instant::now() });
+        }
+    }
+
     fn note_killed(&mut self, name: &str) {
         self.msg = Some((crate::lang::f("#{0} 요소를 통째로 지웠습니다. 되돌리려면 Ctrl+Z를 누르세요.", &[&name]), "info"));
     }
@@ -1386,8 +1443,9 @@ impl Session {
             "enter" => { self.apply(0, false, edit::enter); }
             "linebreak" => { self.apply(0, false, edit::linebreak); }
             "tab" => { let wd = self.tab_width(); self.apply(0, true, |w| edit::tab(w, wd)); }
-            "bold" | "italic" | "underline" | "strike" => {
-                let st = match op { "bold" => Style::Bold, "italic" => Style::Italic, "underline" => Style::Under, _ => Style::Strike };
+            "bold" => self.toggle_bold(),
+            "italic" | "underline" | "strike" => {
+                let st = match op { "italic" => Style::Italic, "underline" => Style::Under, _ => Style::Strike };
                 let u = self.under_fn.clone();
                 self.apply(0, true, |w| edit::toggle(w, st, &u));
             }
@@ -1483,6 +1541,11 @@ impl Session {
             if let Some(src) = self.world.source_of(c.pos.file) {
                 let (a, b) = self.sel_range().unwrap_or((c.pos.off, c.pos.off));
                 fmt = edit::fmt_state(src.text(), a, b);
+                // 굵게는 지면에 찍힌 굵기도 본다(템플릿이 굵게 만든 글자)
+                let (nb, n) = if a < b { self.bold_count(c.pos.file, a, b) } else {
+                    match c.gi.map(|gi| self.glyph(gi).bold) { Some(1) => (1, 1), Some(0) => (0, 1), _ => (0, 0) }
+                };
+                if n > 0 && nb == n { fmt[0] = true; }
                 align = edit::align_state(src.text(), c.pos.off);
                 let line = src.lines().byte_to_line(c.pos.off.min(src.text().len())).unwrap_or(0) + 1;
                 where_ = json!({ "file": c.pos.file.vpath().get_without_slash(), "line": line });

@@ -139,6 +139,8 @@ struct Wrap {
     kind: WK,
     /// 글줄에 낀 것이 아니라 제 문단을 혼자 차지하는 덩어리인지
     blocky: bool,
+    /// `#text(.., weight: ..)[..]`의 굵기: (굵은지, 그 인자의 범위, 인자가 그것뿐인지)
+    weight: Option<(bool, Range<usize>, bool)>,
 }
 
 impl Wrap {
@@ -185,6 +187,7 @@ fn wrap_of(node: &LinkedNode) -> Option<Wrap> {
                 open: f.range(), close: l.range(), content: f.range().end..l.range().start,
                 kind: if mk == SyntaxKind::Star { WK::Star } else { WK::Under },
                 blocky: false,
+                weight: None,
             })
         }
         SyntaxKind::FuncCall => {
@@ -203,11 +206,37 @@ fn wrap_of(node: &LinkedNode) -> Option<Wrap> {
                 close: cb.end - 1..cb.end,
                 content: cb.start + 1..cb.end - 1,
                 blocky: block_like(node, &name),
+                weight: if name == "text" { weight_arg(&ach) } else { None },
                 kind: WK::Func(name, ach.len() > 1),
             })
         }
         _ => None,
     }
+}
+
+/// `text(..)`의 인자들에서 `weight:`를 찾는다: (굵은지, 인자의 범위, 인자가 그것뿐인지).
+/// 값이 변수나 식이면 알 수 없으므로 None.
+fn weight_arg(args: &[LinkedNode]) -> Option<(bool, Range<usize>, bool)> {
+    let real = |k: SyntaxKind| !matches!(k, SyntaxKind::LeftParen | SyntaxKind::RightParen | SyntaxKind::Comma | SyntaxKind::Space | SyntaxKind::ContentBlock);
+    let n = args.iter().filter(|c| real(c.kind())).count();
+    for c in args {
+        if c.kind() != SyntaxKind::Named { continue; }
+        let ch: Vec<_> = c.children().collect();
+        if ch.first().is_none_or(|x| x.get().full_text() != "weight") { continue; }
+        let v = ch.last()?;
+        let t = v.get().full_text();
+        let bold = match v.kind() {
+            SyntaxKind::Str => match t.trim_matches('"') {
+                "semibold" | "bold" | "extrabold" | "black" => true,
+                "thin" | "extralight" | "light" | "regular" | "medium" => false,
+                _ => return None,
+            },
+            SyntaxKind::Int => t.parse::<i64>().ok()? >= 600,
+            _ => return None,
+        };
+        return Some((bold, c.range(), n == 1));
+    }
+    None
 }
 
 /// `p`를 감싼 꾸밈들(안쪽부터). `p`가 내용 범위 안(경계 포함)에 있는 것만.
@@ -1151,11 +1180,24 @@ fn text_leaves(node: &LinkedNode, a: usize, b: usize, out: &mut Vec<Range<usize>
 
 pub const STYLES: [Style; 4] = [Style::Bold, Style::Italic, Style::Under, Style::Strike];
 
+/// 꾸밈들(안쪽부터)이 그 서식을 주는지. 굵게는 가장 안쪽에서 굵기를 정한 것이 이긴다
+/// (`*..*` 안의 `#text(weight: "regular")[..]`는 굵지 않다).
+fn styled(ws: &[Wrap], st: Style) -> bool {
+    if st == Style::Bold {
+        for w in ws {
+            if let Some(k) = &w.weight { return k.0; }
+            if w.is_style(st) { return true; }
+        }
+        return false;
+    }
+    ws.iter().any(|w| w.is_style(st))
+}
+
 /// 글자 꾸밈 상태: [굵게, 기울임, 밑줄, 취소선].
 pub fn fmt_state(text: &str, a: usize, b: usize) -> [bool; 4] {
     let node = tree(text);
     let root = LinkedNode::new(&node);
-    let has = |p: usize, st: Style| wraps_at(&root, p).iter().any(|w| w.is_style(st));
+    let has = |p: usize, st: Style| styled(&wraps_at(&root, p), st);
     if a == b { return STYLES.map(|st| has(a, st)); }
     let mut leaves = vec![];
     text_leaves(&root, a, b, &mut leaves);
@@ -1191,14 +1233,17 @@ fn to_func(w: &mut Work, wp: &Wrap) {
     w.rep(wp.open.clone(), name, true);
 }
 
-fn remove_style(w: &mut Work, st: Style) -> R<()> {
+fn remove_style(w: &mut Work, st: Style) -> R<()> { remove_wraps(w, &|x: &Wrap| x.is_style(st)) }
+
+/// 선택에 걸친 꾸밈 가운데 `pick`이 고른 것을 걷어 낸다. 선택이 일부만 덮으면 꾸밈을 둘로 갈라 그 부분만 뺀다.
+fn remove_wraps(w: &mut Work, pick: &dyn Fn(&Wrap) -> bool) -> R<()> {
     for _ in 0..200 {
         let (a, b) = match w.sel() { Some(x) => x, None => return Ok(()) };
         let node = tree(&w.text);
         let root = LinkedNode::new(&node);
         let mut ws = vec![];
         all_wraps(&root, &mut ws);
-        let Some(wp) = ws.into_iter().find(|x| x.is_style(st) && a.max(x.content.start) < b.min(x.content.end)) else { return Ok(()) };
+        let Some(wp) = ws.into_iter().find(|x| pick(x) && a.max(x.content.start) < b.min(x.content.end)) else { return Ok(()) };
         let (cs, ce) = (wp.content.start, wp.content.end);
         let os = snap(&root, &wp.content, a.max(cs), false);
         let oe = snap(&root, &wp.content, b.min(ce), true);
@@ -1269,6 +1314,11 @@ fn runs(node: &LinkedNode, a: usize, b: usize, out: &mut Vec<Range<usize>>) {
 }
 
 fn add_style(w: &mut Work, st: Style, func_open: &str) -> R<()> {
+    // 굵게·기울임은 되도록 짧은 표식(`*`, `_`)으로, 낱말 한가운데 등 표식이 깨지는 자리에서는 함수 꼴로
+    add_wrap(w, match st { Style::Bold => Some("*"), Style::Italic => Some("_"), _ => None }, func_open)
+}
+
+fn add_wrap(w: &mut Work, mark: Option<&str>, func_open: &str) -> R<()> {
     let Some((a, b)) = w.sel() else { return Ok(()) };
     let node = tree(&w.text);
     let root = LinkedNode::new(&node);
@@ -1289,8 +1339,6 @@ fn add_style(w: &mut Work, st: Style, func_open: &str) -> R<()> {
         sorted.sort_by_key(|r| std::cmp::Reverse(r.start));
         for r in sorted {
             let t = &w.text;
-            // 굵게·기울임은 되도록 짧은 표식(`*`, `_`)으로, 낱말 한가운데 등 표식이 깨지는 자리에서는 함수 꼴로
-            let mark = match st { Style::Bold => Some("*"), Style::Italic => Some("_"), _ => None };
             let mark_ok = mark.is_some() && pass == 0
                 && !(wordy(prev_char(t, r.start)) && wordy(next_char(t, r.start)))
                 && !(wordy(prev_char(t, r.end)) && wordy(next_char(t, r.end)))
@@ -1308,18 +1356,80 @@ fn add_style(w: &mut Work, st: Style, func_open: &str) -> R<()> {
     Err("이 선택에는 서식을 줄 수 없습니다.".into())
 }
 
-/// 굵게·기울임·밑줄·취소선을 켜거나 끈다. `under_fn`: 밑줄에 쓸 함수 이름(책의 템플릿에 `u`가 있으면 그것).
-/// 여러 글 상자에 걸친 선택이면 상자마다 따로 꾸민다.
-pub fn toggle(w: &mut Work, st: Style, under_fn: &str) -> R<()> {
+/// 서식을 바꿀 선택 범위. 표시를 선택 범위로 맞춘다(시작 = anchor, 끝 = caret).
+fn style_sel(w: &mut Work) -> R<(usize, usize)> {
     let Some((a, b)) = w.sel() else { return Err("먼저 서식을 바꿀 글자를 끌어서 선택해 주세요.".into()) };
     let node = tree(&w.text);
     let root = LinkedNode::new(&node);
     if str_at(&root, a).is_some() || str_at(&root, b).is_some() {
         return Err("제목처럼 따옴표 안에 든 글에는 굵게·밑줄 같은 꾸밈을 줄 수 없습니다.".into());
     }
-    let on = fmt_state(&w.text, a, b)[STYLES.iter().position(|x| *x == st).unwrap()];
-    // 표시를 선택 범위로 맞춘다(시작 = anchor, 끝 = caret)
     w.anchor = a; w.caret = b;
+    Ok((a, b))
+}
+
+/// 선택에 걸친 `#text(weight: ..)` 굵기를 걷어 낸다. `bold`: 굵게 만드는 것(true)인지, 굵기를 푸는 것(false)인지.
+fn strip_weight(w: &mut Work, bold: bool) -> R<()> {
+    // 크기·색 같은 다른 인자와 함께 쓰였으면: 선택이 내용을 통째로 덮었을 때만 굵기 인자를 지운다
+    for _ in 0..50 {
+        let Some((a, b)) = w.sel() else { return Ok(()) };
+        let node = tree(&w.text);
+        let root = LinkedNode::new(&node);
+        let mut ws = vec![];
+        all_wraps(&root, &mut ws);
+        let hit = ws.into_iter().find_map(|x| {
+            let (k, r, solo) = x.weight.clone()?;
+            if k != bold || solo { return None; }
+            let t = &w.text[x.content.clone()];
+            let cs = x.content.start + (t.len() - t.trim_start().len());
+            let ce = x.content.end - (t.len() - t.trim_end().len());
+            (cs < ce && a <= cs && ce <= b).then_some(r)
+        });
+        let Some(r) = hit else { break };
+        let (mut s, mut e) = (r.start, r.end);
+        let rest = w.text[e..].trim_start_matches(' ');
+        if rest.starts_with(',') {
+            e = w.text.len() - rest.len() + 1;
+            e += w.text[e..].len() - w.text[e..].trim_start_matches(' ').len();
+        } else {
+            let head = w.text[..s].trim_end();
+            if head.ends_with(',') { s = head.len() - 1; }
+        }
+        let before = w.text.clone();
+        let (c0, a0) = (w.caret, w.anchor);
+        w.rep(s..e, "", false);
+        if bad(&tree(&w.text)) { w.text = before; w.caret = c0; w.anchor = a0; break; }
+    }
+    // 굵기만 준 `#text(weight: ..)[..]`는 통째로(선택이 일부면 그 부분만) 걷어 낸다
+    remove_wraps(w, &|x: &Wrap| x.weight.as_ref().is_some_and(|k| k.0 == bold && k.2))
+}
+
+/// 굵게 바꾸기의 첫 단계: 지금 굵기를 만든 꾸밈을 원고에서 걷어 낸다.
+/// `on`(지금 굵다 → 끈다): `*..*`·`#strong[..]`·`#text(weight: "bold")`를, 아니면 굵기를 풀던 `#text(weight: "regular")[..]`를.
+pub fn bold_strip(w: &mut Work, on: bool) -> R<()> {
+    style_sel(w)?;
+    if on { remove_style(w, Style::Bold)?; }
+    strip_weight(w, on)
+}
+
+/// 둘째 단계: 걷어 낼 것이 없거나 걷어 내도 그대로일 때(템플릿·show 규칙이 준 굵기) 꾸밈을 덧씌운다.
+pub fn bold_wrap(w: &mut Work, on: bool) -> R<()> {
+    if on { return add_wrap(w, None, "#text(weight: \"regular\")["); }
+    remove_style(w, Style::Bold)?;
+    add_style(w, Style::Bold, "#strong[")
+}
+
+/// 굵게·기울임·밑줄·취소선을 켜거나 끈다. `under_fn`: 밑줄에 쓸 함수 이름(책의 템플릿에 `u`가 있으면 그것).
+/// 여러 글 상자에 걸친 선택이면 상자마다 따로 꾸민다.
+pub fn toggle(w: &mut Work, st: Style, under_fn: &str) -> R<()> {
+    let (a, b) = style_sel(w)?;
+    let on = fmt_state(&w.text, a, b)[STYLES.iter().position(|x| *x == st).unwrap()];
+    if st == Style::Bold {
+        let before = w.text.clone();
+        bold_strip(w, on)?;
+        if w.text == before { bold_wrap(w, on)?; }
+        return Ok(());
+    }
     remove_style(w, st)?;
     if !on {
         let open = match st {
@@ -1735,6 +1845,18 @@ mod tests {
     #[test] fn bold_on() { let mut x = w("The {cat} sat"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "The *cat* sat"); }
     #[test] fn bold_off() { let mut x = w("The *{cat}* sat"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "The cat sat"); }
     #[test] fn bold_part_off() { let mut x = w("*{big} cat*"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "big* cat*"); }
+    #[test] fn bold_off_weight() { let mut x = w("#text(17pt, weight: \"bold\")[{2028 LEET}]"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "#text(17pt)[2028 LEET]"); }
+    #[test] fn bold_off_weight_first() { let mut x = w("#text(weight: \"bold\", fill: navy)[{로준생}]"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "#text(fill: navy)[로준생]"); }
+    #[test] fn bold_off_weight_solo() { let mut x = w("a #text(weight: \"bold\")[{b}] c"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "a b c"); }
+    #[test] fn bold_off_weight_num() { let mut x = w("a #text(weight: 700)[{b} c] d"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "a b#text(weight: 700)[ c] d"); }
+    #[test] fn bold_off_weight_part() { let mut x = w("#text(10pt, weight: \"bold\")[가설이 {거짓}이면]"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "#text(10pt, weight: \"bold\")[가설이 #text(weight: \"regular\")[거짓]이면]"); }
+    #[test] fn bold_on_regular() { let mut x = w("#text(10pt, weight: \"bold\")[가설이 #text(weight: \"regular\")[{거짓}]이면]"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "#text(10pt, weight: \"bold\")[가설이 거짓이면]"); }
+    #[test] fn bold_state_weight() {
+        let t = "#text(10pt, weight: \"bold\")[가 #text(weight: \"regular\")[나] 다] *라 #text(weight: \"regular\")[마]*";
+        let at = |c: &str| { let p = t.find(c).unwrap(); fmt_state(t, p, p + c.len())[0] };
+        assert_eq!([at("가"), at("나"), at("다"), at("라"), at("마")], [true, false, true, true, false]);
+    }
+    #[test] fn bold_strip_keeps() { let mut x = w("#sub[{내 상식은}?]"); bold_strip(&mut x, true).unwrap(); assert_eq!(x.text, "#sub[내 상식은?]"); bold_wrap(&mut x, true).unwrap(); assert_eq!(x.text, "#sub[#text(weight: \"regular\")[내 상식은]?]"); }
     #[test] fn bold_midword() { let mut x = w("un{believ}able"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "un#strong[believ]able"); }
     #[test] fn bold_hangul() { let mut x = w("청중{관중}독자"); toggle(&mut x, Style::Bold, "underline").unwrap(); assert_eq!(x.text, "청중*관중*독자"); }
     #[test] fn under_on() { let mut x = w("The {cat} sat"); toggle(&mut x, Style::Under, "underline").unwrap(); assert_eq!(x.text, "The #underline[cat] sat"); }

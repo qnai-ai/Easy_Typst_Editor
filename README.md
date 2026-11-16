@@ -39,7 +39,8 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
   A selection may span several text boxes: the text inside each is deleted and the structure is kept.
 - **Formatting that writes clean Typst:** Ctrl+B → `*bold*`, Ctrl+I → `_italic_`, Ctrl+U → `#underline[...]` (or your template's own `#u[...]`),
   strikethrough, paragraph alignment (`#align(center)[...]`), Enter → new paragraph, Shift+Enter → `\` line break, Tab, hanging indent.
-  Typing over a selection keeps its formatting.
+  Typing over a selection keeps its formatting. Ctrl+B follows what is actually typeset, not only the marks in the source:
+  it also turns off bold that comes from `#text(weight: "bold")[...]`, a template function or a `#show` rule.
 - **Multi-file projects.** Edits go to whichever included file the text came from (`content/ch01.typ`, …).
 - **Template text is protected.** Page numbers, outlines, headers and other computed text are locked — click them and the editor explains why.
 - **Move or delete whole blocks.** Alt+click any element (a placed label, a heading line, a template element) to drag it or delete it.

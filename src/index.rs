@@ -37,6 +37,8 @@ pub struct G {
     pub node: (u32, u32),
     /// 본문 대조로 되찾은 자리인지
     pub rec: bool,
+    /// 지면에 찍힌 굵기: 0 보통, 1 굵게, 2 알 수 없음(그 글꼴에 굵은 꼴이 없다)
+    pub bold: u8,
 }
 
 #[derive(Default)]
@@ -66,11 +68,13 @@ struct Builder<'a> {
     out: Index,
     line: u32,
     page: u32,
+    /// 글꼴 가족마다 굵은 꼴이 있는지
+    can_bold: HashMap<String, bool>,
 }
 
 impl Index {
     pub fn build(world: &ProjectWorld, doc: &PagedDocument, reuse: Option<Reuse>) -> Index {
-        let mut b = Builder { world, cache: HashMap::new(), out: Index::default(), line: 0, page: 0 };
+        let mut b = Builder { world, cache: HashMap::new(), out: Index::default(), line: 0, page: 0, can_bold: HashMap::new() };
         let mut changed = vec![true; doc.pages().len()];
         for (i, page) in doc.pages().iter().enumerate() {
             b.page = i as u32;
@@ -156,6 +160,7 @@ impl<'a> Builder<'a> {
                     self.out.item_text.push(text.text.clone());
                     let mut x = pos.x;
                     let scale = ts.sx.get().abs() as f32;
+                    let bold = self.bold_of(&text.font);
                     for glyph in &text.glyphs {
                         let w = glyph.x_advance.at(text.size);
                         let p0 = Point::new(x, pos.y).transform(ts);
@@ -180,12 +185,32 @@ impl<'a> Builder<'a> {
                             tr: (glyph.range.start, glyph.range.end),
                             node: (ns, ne),
                             rec: false,
+                            bold,
                         });
                     }
                 }
                 _ => {}
             }
         }
+    }
+
+    /// 이 글꼴로 찍힌 글자가 굵은지(가변 글꼴이면 wght 축의 값으로).
+    fn bold_of(&mut self, font: &typst::text::FontInstance) -> u8 {
+        const HEAVY: f32 = 600.0;
+        let wght = typst::text::Tag::from_bytes(b"wght");
+        let info = font.font().info();
+        let weight = font.variations().0.iter().rev().find(|(t, _)| *t == wght).map(|(_, v)| v.0)
+            .unwrap_or(info.variant.weight.to_number() as f32);
+        if weight >= HEAVY { return 1; }
+        let world = self.world;
+        let can = *self.can_bold.entry(info.family.clone()).or_insert_with(|| {
+            let book = world.book();
+            let found = book.select_family(&info.family.to_lowercase()).filter_map(|i| book.info(i)).any(|f| {
+                f.variant.weight.to_number() as f32 >= HEAVY || f.axes.iter().any(|a| a.tag == wght && a.max.0 >= HEAVY)
+            });
+            found
+        });
+        if can { 0 } else { 2 }
     }
 
     fn resolve(&mut self, span: Span) -> (Option<FileId>, u32, u32, u8, SyntaxKind) {
