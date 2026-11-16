@@ -61,6 +61,14 @@ button{font:inherit;color:inherit}
 .caret.still{animation:none}
 @keyframes blink{50%{opacity:0}}
 .elemr{position:absolute;border:1.5px solid var(--acc);background:rgba(37,99,217,.08);border-radius:2px;pointer-events:auto;cursor:move}
+.boxr{position:absolute;border:1px dashed var(--acc);border-radius:1px;pointer-events:none}
+.hnd{position:absolute;width:13px;margin-left:-6.5px;cursor:ew-resize;pointer-events:auto;z-index:2}
+.hnd::after{content:"";position:absolute;left:5px;top:0;bottom:0;width:3px;background:var(--acc);border-radius:2px;opacity:.8}
+.hnd.edge::before{content:"";position:absolute;z-index:1;left:2px;top:50%;width:6px;height:22px;margin-top:-12px;background:#fff;border:1.5px solid var(--acc);border-radius:4px}
+.hnd.col{cursor:col-resize}
+.hnd.col::after{left:5.75px;width:1.5px;opacity:.55}
+.hnd:hover::after,.hnd.drag::after{opacity:1}
+.hnd.col:hover::after,.hnd.col.drag::after{left:5px;width:3px}
 #ebar{position:fixed;z-index:25;display:none;align-items:center;gap:4px;background:#fff;border:1px solid #b9cdf7;border-radius:9px;padding:4px 6px 4px 10px;box-shadow:0 6px 20px rgba(20,30,50,.18);font-size:12px;white-space:nowrap}
 #ebar b{color:var(--acc)} #ebar .warn{color:var(--warn);font-weight:600;margin-left:4px}
 #ebar .tb{height:26px;border:1px solid var(--line)} #ebar .tb.danger{color:var(--err)}
@@ -347,7 +355,7 @@ function apply(v, req) {
   if (v.msg) setMsg(v.msg, v.msgKind); else if (req.op !== 'click' || !req.extend) setMsg(v.caret ? '' : T('고칠 글자를 눌러 주세요.'));
   if (v.lock) showTip(v.lock); else hideTip();
   showEbar();
-  if (v.elem && !v.msg) setMsg(T('끌거나 방향키로 옮깁니다(Shift: 5pt씩). Delete로 지웁니다. 잘못했으면 Ctrl+Z.'));
+  if (v.elem && !v.msg) setMsg(T('끌거나 방향키로 옮깁니다(Shift: 5pt씩). Delete로 지웁니다. 잘못했으면 Ctrl+Z.') + (v.elem.box ? ' ' + T('오른쪽 손잡이나 칸 사이의 선을 끌면 너비가 바뀝니다.') : ''));
   if (v.caret && req.op !== 'click') scrollToCaret();
   if (req.op === 'open') {
     ime.focus();
@@ -418,6 +426,13 @@ function drawOverlay() {
   for (const [p, x, y, w, h] of view.sel || []) addRect(p, x, y, w, h, 'selr');
   if (view.lock) { const l = view.lock; addRect(l.page, l.x - 1, l.y - 1, l.w + 2, l.h + 2, 'lockr'); }
   if (view.elem) for (const [p, x, y, w, h] of view.elem.rects) addRect(p, x, y, w, h, 'elemr');
+  // 고른 요소의 상자: 오른쪽 가장자리와 칸 사이 경계에 손잡이를 단다
+  if (view.elem && view.elem.box) {
+    const b = view.elem.box;
+    addRect(b.page, b.x, b.y, b.w, b.h, 'boxr');
+    b.bounds.forEach((x, i) => { const c = addRect(b.page, x, b.y, 0, b.h, 'hnd col'); if (c) c.dataset.col = i; });
+    const e = addRect(b.page, b.x + b.w, b.y, 0, b.h, 'hnd edge'); if (e) e.dataset.col = '';
+  }
   if (view.caret && !(view.sel && view.sel.length)) {
     const c = view.caret; const d = addRect(c.page, c.x, c.y, 0, c.h, 'caret'); if (d) { d.style.width = Math.max(1.4, zoom * 1.3) + 'px'; d.style.marginLeft = '-0.7px'; }
   }
@@ -461,7 +476,8 @@ function showTip(l) {
 function hideTip() { tip.style.display = 'none'; }
 
 /* ---------- 요소 고르기 ---------- */
-let pickMode = false, edrag = null;
+let pickMode = false, edrag = null, rdrag = null;
+const mm = pt => (pt / 2.8346457).toFixed(1);
 function setPick(on) {
   pickMode = on; document.body.classList.toggle('pick', on); $('bElem').classList.toggle('on', on);
   if (on) setMsg(T('지우거나 옮길 덩어리의 글자를 눌러 주세요. (Esc: 그만두기)'));
@@ -469,7 +485,8 @@ function setPick(on) {
 function showEbar() {
   const bar = $('ebar'), el = view && view.elem;
   if (!el || !el.rects.length) { bar.style.display = el ? 'flex' : 'none'; if (!el) return; }
-  $('einfo').innerHTML = T('고른 요소: ') + `<b>${esc(el.name)}</b>` + (el.copies > 1 ? `<span class="warn">${T('템플릿 요소 · {0}곳이 함께 바뀝니다', el.copies)}</span>` : '') + ' ';
+  $('einfo').innerHTML = T('고른 요소: ') + `<b>${esc(el.name)}</b>` + (el.copies > 1 ? `<span class="warn">${T('템플릿 요소 · {0}곳이 함께 바뀝니다', el.copies)}</span>` : '')
+    + (el.box ? ` · ${T('너비')} <b>${mm(el.box.w)}mm</b>` + (el.box.copies > 1 && !(el.box.own && el.copies > 1) ? `<span class="warn">${T('템플릿의 상자 · {0}곳이 함께 바뀝니다', el.box.copies)}</span>` : '') : '') + ' ';
   bar.style.display = 'flex';
   const r0 = el.rects[0];
   const pe = r0 && pageEls[r0[0]];
@@ -492,6 +509,12 @@ pagesBox.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
   const p = pagePoint(e); e.preventDefault(); ime.focus(); if (!p) return;
   if (composing) { ime.blur(); ime.focus(); }
+  if (e.target.classList.contains('hnd') && !e.altKey && !pickMode) {
+    const c = e.target.dataset.col;
+    rdrag = { el: e.target, col: c === '' ? null : +c, x: e.clientX, dx: 0 };
+    e.target.classList.add('drag');
+    return;
+  }
   if (e.target.classList.contains('elemr') && !e.altKey && !pickMode) { edrag = { x: e.clientX, y: e.clientY, dx: 0, dy: 0 }; return; }
   if (e.altKey || pickMode) { setPick(false); act('pick', p); return; }
   dragging = e.detail === 1;
@@ -506,6 +529,13 @@ pagesBox.addEventListener('contextmenu', e => {
 });
 document.addEventListener('contextmenu', e => { if (!e.target.closest('input,#devsrc,#keys,#problems')) e.preventDefault(); });
 addEventListener('mousemove', e => {
+  if (rdrag) {
+    rdrag.dx = e.clientX - rdrag.x;
+    rdrag.el.style.transform = `translateX(${rdrag.dx}px)`;
+    const b = view.elem && view.elem.box, pt = rdrag.dx / (PT * zoom);
+    if (b) setMsg(rdrag.col === null ? T('너비 {0}mm', mm(Math.max(0, b.w + pt))) : T('칸 너비 {0}mm', mm(Math.max(0, b.cols[rdrag.col] + pt))));
+    return;
+  }
   if (edrag) {
     edrag.dx = e.clientX - edrag.x; edrag.dy = e.clientY - edrag.y;
     document.querySelectorAll('.elemr').forEach(d => d.style.transform = `translate(${edrag.dx}px,${edrag.dy}px)`);
@@ -518,6 +548,13 @@ addEventListener('mousemove', e => {
 });
 addEventListener('mouseup', () => {
   dragging = false;
+  if (rdrag) {
+    const pt = rdrag.dx / (PT * zoom), r = rdrag; rdrag = null;
+    r.el.classList.remove('drag');
+    if (Math.abs(pt) > 0.3) act('elemResize', r.col === null ? { dx: Math.round(pt * 10) / 10 } : { col: r.col, dx: Math.round(pt * 10) / 10 });
+    else { r.el.style.transform = ''; drawOverlay(); }
+    return;
+  }
   if (edrag) {
     const dx = edrag.dx / (PT * zoom), dy = edrag.dy / (PT * zoom); edrag = null;
     if (Math.abs(dx) + Math.abs(dy) > 0.5) act('elemMove', { dx: Math.round(dx * 10) / 10, dy: Math.round(dy * 10) / 10 });
@@ -788,6 +825,7 @@ const KEYS = [
     ['<두 번 누르기> / <세 번 누르기>', '낱말 선택 / 문단 선택'],
     ['Shift+<누르기>', '커서에서 누른 곳까지 선택'],
     ['Alt+<누르기>', '요소 고르기(통째로 지우기·옮기기)'],
+    ['<손잡이 끌기>', '고른 상자·표의 너비와 칸 너비 바꾸기'],
   ]],
   ['찾기와 보기', [
     ['Ctrl+F / Ctrl+H', '찾기 / 바꾸기'],

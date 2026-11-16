@@ -30,7 +30,143 @@ struct Caret {
     size: f32,
 }
 
-struct ElemSel { file: FileId, range: std::ops::Range<usize>, name: String }
+struct ElemSel {
+    file: FileId,
+    range: std::ops::Range<usize>,
+    name: String,
+    /// 고를 때 누른 자리(쪽, x, y): 같은 요소가 여러 곳에 찍혔을 때 어느 것인지 가린다
+    at: (u32, f32, f32),
+    /// 이 요소의 상자(너비를 끌어 바꿀 수 있을 때)
+    bx: Option<BoxSel>,
+}
+
+/// 지면의 상자 하나: 조판 결과의 프레임 묶음과, 그것을 만든 원고 자리(알 수 있을 때).
+struct Bx {
+    page: u32, x: f32, y: f32, w: f32, h: f32,
+    depth: u32,
+    /// 이 상자 안에 든 글리프의 색인 범위
+    g0: usize, g1: usize,
+    /// 채움·테두리를 그린 요소(block·box·rect …)의 원고 자리
+    shape: Option<(FileId, std::ops::Range<usize>)>,
+    /// 표·격자면 그 원고 자리
+    grid: Option<(FileId, std::ops::Range<usize>)>,
+    /// 표·격자의 칸마다 왼쪽 끝(지면 좌표)과 칸 사이 간격
+    lefts: Vec<f32>,
+    gutter: f32,
+}
+
+impl Bx {
+    fn has(&self, x: f32, y: f32) -> bool { x >= self.x - 1.0 && x <= self.x + self.w + 1.0 && y >= self.y - 1.0 && y <= self.y + self.h + 1.0 }
+    fn dist(&self, x: f32, y: f32) -> f32 {
+        let dx = (self.x - x).max(x - self.x - self.w).max(0.0);
+        let dy = (self.y - y).max(y - self.y - self.h).max(0.0);
+        dx + dy
+    }
+    /// 칸마다의 너비. 칸 자리를 다 알지 못하면 빈 목록.
+    fn col_widths(&self) -> Vec<f32> {
+        let n = self.lefts.len();
+        if n == 0 || self.lefts.iter().any(|l| l.is_nan()) { return vec![]; }
+        (0..n).map(|i| if i + 1 < n { self.lefts[i + 1] - self.lefts[i] - self.gutter } else { self.x + self.w - self.lefts[i] }).collect()
+    }
+}
+
+/// 골라 둔 요소에 딸린 상자: 손잡이를 그릴 자리와 고칠 원고 자리.
+struct BoxSel {
+    file: FileId,
+    range: std::ops::Range<usize>,
+    name: String,
+    grid: bool,
+    page: u32, x: f32, y: f32, w: f32, h: f32,
+    cols: Vec<f32>,
+    /// 칸 사이 경계의 x(지면 좌표)
+    bounds: Vec<f32>,
+    /// 같은 원고 자리에서 나온 상자의 수(템플릿 요소면 여러 곳)
+    copies: usize,
+}
+
+struct BoxWalk<'a> {
+    world: &'a ProjectWorld,
+    page: u32,
+    g: usize,
+    out: Vec<Bx>,
+    /// 방금 지나온 표·격자 표식: 바로 다음 프레임 묶음이 그 표다
+    pending: Option<((FileId, std::ops::Range<usize>), f32)>,
+}
+
+impl BoxWalk<'_> {
+    fn src(&self, span: typst::syntax::Span) -> Option<(FileId, std::ops::Range<usize>)> {
+        let id = span.id()?;
+        if !self.world.in_project(id) { return None; }
+        Some((id, self.world.range(span)?))
+    }
+
+    fn frame(&mut self, frame: &typst::layout::Frame, ts: typst::layout::Transform, me: Option<usize>, grid: Option<usize>, depth: u32) {
+        use typst::foundations::Value;
+        use typst::introspection::Tag;
+        use typst::layout::{FrameItem, Point, Transform};
+        for (pos, item) in frame.items() {
+            let pending = self.pending.take();
+            match item {
+                FrameItem::Group(group) => {
+                    let ts2 = ts.pre_concat(Transform::translate(pos.x, pos.y)).pre_concat(group.transform);
+                    let a = Point::zero().transform(ts2);
+                    let b = Point::new(group.frame.width(), group.frame.height()).transform(ts2);
+                    let (ax, ay, bx, by) = (a.x.to_pt() as f32, a.y.to_pt() as f32, b.x.to_pt() as f32, b.y.to_pt() as f32);
+                    let idx = self.out.len();
+                    self.out.push(Bx {
+                        page: self.page, x: ax.min(bx), y: ay.min(by), w: (bx - ax).abs(), h: (by - ay).abs(), depth,
+                        g0: self.g, g1: self.g, shape: None,
+                        grid: pending.as_ref().map(|p| p.0.clone()), lefts: vec![], gutter: pending.map(|p| p.1).unwrap_or(0.0),
+                    });
+                    let inner = if self.out[idx].grid.is_some() { Some(idx) } else { grid };
+                    self.frame(&group.frame, ts2, Some(idx), inner, depth + 1);
+                    self.out[idx].g1 = self.g;
+                }
+                FrameItem::Text(t) => self.g += t.glyphs.len(),
+                // 상자의 바탕(채움·테두리): 상자와 너비가 같고 왼쪽 끝에서 시작하는 도형
+                FrameItem::Shape(shape, span) => {
+                    if let Some(i) = me {
+                        if self.out[i].shape.is_none() {
+                            let bb = shape.geometry.bbox(None);
+                            let sw = (bb.max.x - bb.min.x).to_pt() as f32;
+                            let fw = frame.width().to_pt() as f32;
+                            if (pos.x + bb.min.x).to_pt().abs() < 1.5 && (sw - fw).abs() < 2.0 {
+                                self.out[i].shape = self.src(*span);
+                            }
+                        }
+                    }
+                }
+                FrameItem::Tag(Tag::Start(c, _)) => match c.func().name() {
+                    "grid" | "table" => {
+                        // 칸 사이 간격(첫 값만 본다)
+                        let gutter = match c.get_by_name("column-gutter") {
+                            Ok(Value::Array(a)) => match a.iter().next() {
+                                Some(Value::Length(l)) => l.abs.to_pt() as f32,
+                                Some(Value::Relative(r)) => r.abs.abs.to_pt() as f32,
+                                _ => 0.0,
+                            },
+                            _ => 0.0,
+                        };
+                        self.pending = self.src(c.span()).map(|s| (s, gutter));
+                    }
+                    "cell" => {
+                        if let (Some(gi), Ok(Value::Int(x))) = (grid, c.get_by_name("x")) {
+                            let px = Point::new(pos.x, pos.y).transform(ts).x.to_pt() as f32;
+                            let v = &mut self.out[gi].lefts;
+                            let x = x.max(0) as usize;
+                            if x < 64 {
+                                if v.len() <= x { v.resize(x + 1, f32::NAN); }
+                                if v[x].is_nan() || px < v[x] { v[x] = px; }
+                            }
+                        }
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+    }
+}
 
 struct Lock { page: u32, x: f32, y: f32, w: f32, h: f32, reason: String }
 
@@ -590,7 +726,13 @@ impl Session {
                     line = g.line;
                 }
                 for c in self.ix.text_of(gi).chars() {
-                    if c.is_whitespace() { if s.last().is_some_and(|l| l.0 != ' ') { s.push((' ', gi)); } } else { s.push((fold(c), gi)); }
+                    if c.is_whitespace() {
+                        match s.last_mut() {
+                            Some(l) if l.0 == SOFT => l.0 = ' ',
+                            Some(l) if l.0 != ' ' => s.push((' ', gi)),
+                            _ => {}
+                        }
+                    } else { s.push((fold(c), gi)); }
                 }
             }
             let mut i = 0;
@@ -757,8 +899,112 @@ impl Session {
         };
         let text = self.world.text_of(file).unwrap_or_default();
         match edit::elem_chain(&text, pos).into_iter().next() {
-            Some(e) => { self.elem = Some(ElemSel { file, range: e.range, name: e.name }); }
+            Some(e) => {
+                self.elem = Some(ElemSel { file, range: e.range, name: e.name, at: (page as u32, x, y), bx: None });
+                self.refresh_box(None);
+            }
             None => self.msg = Some(("이 글은 따로 떼어 낼 요소가 아닙니다. 글자를 끌어서 선택해 지워 주세요.".into(), "info")),
+        }
+    }
+
+    // ───────────── 상자·표의 너비
+
+    fn page_boxes(&self, page: usize) -> Vec<Bx> {
+        let (Some(p), Some(&(g, _))) = (self.doc.pages().get(page), self.ix.page_ranges.get(page)) else { return vec![] };
+        let mut w = BoxWalk { world: &self.world, page: page as u32, g, out: vec![], pending: None };
+        w.frame(&p.frame, typst::layout::Transform::identity(), None, None, 0);
+        w.out
+    }
+
+    /// 골라 둔 요소의 상자를 지면에서 찾는다.
+    /// `near`: 방금 고친 상자가 있으면 그 원고 자리와 지면 자리(같은 상자를 다시 찾는다).
+    fn find_box(&self, el: &ElemSel, near: Option<(FileId, std::ops::Range<usize>, f32, f32)>) -> Option<BoxSel> {
+        let page = el.at.0 as usize;
+        let boxes = self.page_boxes(page);
+        let (a, b) = (el.range.start as u32, el.range.end as u32);
+        let inside = |g: &G| g.file == Some(el.file) && g.s >= a && g.s < b;
+        let src_of = |bx: &Bx| bx.grid.clone().or(bx.shape.clone());
+        let (px, py) = match &near { Some(n) => (n.2 + 1.0, n.3 + 1.0), None => (el.at.1, el.at.2) };
+        
+        // 1) 이 요소가 바로 그 상자(표·격자, 또는 채움·테두리가 있는 상자)
+        let want = match &near { Some(n) => (n.0, n.1.clone()), None => (el.file, el.range.clone()) };
+        let mut found: Option<(&Bx, (FileId, std::ops::Range<usize>))> =
+            boxes.iter().filter(|x| src_of(x).is_some_and(|s| s == want))
+                .min_by(|p, q| p.dist(px, py).partial_cmp(&q.dist(px, py)).unwrap()).map(|x| (x, want.clone()));
+        // 2) 누른 자리를 품고 이 요소의 글만 담은 상자들(바깥 것부터)
+        if found.is_none() && near.is_none() {
+            let n = self.ix.glyphs.len();
+            let mut cands: Vec<&Bx> = boxes.iter().filter(|x| x.has(px, py)).filter(|x| {
+                let (mut any, mut ok) = (false, true);
+                for g in &self.ix.glyphs[x.g0.min(n)..x.g1.min(n)] {
+                    if g.file == Some(el.file) { if inside(g) { any = true; } else { ok = false; break; } }
+                }
+                any && ok
+            }).collect();
+            cands.sort_by_key(|x| x.depth);
+            let own = self.world.text_of(el.file).and_then(|t| edit::resize_kind(&t, &el.range));
+            if matches!(own, Some((_, false))) {
+                // 이 요소가 바로 상자(채움·테두리가 없어 원고 자리가 지면에 남지 않은 것): 가장 바깥 묶음이 그 상자다
+                found = cands.first().map(|x| (*x, (el.file, el.range.clone())));
+            } else {
+                // 이 요소가 그려 낸 상자(템플릿 함수가 만든 상자·표): 원고 자리를 아는 가장 바깥 것
+                for x in cands {
+                    let Some(s) = src_of(x) else { continue };
+                    if self.world.text_of(s.0).is_some_and(|t| edit::resize_kind(&t, &s.1).is_some()) {
+                        found = Some((x, s));
+                        break;
+                    }
+                }
+            }
+        }
+        let (bx, (file, range)) = found?;
+        let text = self.world.text_of(file)?;
+        let (name, grid) = edit::resize_kind(&text, &range)?;
+        let cols = if grid { bx.col_widths() } else { vec![] };
+        let bounds = if cols.is_empty() { vec![] } else { (1..bx.lefts.len()).map(|i| bx.lefts[i] - bx.gutter / 2.0).collect() };
+        // 같은 원고 자리에서 나온 상자가 책 전체에 몇 곳인지(템플릿 요소)
+        let mut copies = 0;
+        for p in 0..self.doc.pages().len() {
+            let v = if p == page { None } else { Some(self.page_boxes(p)) };
+            copies += v.as_ref().unwrap_or(&boxes).iter().filter(|x| src_of(x).is_some_and(|s| s.0 == file && s.1 == range)).count();
+            if copies > 999 { break; }
+        }
+        Some(BoxSel { file, range, name, grid, page: bx.page, x: bx.x, y: bx.y, w: bx.w, h: bx.h, cols, bounds, copies: copies.max(1) })
+    }
+
+    fn refresh_box(&mut self, near: Option<(FileId, std::ops::Range<usize>, f32, f32)>) {
+        let Some(el) = self.elem.take() else { return };
+        let bx = self.find_box(&el, near);
+        self.elem = Some(ElemSel { bx, ..el });
+    }
+
+    /// 상자의 오른쪽 가장자리(`col` 없음)나 칸 사이 경계(`col`번째 칸 뒤)를 `dx`pt 만큼 끈다.
+    fn elem_resize(&mut self, col: Option<usize>, dx: f32) {
+        let Some(mut el) = self.elem.take() else { return };
+        let Some(bx) = el.bx.take() else {
+            self.msg = Some(("이 요소는 지면에서 너비를 바꿀 수 없습니다.".into(), "warn"));
+            self.elem = Some(el);
+            return;
+        };
+        let Some(before) = self.world.text_of(bx.file) else { self.elem = Some(ElemSel { bx: Some(bx), ..el }); return };
+        match edit::elem_resize(&before, &bx.range, col, dx, Some(bx.w), &bx.cols) {
+            Ok(t) => {
+                if self.apply_file(bx.file, t.clone()) {
+                    // 고친 자리 뒤의 원고 자리는 그만큼 밀린다
+                    let (ob, nb) = (before.as_bytes(), t.as_bytes());
+                    let mut pre = 0;
+                    while pre < ob.len() && pre < nb.len() && ob[pre] == nb[pre] { pre += 1; }
+                    let mut suf = 0;
+                    while suf < ob.len() - pre && suf < nb.len() - pre && ob[ob.len() - 1 - suf] == nb[nb.len() - 1 - suf] { suf += 1; }
+                    let map = |p: usize| if p <= pre { p } else if p >= ob.len() - suf { p + nb.len() - ob.len() } else { pre };
+                    let range = map(bx.range.start)..map(bx.range.end);
+                    if el.file == bx.file { el.range = map(el.range.start)..map(el.range.end); }
+                    self.elem = Some(el);
+                    self.refresh_box(Some((bx.file, range, bx.x, bx.y)));
+                    if self.elem.as_ref().is_some_and(|e| e.bx.is_none()) { self.refresh_box(None); }
+                } else { self.elem = Some(ElemSel { bx: Some(bx), ..el }); }
+            }
+            Err(e) => { self.msg = Some((e, "warn")); self.elem = Some(ElemSel { bx: Some(bx), ..el }); }
         }
     }
 
@@ -782,7 +1028,11 @@ impl Session {
         let chain = edit::elem_chain(&text, el.range.start);
         let next = chain.into_iter().find(|e| e.range.start <= el.range.start && e.range.end >= el.range.end && e.range != el.range);
         match next {
-            Some(e) => { let file = el.file; self.elem = Some(ElemSel { file, range: e.range, name: e.name }); }
+            Some(e) => {
+                let (file, at) = (el.file, el.at);
+                self.elem = Some(ElemSel { file, range: e.range, name: e.name, at, bx: None });
+                self.refresh_box(None);
+            }
             None => self.msg = Some(("더 넓힐 수 없습니다.".into(), "info")),
         }
     }
@@ -811,7 +1061,8 @@ impl Session {
             Ok((t, r)) => {
                 if self.apply_file(el.file, t.clone()) {
                     let name = edit::elem_chain(&t, r.start).into_iter().find(|e| e.range == r).map(|e| e.name).unwrap_or(el.name.clone());
-                    self.elem = Some(ElemSel { file: el.file, range: r, name });
+                    self.elem = Some(ElemSel { file: el.file, range: r, name, at: (el.at.0, el.at.1 + dx, el.at.2 + dy), bx: None });
+                    self.refresh_box(None);
                 } else { self.elem = Some(el); }
             }
             Err(e) => { self.msg = Some((e, "warn")); self.elem = Some(el); }
@@ -854,6 +1105,13 @@ impl Session {
             "name": el.name,
             "file": el.file.vpath().get_without_slash(),
             "line": line,
+            "box": el.bx.as_ref().map(|b| json!({
+                "page": b.page, "x": b.x, "y": b.y, "w": b.w, "h": b.h,
+                "bounds": b.bounds, "cols": b.cols, "grid": b.grid, "name": b.name, "copies": b.copies,
+                "file": b.file.vpath().get_without_slash(),
+                "line": self.world.source_of(b.file).and_then(|s| s.lines().byte_to_line(b.range.start)).unwrap_or(0) + 1,
+                "own": b.file == el.file && b.range == el.range,
+            })),
         })
     }
 
@@ -1158,6 +1416,7 @@ impl Session {
             "elemGrow" => self.elem_grow(),
             "elemDelete" => self.elem_delete(),
             "elemMove" => self.elem_move(req["dx"].as_f64().unwrap_or(0.0) as f32, req["dy"].as_f64().unwrap_or(0.0) as f32),
+            "elemResize" => self.elem_resize(req["col"].as_u64().map(|c| c as usize), req["dx"].as_f64().unwrap_or(0.0) as f32),
             "elemClear" => { self.elem = None; }
             _ => {}
         }

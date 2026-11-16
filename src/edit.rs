@@ -1544,6 +1544,160 @@ pub fn elem_move(text: &str, r: &Range<usize>, dx: f32, dy: f32) -> R<(String, R
     Ok((t, out_range))
 }
 
+// ───────────────────────── 상자·표의 너비
+
+/// 너비를 지면에서 끌어 바꿀 수 있는 상자 요소.
+const SIZED: &[&str] = &["block", "box", "rect", "square", "ellipse", "circle", "image"];
+const PT_PER: [(&str, f32); 4] = [("mm", 2.834_645_7), ("cm", 28.346_457), ("in", 72.0), ("pt", 1.0)];
+
+/// 요소가 너비를 바꿀 수 있는 것이면 (이름, 표·격자인지).
+pub fn resize_kind(text: &str, r: &Range<usize>) -> Option<(String, bool)> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    let f = find_node(&root, r, SyntaxKind::FuncCall)?;
+    let name = callee_name(&f);
+    if name == "grid" || name == "table" { return Some((name, true)); }
+    SIZED.contains(&name.as_str()).then_some((name, false))
+}
+
+enum Len { Abs(f32, &'static str, f32), Rel(f32, &'static str), Fr(f32), Auto, Other }
+
+fn parse_len(v: &str) -> Len {
+    let v = v.trim();
+    if v == "auto" { return Len::Auto; }
+    let num = |unit: &str| v.strip_suffix(unit).and_then(|n| n.trim_end().parse::<f32>().ok());
+    for (unit, per) in PT_PER { if let Some(n) = num(unit) { return Len::Abs(n, unit, per); } }
+    if let Some(n) = num("em") { return Len::Rel(n, "em"); }
+    if let Some(n) = num("%") { return Len::Rel(n, "%"); }
+    if let Some(n) = num("fr") { return Len::Fr(n); }
+    Len::Other
+}
+
+/// 소수 `digits`자리까지, 끝의 0은 떼고.
+fn fmt_num(x: f32, digits: usize) -> String {
+    let s = format!("{x:.digits$}");
+    let s = if s.contains('.') { s.trim_end_matches('0').trim_end_matches('.').to_string() } else { s };
+    if s == "-0" { "0".into() } else { s }
+}
+fn digits_of(unit: &str) -> usize { match unit { "mm" | "pt" | "%" => 1, _ => 2 } }
+fn abs_mm(pt: f32) -> String { format!("{}mm", fmt_num(pt / 2.834_645_7, 1)) }
+
+/// 길이 표기를 새 너비에 맞게 고친다. `cur`: 지금 지면에서의 너비(pt, 모르면 None), `delta`: 늘릴 양(pt).
+/// 원고에 적힌 단위를 지킨다. `auto`·`fr`처럼 수로 정해지지 않는 값은 mm로 바꿔 적는다.
+fn set_len(spec: &str, cur: Option<f32>, delta: f32) -> R<String> {
+    const NEED: &str = "지금 너비를 지면에서 알아내지 못해 이 값은 바꿀 수 없습니다.";
+    match parse_len(spec) {
+        Len::Abs(n, unit, per) => Ok(format!("{}{unit}", fmt_num((n + delta / per).max(0.0), digits_of(unit)))),
+        Len::Rel(n, unit) => {
+            let c = cur.filter(|c| *c > 0.5).ok_or(NEED)?;
+            Ok(format!("{}{unit}", fmt_num(n * ((c + delta).max(0.0) / c), digits_of(unit))))
+        }
+        Len::Fr(_) | Len::Auto => Ok(abs_mm((cur.ok_or(NEED)? + delta).max(0.0))),
+        Len::Other => Ok(bump_len(spec, delta)),
+    }
+}
+
+const NO_COLS: &str = "이 표의 칸 너비는 원고에 수로 적혀 있지 않아(변수나 식) 지면에서 바꿀 수 없습니다.";
+const FR_EDGE: &str = "이 표에는 남는 너비를 채우는 칸(fr)이 있어 전체 너비가 표를 담은 자리에 맞춰집니다. 칸 사이의 경계를 끌어 주세요.";
+const MIN_W: f32 = 6.0;
+
+/// 상자·표의 너비를 `dx`pt 만큼 바꾼다.
+/// `col`: None이면 오른쪽 바깥 가장자리, Some(i)면 i번째 칸과 그다음 칸 사이의 경계.
+/// `width`: 지금 지면에서의 전체 너비, `cols`: 지금 칸마다의 너비(표·격자).
+pub fn elem_resize(text: &str, r: &Range<usize>, col: Option<usize>, dx: f32, width: Option<f32>, cols: &[f32]) -> R<String> {
+    let node = tree(text);
+    let root = LinkedNode::new(&node);
+    let f = find_node(&root, r, SyntaxKind::FuncCall).ok_or(NO_ELEM)?;
+    let name = callee_name(&f);
+    let args = f.children().find(|c| c.kind() == SyntaxKind::Args).ok_or(NO_ELEM)?;
+    let named = |key: &str| args.children().find(|c| c.kind() == SyntaxKind::Named
+        && c.children().next().is_some_and(|k| k.get().full_text() == key));
+    let mut t = text.to_string();
+    if name == "grid" || name == "table" {
+        let val = named("columns").and_then(|n| n.children().last()).ok_or(NO_COLS)?;
+        // 칸마다의 표기와 원고 자리(배열이 아니면 값 전체를 새 배열로 바꿔 쓴다)
+        let mut items: Vec<(Option<Range<usize>>, String)> = vec![];
+        match val.kind() {
+            SyntaxKind::Array => for c in val.children() {
+                match c.kind() {
+                    SyntaxKind::LeftParen | SyntaxKind::RightParen | SyntaxKind::Comma | SyntaxKind::Space
+                    | SyntaxKind::LineComment | SyntaxKind::BlockComment => {}
+                    SyntaxKind::Spread | SyntaxKind::Named | SyntaxKind::Keyed => return Err(NO_COLS.into()),
+                    _ => items.push((Some(c.range()), text[c.range()].to_string())),
+                }
+            },
+            SyntaxKind::Int => {
+                let n: usize = text[val.range()].trim().parse().map_err(|_| NO_COLS.to_string())?;
+                items = vec![(None, "auto".to_string()); n];
+            }
+            _ => items.push((None, text[val.range()].to_string())),
+        }
+        let n = items.len();
+        if n == 0 || items.iter().any(|x| matches!(parse_len(&x.1), Len::Other)) { return Err(NO_COLS.into()); }
+        let w = |i: usize| cols.get(i).copied().filter(|x| x.is_finite() && *x > 0.0 && cols.len() == n);
+        let is_fr = |i: usize| matches!(parse_len(&items[i].1), Len::Fr(_));
+        let mut set: Vec<(usize, String)> = vec![];
+        match col {
+            None => {
+                if (0..n).any(is_fr) { return Err(FR_EDGE.into()); }
+                let d = match w(n - 1) { Some(c) => dx.max(MIN_W - c), None => dx };
+                set.push((n - 1, set_len(&items[n - 1].1, w(n - 1), d)?));
+            }
+            Some(i) => {
+                if i + 1 >= n { return Err(NO_ELEM.into()); }
+                // 워드프로세서의 표처럼: 왼쪽 칸이 늘어난 만큼 오른쪽 칸이 줄어든다
+                let (lf, rt) = (parse_len(&items[i].1), parse_len(&items[i + 1].1));
+                // 오른쪽 칸이 함께 줄어드는 경우에만 그 칸의 남은 너비까지로 막는다
+                let shrinks = matches!(rt, Len::Abs(..) | Len::Rel(..)) || matches!(lf, Len::Fr(_));
+                let lo = w(i).map_or(f32::MIN, |a| (MIN_W - a).min(0.0));
+                let hi = match w(i + 1) { Some(b) if shrinks => (b - MIN_W).max(0.0), _ => f32::MAX };
+                let d = dx.clamp(lo, hi);
+                match (lf, rt) {
+                    (Len::Fr(a), Len::Fr(b)) => {
+                        let (wa, wb) = (w(i).ok_or(NO_COLS)?, w(i + 1).ok_or(NO_COLS)?);
+                        let na = (a + b) * (wa + d) / (wa + wb);
+                        set.push((i, format!("{}fr", fmt_num(na, 2))));
+                        set.push((i + 1, format!("{}fr", fmt_num(a + b - na, 2))));
+                    }
+                    // 채우는 칸(fr)은 저절로 맞춰지므로 그 옆 칸만 고친다
+                    (Len::Fr(_), _) => set.push((i + 1, set_len(&items[i + 1].1, w(i + 1), -d)?)),
+                    (_, right) => {
+                        set.push((i, set_len(&items[i].1, w(i), d)?));
+                        if matches!(right, Len::Abs(..) | Len::Rel(..)) { set.push((i + 1, set_len(&items[i + 1].1, w(i + 1), -d)?)); }
+                    }
+                }
+            }
+        }
+        for (i, v) in &set { items[*i].1 = v.clone(); }
+        if items.iter().all(|x| x.0.is_some()) {
+            set.sort_by_key(|x| std::cmp::Reverse(x.0));
+            for (i, v) in set { t.replace_range(items[i].0.clone().unwrap(), &v); }
+        } else {
+            let list: Vec<&str> = items.iter().map(|x| x.1.as_str()).collect();
+            t.replace_range(val.range(), &format!("({}{})", list.join(", "), if n == 1 { "," } else { "" }));
+        }
+    } else if SIZED.contains(&name.as_str()) {
+        let d = match width { Some(c) => dx.max(MIN_W - c), None => dx };
+        match named("width").and_then(|n| n.children().last()) {
+            Some(val) => { let v = set_len(&text[val.range()], width, d)?; t.replace_range(val.range(), &v); }
+            None => {
+                let v = abs_mm(width.ok_or(NO_ELEM)? + d);
+                match args.children().next() {
+                    Some(lp) if lp.kind() == SyntaxKind::LeftParen => {
+                        let empty = args.children().nth(1).is_some_and(|c| c.kind() == SyntaxKind::RightParen);
+                        t.insert_str(lp.range().end, &if empty { format!("width: {v}") } else { format!("width: {v}, ") });
+                    }
+                    _ => t.insert_str(args.range().start, &format!("(width: {v})")),
+                }
+            }
+        }
+    } else {
+        return Err("이 요소는 지면에서 너비를 바꿀 수 없습니다.".into());
+    }
+    if bad(&tree(&t)) { return Err("이 요소는 지면에서 너비를 바꿀 수 없습니다.".into()); }
+    Ok(t)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1672,6 +1826,32 @@ mod tests {
         backspace(&mut x).unwrap(); assert_eq!(show(&x), "가\n\n|\n나"); assert_eq!(x.note.as_deref(), Some("sub"));
         let mut y = w("#unit(title: \"|\", root: \"audi\")"); backspace(&mut y).unwrap(); assert!(y.edge);
     }
+    // 상자·표의 너비
+    fn call(t: &str, name: &str) -> Range<usize> { let s = t.find(name).unwrap(); let node = tree(t); let root = LinkedNode::new(&node); let mut n = root.leaf_at(s + 1, Side::Before).unwrap(); while n.kind() != SyntaxKind::FuncCall { n = n.parent().unwrap().clone(); } n.range() }
+    const MM: f32 = 2.834_645_7;
+    #[test] fn rs_width_mm() { let t = "#block(width: 60mm, inset: 2mm)[가]"; assert_eq!(elem_resize(t, &call(t, "block"), None, 10.0 * MM, Some(60.0 * MM), &[]).unwrap(), "#block(width: 70mm, inset: 2mm)[가]"); }
+    #[test] fn rs_width_pct() { let t = "#block(width: 80%)[가]"; assert_eq!(elem_resize(t, &call(t, "block"), None, -50.0, Some(200.0), &[]).unwrap(), "#block(width: 60%)[가]"); }
+    #[test] fn rs_width_new() {
+        let t = "#block(inset: 2mm)[가]"; assert_eq!(elem_resize(t, &call(t, "block"), None, 10.0 * MM, Some(30.0 * MM), &[]).unwrap(), "#block(width: 40mm, inset: 2mm)[가]");
+        let t = "#box[가]"; assert_eq!(elem_resize(t, &call(t, "box"), None, 0.0, Some(20.0 * MM), &[]).unwrap(), "#box(width: 20mm)[가]");
+        let t = "#rect()"; assert_eq!(elem_resize(t, &call(t, "rect"), None, 0.0, Some(20.0 * MM), &[]).unwrap(), "#rect(width: 20mm)");
+    }
+    #[test] fn rs_width_expr() { let t = "#let f(w) = block(width: w)[가]"; let n = elem_resize(t, &call(t, "block"), None, 3.0, Some(100.0), &[]).unwrap(); assert_eq!(n, "#let f(w) = block(width: w + 3pt)[가]"); assert_eq!(elem_resize(&n, &call(&n, "block"), None, 2.0, Some(103.0), &[]).unwrap(), "#let f(w) = block(width: w + 5pt)[가]"); }
+    #[test] fn rs_width_min() { let t = "#box(width: 10pt)[가]"; assert_eq!(elem_resize(t, &call(t, "box"), None, -500.0, Some(10.0), &[]).unwrap(), "#box(width: 6pt)[가]"); }
+    #[test] fn rs_col_pair() { let t = "#table(columns: (20mm, 30mm, auto), [가], [나], [다])"; assert_eq!(elem_resize(t, &call(t, "table"), Some(0), 5.0 * MM, None, &[20.0 * MM, 30.0 * MM, 40.0]).unwrap(), "#table(columns: (25mm, 25mm, auto), [가], [나], [다])"); }
+    #[test] fn rs_col_fr_right() { let t = "#grid(columns: (8mm, 1fr), [=], [가])"; assert_eq!(elem_resize(t, &call(t, "grid"), Some(0), 2.0 * MM, None, &[8.0 * MM, 300.0]).unwrap(), "#grid(columns: (10mm, 1fr), [=], [가])"); }
+    #[test] fn rs_col_fr_left() { let t = "#grid(columns: (1fr, 30mm), [가], [나])"; assert_eq!(elem_resize(t, &call(t, "grid"), Some(0), 5.0 * MM, None, &[200.0, 30.0 * MM]).unwrap(), "#grid(columns: (1fr, 25mm), [가], [나])"); }
+    #[test] fn rs_col_fr_both() { let t = "#grid(columns: (1fr, 1fr), [가], [나])"; assert_eq!(elem_resize(t, &call(t, "grid"), Some(0), 50.0, None, &[100.0, 100.0]).unwrap(), "#grid(columns: (1.5fr, 0.5fr), [가], [나])"); }
+    #[test] fn rs_col_auto_right() { let t = "#grid(columns: (auto, auto), [가], [나])"; assert_eq!(elem_resize(t, &call(t, "grid"), Some(0), 20.0 * MM, None, &[10.0 * MM, 5.0 * MM]).unwrap(), "#grid(columns: (30mm, auto), [가], [나])"); }
+    #[test] fn rs_col_clamp() { let t = "#grid(columns: (20pt, 30pt), [가], [나])"; assert_eq!(elem_resize(t, &call(t, "grid"), Some(0), 500.0, None, &[20.0, 30.0]).unwrap(), "#grid(columns: (44pt, 6pt), [가], [나])"); }
+    #[test] fn rs_col_int() { let t = "#grid(columns: 3, [가], [나], [다])"; assert_eq!(elem_resize(t, &call(t, "grid"), Some(1), 10.0 * MM, None, &[20.0 * MM, 20.0 * MM, 20.0 * MM]).unwrap(), "#grid(columns: (auto, 30mm, auto), [가], [나], [다])"); }
+    #[test] fn rs_col_pct() { let t = "#grid(columns: (30%, 1fr), [가], [나])"; assert_eq!(elem_resize(t, &call(t, "grid"), Some(0), 30.0, None, &[90.0, 210.0]).unwrap(), "#grid(columns: (40%, 1fr), [가], [나])"); }
+    #[test] fn rs_edge() {
+        let t = "#table(columns: (20mm, 30mm), [가], [나])"; assert_eq!(elem_resize(t, &call(t, "table"), None, 10.0 * MM, None, &[20.0 * MM, 30.0 * MM]).unwrap(), "#table(columns: (20mm, 40mm), [가], [나])");
+        let t = "#table(columns: (20mm, 1fr), [가], [나])"; assert!(elem_resize(t, &call(t, "table"), None, 10.0, None, &[56.7, 300.0]).is_err());
+        let t = "#table(columns: cols, [가], [나])"; assert!(elem_resize(t, &call(t, "table"), Some(0), 10.0, None, &[56.7, 300.0]).is_err());
+    }
+    #[test] fn rs_kind() { let t = "#grid(columns: 2)[가] #block[나] #strong[다]"; assert_eq!(resize_kind(t, &call(t, "grid")), Some(("grid".into(), true))); assert_eq!(resize_kind(t, &call(t, "block")), Some(("block".into(), false))); assert_eq!(resize_kind(t, &call(t, "strong")), None); }
     #[test] fn bs_edge_stacked() { let mut x = w("#head(\"가\")\n#fsub[|나]"); backspace(&mut x).unwrap(); assert!(x.edge); assert_eq!(x.text, "#head(\"가\")\n#fsub[나]"); }
     #[test] fn bs_same_line_wraps() { let mut x = w("#lk(\"a\")[가] #pt[|나]"); backspace(&mut x).unwrap(); assert_eq!(show(&x), "#lk(\"a\")[가]|#pt[나]"); }
 }

@@ -1074,6 +1074,72 @@
   "ja": "この段落には揃えを設定できません。",
   "es": "No se puede alinear este párrafo."
  },
+ "너비": {
+  "en": "Width",
+  "zh": "宽度",
+  "ja": "幅",
+  "es": "Ancho"
+ },
+ "너비 {0}mm": {
+  "en": "Width {0} mm",
+  "zh": "宽度 {0}mm",
+  "ja": "幅 {0}mm",
+  "es": "Ancho {0} mm"
+ },
+ "칸 너비 {0}mm": {
+  "en": "Column width {0} mm",
+  "zh": "列宽 {0}mm",
+  "ja": "列幅 {0}mm",
+  "es": "Ancho de columna {0} mm"
+ },
+ "템플릿의 상자 · {0}곳이 함께 바뀝니다": {
+  "en": "Box from the template · {0} places change together",
+  "zh": "模板中的框 · {0} 处会一起改变",
+  "ja": "テンプレートのボックス · {0} か所が一緒に変わります",
+  "es": "Caja de la plantilla · {0} lugares cambian a la vez"
+ },
+ "오른쪽 손잡이나 칸 사이의 선을 끌면 너비가 바뀝니다.": {
+  "en": "Drag the handle on the right edge, or a line between columns, to change the width.",
+  "zh": "拖动右侧的手柄或列之间的线可改变宽度。",
+  "ja": "右端のハンドルや列の間の線をドラッグすると幅が変わります。",
+  "es": "Arrastra el tirador del borde derecho, o una línea entre columnas, para cambiar el ancho."
+ },
+ "손잡이 끌기": {
+  "en": "Drag a handle",
+  "zh": "拖动手柄",
+  "ja": "ハンドルをドラッグ",
+  "es": "Arrastrar un tirador"
+ },
+ "고른 상자·표의 너비와 칸 너비 바꾸기": {
+  "en": "Change the width of the picked box or table, or of a column",
+  "zh": "更改所选框或表格的宽度，或列宽",
+  "ja": "選んだボックス・表の幅や列幅を変更",
+  "es": "Cambiar el ancho de la caja o tabla elegida, o de una columna"
+ },
+ "이 요소는 지면에서 너비를 바꿀 수 없습니다.": {
+  "en": "The width of this element cannot be changed on the page.",
+  "zh": "此元素的宽度无法在页面上更改。",
+  "ja": "この要素の幅はページ上で変更できません。",
+  "es": "El ancho de este elemento no se puede cambiar en la página."
+ },
+ "지금 너비를 지면에서 알아내지 못해 이 값은 바꿀 수 없습니다.": {
+  "en": "The current width could not be measured on the page, so this value cannot be changed.",
+  "zh": "无法在页面上测出当前宽度，因此不能更改此值。",
+  "ja": "現在の幅をページ上で測れないため、この値は変更できません。",
+  "es": "No se pudo medir el ancho actual en la página, así que este valor no se puede cambiar."
+ },
+ "이 표의 칸 너비는 원고에 수로 적혀 있지 않아(변수나 식) 지면에서 바꿀 수 없습니다.": {
+  "en": "The column widths of this table are not written as numbers in the source (a variable or an expression), so they cannot be changed on the page.",
+  "zh": "此表格的列宽在源文件中不是数值（变量或表达式），无法在页面上更改。",
+  "ja": "この表の列幅はソースに数値で書かれていない（変数や式）ため、ページ上で変更できません。",
+  "es": "Los anchos de columna de esta tabla no están escritos como números en el fuente (una variable o una expresión), así que no se pueden cambiar en la página."
+ },
+ "이 표에는 남는 너비를 채우는 칸(fr)이 있어 전체 너비가 표를 담은 자리에 맞춰집니다. 칸 사이의 경계를 끌어 주세요.": {
+  "en": "This table has a column that fills the remaining width (fr), so its total width follows the space it sits in. Drag a boundary between columns instead.",
+  "zh": "此表格有一列会填满剩余宽度（fr），所以总宽度由其所在位置决定。请拖动列之间的边界。",
+  "ja": "この表には残りの幅を埋める列（fr）があるため、全体の幅は表の置かれた場所に合わせられます。列の間の境界をドラッグしてください。",
+  "es": "Esta tabla tiene una columna que ocupa el ancho restante (fr), así que su ancho total sigue al espacio donde está. Arrastra un límite entre columnas."
+ },
  "언어": {
   "en": "Language",
   "zh": "语言",

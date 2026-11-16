@@ -43,6 +43,9 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
 - **Multi-file projects.** Edits go to whichever included file the text came from (`content/ch01.typ`, …).
 - **Template text is protected.** Page numbers, outlines, headers and other computed text are locked — click them and the editor explains why.
 - **Move or delete whole blocks.** Alt+click any element (a placed label, a heading line, a template element) to drag it or delete it.
+- **Resize boxes and table columns with the mouse.** Pick a box, table or grid (Alt+click) and drag the handle on its right edge,
+  or a line between two columns. The editor rewrites `width:` or the `columns:` entry in the source and keeps the unit you wrote
+  (`60mm` stays mm, `80%` stays %). A box that comes from a template function changes everywhere it is used, and the editor says how many places.
 - **Safe by design.** Every edit is checked against the syntax tree and rolled back if it would break compilation; nothing touches the disk until you save;
   the original is backed up before each save; and it refuses to overwrite a file another program changed in the meantime.
 - **Developer view.** Optionally shows the source line you are editing.
@@ -75,6 +78,7 @@ You can also open a file directly: `EasyTypstEditor.exe "C:\path\to\main.typ"`, 
 | Ctrl+Z · Ctrl+Y | Undo · redo (consecutive typing or deleting is one step) |
 | Ctrl+S · Ctrl+O | Save · open |
 | Alt+click | Pick a whole element (then drag, arrow keys, or Delete) |
+| Drag a handle of the picked element | Change the width of a box, or the width of a table / grid column |
 | Ctrl+wheel · Ctrl+Plus · Ctrl+Minus · Ctrl+0 | Zoom in/out · fit width |
 | Ctrl+G · Page Up · Page Down | Go to page · scroll a screen |
 | F1 | Show all shortcuts |
@@ -110,7 +114,10 @@ Headless mode for development: `EasyTypstEditor.exe --serve 47615 main.typ`, the
 ## Known limitations
 
 - Windows only for now (the UI is a WebView; macOS/Linux ports are welcome).
-- Font size, color, tables and images are not editable yet.
+- Font size, color and images are not editable yet; tables can only have their column widths changed.
+- Width handles appear for boxes the editor can trace back to the source: tables, grids, boxes with a fill or stroke, and boxes written directly
+  in the document. An invisible box created inside a template function cannot be traced, and widths given as a variable or an expression
+  are not rewritten (`fr` and `auto` columns are converted to mm when you drag them). Heights are not adjustable.
 - Find works on the text as printed on the page. "Replace all" changes only matches whose source is plain text
   (matches inside template-generated text, or spanning markup, are skipped and counted).
 - If the same text appears several times on a page and cannot be told apart by context, it is locked (safer than editing the wrong one).
