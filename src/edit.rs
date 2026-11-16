@@ -1834,10 +1834,20 @@ const NO_COLS: &str = "이 표의 칸 너비는 원고에 수로 적혀 있지 �
 const FR_EDGE: &str = "이 표에는 남는 너비를 채우는 칸(fr)이 있어 전체 너비가 표를 담은 자리에 맞춰집니다. 칸 사이의 경계를 끌어 주세요.";
 const MIN_W: f32 = 6.0;
 
+const NO_ROWS: &str = "이 표의 줄 높이는 원고에 수로 적혀 있지 않아(변수나 식) 지면에서 바꿀 수 없습니다.";
+const MIN_H: f32 = 3.0;
+
 /// 상자·표의 너비를 `dx`pt 만큼 바꾼다.
 /// `col`: None이면 오른쪽 바깥 가장자리, Some(i)면 i번째 칸과 그다음 칸 사이의 경계.
 /// `width`: 지금 지면에서의 전체 너비, `cols`: 지금 칸마다의 너비(표·격자).
 pub fn elem_resize(text: &str, r: &Range<usize>, col: Option<usize>, dx: f32, width: Option<f32>, cols: &[f32]) -> R<String> {
+    resize_ax(text, r, false, col, dx, width, cols)
+}
+
+/// 너비(`vert` 아님)나 높이(`vert`)를 `dx`pt 만큼 바꾼다. 높이일 때:
+/// `col`은 줄 번호(그 줄의 아래 경계를 끈다. None이면 맨 아래), `width`는 전체 높이, `cols`는 줄마다의 높이.
+/// 줄은 칸과 달리 끈 줄만 바뀌고 아래 줄들은 그만큼 밀린다.
+fn resize_ax(text: &str, r: &Range<usize>, vert: bool, col: Option<usize>, dx: f32, width: Option<f32>, cols: &[f32]) -> R<String> {
     let node = tree(text);
     let root = LinkedNode::new(&node);
     let f = find_node(&root, r, SyntaxKind::FuncCall).ok_or(NO_ELEM)?;
@@ -1845,32 +1855,53 @@ pub fn elem_resize(text: &str, r: &Range<usize>, col: Option<usize>, dx: f32, wi
     let args = f.children().find(|c| c.kind() == SyntaxKind::Args).ok_or(NO_ELEM)?;
     let named = |key: &str| args.children().find(|c| c.kind() == SyntaxKind::Named
         && c.children().next().is_some_and(|k| k.get().full_text() == key));
+    let (keyc, keyw, no) = if vert { ("rows", "height", NO_ROWS) } else { ("columns", "width", NO_COLS) };
     let mut t = text.to_string();
     if name == "grid" || name == "table" {
-        let val = named("columns").and_then(|n| n.children().last()).ok_or(NO_COLS)?;
-        // 칸마다의 표기와 원고 자리(배열이 아니면 값 전체를 새 배열로 바꿔 쓴다)
+        let val = named(keyc).and_then(|n| n.children().last());
+        if val.is_none() && !vert { return Err(no.into()); }
+        // 칸(줄)마다의 표기와 원고 자리(배열이 아니면 값 전체를 새 배열로 바꿔 쓴다)
         let mut items: Vec<(Option<Range<usize>>, String)> = vec![];
-        match val.kind() {
-            SyntaxKind::Array => for c in val.children() {
-                match c.kind() {
-                    SyntaxKind::LeftParen | SyntaxKind::RightParen | SyntaxKind::Comma | SyntaxKind::Space
-                    | SyntaxKind::LineComment | SyntaxKind::BlockComment => {}
-                    SyntaxKind::Spread | SyntaxKind::Named | SyntaxKind::Keyed => return Err(NO_COLS.into()),
-                    _ => items.push((Some(c.range()), text[c.range()].to_string())),
+        if let Some(val) = &val {
+            match val.kind() {
+                SyntaxKind::Array => for c in val.children() {
+                    match c.kind() {
+                        SyntaxKind::LeftParen | SyntaxKind::RightParen | SyntaxKind::Comma | SyntaxKind::Space
+                        | SyntaxKind::LineComment | SyntaxKind::BlockComment => {}
+                        SyntaxKind::Spread | SyntaxKind::Named | SyntaxKind::Keyed => return Err(no.into()),
+                        _ => items.push((Some(c.range()), text[c.range()].to_string())),
+                    }
+                },
+                SyntaxKind::Int => {
+                    let n: usize = text[val.range()].trim().parse().map_err(|_| no.to_string())?;
+                    items = vec![(None, "auto".to_string()); n];
                 }
-            },
-            SyntaxKind::Int => {
-                let n: usize = text[val.range()].trim().parse().map_err(|_| NO_COLS.to_string())?;
-                items = vec![(None, "auto".to_string()); n];
+                _ => items.push((None, text[val.range()].to_string())),
             }
-            _ => items.push((None, text[val.range()].to_string())),
+        }
+        if vert {
+            // 줄 수는 지면에서 센 것을 따른다: 적힌 값이 모자라면 마지막 값이 되풀이되고(Typst의 규칙), 없으면 auto
+            let n = cols.len();
+            if n == 0 { return Err(no.into()); }
+            if items.len() != n {
+                let last = items.last().map(|x| x.1.clone()).unwrap_or_else(|| "auto".into());
+                let mut v: Vec<(Option<Range<usize>>, String)> = items.iter().take(n).map(|x| (None, x.1.clone())).collect();
+                while v.len() < n { v.push((None, last.clone())); }
+                items = v;
+            }
         }
         let n = items.len();
-        if n == 0 || items.iter().any(|x| matches!(parse_len(&x.1), Len::Other)) { return Err(NO_COLS.into()); }
+        if n == 0 || items.iter().any(|x| matches!(parse_len(&x.1), Len::Other)) { return Err(no.into()); }
         let w = |i: usize| cols.get(i).copied().filter(|x| x.is_finite() && *x > 0.0 && cols.len() == n);
         let is_fr = |i: usize| matches!(parse_len(&items[i].1), Len::Fr(_));
         let mut set: Vec<(usize, String)> = vec![];
         match col {
+            _ if vert => {
+                let i = col.unwrap_or(n - 1);
+                if i >= n { return Err(NO_ELEM.into()); }
+                let d = match w(i) { Some(c) => dx.max(MIN_H - c), None => dx };
+                set.push((i, set_len(&items[i].1, w(i), d)?));
+            }
             None => {
                 if (0..n).any(is_fr) { return Err(FR_EDGE.into()); }
                 let d = match w(n - 1) { Some(c) => dx.max(MIN_W - c), None => dx };
@@ -1907,21 +1938,22 @@ pub fn elem_resize(text: &str, r: &Range<usize>, col: Option<usize>, dx: f32, wi
             for (i, v) in set { t.replace_range(items[i].0.clone().unwrap(), &v); }
         } else {
             let list: Vec<&str> = items.iter().map(|x| x.1.as_str()).collect();
-            t.replace_range(val.range(), &format!("({}{})", list.join(", "), if n == 1 { "," } else { "" }));
+            let arr = format!("({}{})", list.join(", "), if n == 1 { "," } else { "" });
+            match (&val, named("columns")) {
+                (Some(val), _) => t.replace_range(val.range(), &arr),
+                // `rows:`가 없던 표: `columns:` 바로 뒤에 적는다
+                (None, Some(c)) => t.insert_str(c.range().end, &format!(", {keyc}: {arr}")),
+                (None, None) => { let (at, w) = arg_insert(&f, keyc, &arr).ok_or(NO_ELEM)?; t.insert_str(at.start, &w); }
+            }
         }
     } else if SIZED.contains(&name.as_str()) {
-        let d = match width { Some(c) => dx.max(MIN_W - c), None => dx };
-        match named("width").and_then(|n| n.children().last()) {
+        let d = match width { Some(c) => dx.max(if vert { MIN_H } else { MIN_W } - c), None => dx };
+        match named(keyw).and_then(|n| n.children().last()) {
             Some(val) => { let v = set_len(&text[val.range()], width, d)?; t.replace_range(val.range(), &v); }
             None => {
                 let v = abs_mm(width.ok_or(NO_ELEM)? + d);
-                match args.children().next() {
-                    Some(lp) if lp.kind() == SyntaxKind::LeftParen => {
-                        let empty = args.children().nth(1).is_some_and(|c| c.kind() == SyntaxKind::RightParen);
-                        t.insert_str(lp.range().end, &if empty { format!("width: {v}") } else { format!("width: {v}, ") });
-                    }
-                    _ => t.insert_str(args.range().start, &format!("(width: {v})")),
-                }
+                let (at, w) = arg_insert(&f, keyw, &v).ok_or(NO_ELEM)?;
+                t.insert_str(at.start, &w);
             }
         }
     } else {
@@ -2009,14 +2041,15 @@ fn arg_append(text: &str, f: &LinkedNode, key: &str, value: &str) -> Option<Edit
 }
 
 /// 상자·표의 크기를 정하는 인자의 이름.
-fn size_key(name: &str) -> Option<&'static str> {
-    if name == "grid" || name == "table" { Some("columns") } else if SIZED.contains(&name) { Some("width") } else { None }
+fn size_key(name: &str, vert: bool) -> Option<&'static str> {
+    if name == "grid" || name == "table" { Some(if vert { "rows" } else { "columns" }) }
+    else if SIZED.contains(&name) { Some(if vert { "height" } else { "width" }) } else { None }
 }
 
 /// 값 표기 하나를 끈 만큼 고친 새 표기: 같은 규칙을 쓰려고 그 값만 가진 부름을 만들어 고쳐 본다.
 fn recompute(name: &str, key: &str, old: Option<&str>, col: Option<usize>, dx: f32, width: Option<f32>, cols: &[f32]) -> R<String> {
     let tmp = match old { Some(v) => format!("#{name}({key}: {v})"), None => format!("#{name}()") };
-    let out = elem_resize(&tmp, &(1..tmp.len()), col, dx, width, cols)?;
+    let out = resize_ax(&tmp, &(1..tmp.len()), key == "rows" || key == "height", col, dx, width, cols)?;
     let node = tree(&out);
     let root = LinkedNode::new(&node);
     let f = root.leaf_at(2, Side::Before).and_then(|l| func_of(&l)).ok_or(NO_ELEM)?;
@@ -2094,13 +2127,14 @@ pub fn box_can_local(def: &str, r: &Range<usize>, site: Option<(&str, usize)>) -
 /// - 값이 변수면 그 변수가 정해진 곳(함수의 매개변수 기본값, `#let 변수 = 값`)을 고친다.
 /// - `local`: 템플릿 함수가 그린 상자면 이 곳만 바꾼다. 함수에 매개변수(`width: 100%`)를 만들고,
 ///   부른 자리에 값(`#key(width: 80%)[..]`)을 준다. 부른 자리(`site`: 본문과 자리)를 모르면 모두 바꾼다.
-pub fn box_resize(def: &str, r: &Range<usize>, site: Option<(&str, usize)>, local: bool,
+/// `vert`: 높이를 바꾼다(`col`은 줄 번호, `width`는 전체 높이, `cols`는 줄마다의 높이).
+pub fn box_resize(def: &str, r: &Range<usize>, site: Option<(&str, usize)>, local: bool, vert: bool,
                   col: Option<usize>, dx: f32, width: Option<f32>, cols: &[f32]) -> R<BoxEdit> {
     let node = tree(def);
     let root = LinkedNode::new(&node);
     let f = find_node(&root, r, SyntaxKind::FuncCall).ok_or(NO_ELEM)?;
     let name = callee_name(&f);
-    let key = size_key(&name).ok_or("이 요소는 지면에서 너비를 바꿀 수 없습니다.")?;
+    let key = size_key(&name, vert).ok_or("이 요소는 지면에서 너비를 바꿀 수 없습니다.")?;
     let val = named_arg(&f, key);
     let clo = closure_of(&f).map(|c| c.0);
     // 값이 변수면: 어디에서 정해졌는가
@@ -2112,7 +2146,7 @@ pub fn box_resize(def: &str, r: &Range<usize>, site: Option<(&str, usize)>, loca
                 Some(d) => Src::Param(p, d),
                 None => match let_value(&root, &p, f.range().start) {
                     Some(d) => Src::Var(d),
-                    None => return Err(if key == "columns" { NO_COLS } else { NO_VAR }.into()),
+                    None => return Err(match key { "columns" => NO_COLS, "rows" => NO_ROWS, _ => NO_VAR }.into()),
                 },
             }
         }
@@ -2160,7 +2194,7 @@ pub fn box_resize(def: &str, r: &Range<usize>, site: Option<(&str, usize)>, loca
     }
     // 모두 바꾸기: 값이 적힌 곳을 고친다
     let de = match src {
-        Src::Direct => diff_edit(def, &elem_resize(def, r, col, dx, width, cols)?),
+        Src::Direct => diff_edit(def, &resize_ax(def, r, vert, col, dx, width, cols)?),
         Src::Param(_, d) | Src::Var(d) => vec![(d.clone(), recompute(&name, key, Some(&def[d]), col, dx, width, cols)?)],
     };
     Ok(BoxEdit { def: de, site: vec![], local: false })
@@ -2356,7 +2390,7 @@ mod tests {
     const MM: f32 = 2.834_645_7;
     /// 한 파일 안에서: 상자 `call`을 끌고(부른 자리는 `site` 글자가 있는 곳), 고친 본문을 돌려준다.
     fn bx(t: &str, name: &str, site: &str, local: bool, col: Option<usize>, dx: f32, width: f32, cols: &[f32]) -> (String, bool) {
-        let e = box_resize(t, &call(t, name), Some((t, t.find(site).unwrap())), local, col, dx, Some(width), cols).unwrap();
+        let e = box_resize(t, &call(t, name), Some((t, t.find(site).unwrap())), local, false, col, dx, Some(width), cols).unwrap();
         let all: Vec<Edit> = e.def.iter().chain(e.site.iter()).cloned().collect();
         let out = apply_edits(t, &all);
         assert!(!bad(&tree(&out)), "{out}");
@@ -2411,6 +2445,33 @@ mod tests {
         let t = "#block(width: 60mm)[가]"; let (o, local) = bx(t, "block", "가", true, None, 10.0 * MM, 60.0 * MM, &[]); assert_eq!(o, "#block(width: 70mm)[가]"); assert!(!local);
         // 이름 없는 함수(map) 안의 상자는 모두 함께
         let t = "#grid(..([가], [나]).map(a => block(width: 100%, a)))"; assert_eq!(bx(t, "block", "가", true, None, -50.0, 100.0, &[]).0, t.replace("100%", "50%"));
+    }
+    fn bv(t: &str, name: &str, site: &str, local: bool, row: Option<usize>, dy: f32, height: f32, rows: &[f32]) -> String {
+        let e = box_resize(t, &call(t, name), Some((t, t.find(site).unwrap())), local, true, row, dy, Some(height), rows).unwrap();
+        let all: Vec<Edit> = e.def.iter().chain(e.site.iter()).cloned().collect();
+        let out = apply_edits(t, &all);
+        assert!(!bad(&tree(&out)), "{out}");
+        out
+    }
+    #[test] fn bv_height() {
+        assert_eq!(bv("#block(width: 60mm)[가]", "block", "가", true, None, 5.0 * MM, 10.0 * MM, &[]), "#block(height: 15mm, width: 60mm)[가]");
+        assert_eq!(bv("#box(height: 1.2em, width: 32mm)", "box", "box", true, None, 6.0, 12.0, &[]), "#box(height: 1.8em, width: 32mm)");
+        assert_eq!(bv("#rect(height: 20pt)[가]", "rect", "가", true, None, -100.0, 20.0, &[]), "#rect(height: 3pt)[가]");
+    }
+    #[test] fn bv_rows() {
+        let t = "#table(columns: (auto, auto), [가], [나], [다], [라])";
+        // 줄 높이가 적혀 있지 않던 표: 끈 줄만 수로 적는다
+        assert_eq!(bv(t, "table", "가", true, Some(0), 2.0 * MM, 20.0 * MM, &[8.0 * MM, 8.0 * MM]), "#table(columns: (auto, auto), rows: (10mm, auto), [가], [나], [다], [라])");
+        assert_eq!(bv(t, "table", "가", true, None, 2.0 * MM, 20.0 * MM, &[8.0 * MM, 8.0 * MM]), "#table(columns: (auto, auto), rows: (auto, 10mm), [가], [나], [다], [라])");
+        let t = "#grid(columns: 2, rows: (10mm, 12mm), [가], [나], [다], [라])";
+        assert_eq!(bv(t, "grid", "가", true, Some(1), -2.0 * MM, 22.0 * MM, &[10.0 * MM, 12.0 * MM]), t.replace("12mm", "10mm"));
+        // 한 값이 모든 줄에 되풀이되던 표: 줄마다 풀어 적는다
+        let t = "#grid(columns: 2, rows: 10mm, [가], [나], [다], [라])";
+        assert_eq!(bv(t, "grid", "가", true, Some(0), 5.0 * MM, 20.0 * MM, &[10.0 * MM, 10.0 * MM]), t.replace("rows: 10mm", "rows: (15mm, 10mm)"));
+    }
+    #[test] fn bv_local() {
+        let t = "#let key(body) = block(width: 100%, body)\n#key[가]\n#key[나]";
+        assert_eq!(bv(t, "block", "나", true, None, 5.0 * MM, 10.0 * MM, &[]), "#let key(body, height: auto) = block(height: height, width: 100%, body)\n#key[가]\n#key(height: 15mm)[나]");
     }
     #[test] fn bx_map_pos() {
         let e: Vec<Edit> = vec![(5..5, "ab".into()), (10..12, "x".into())];

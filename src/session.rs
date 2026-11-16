@@ -53,6 +53,9 @@ struct Bx {
     /// 표·격자의 칸마다 왼쪽 끝(지면 좌표)과 칸 사이 간격
     lefts: Vec<f32>,
     gutter: f32,
+    /// 표·격자의 줄마다 위쪽 끝과 줄 사이 간격
+    tops: Vec<f32>,
+    rgutter: f32,
 }
 
 impl Bx {
@@ -68,6 +71,12 @@ impl Bx {
         if n == 0 || self.lefts.iter().any(|l| l.is_nan()) { return vec![]; }
         (0..n).map(|i| if i + 1 < n { self.lefts[i + 1] - self.lefts[i] - self.gutter } else { self.x + self.w - self.lefts[i] }).collect()
     }
+    /// 줄마다의 높이. 줄 자리를 다 알지 못하면 빈 목록.
+    fn row_heights(&self) -> Vec<f32> {
+        let n = self.tops.len();
+        if n == 0 || self.tops.iter().any(|l| l.is_nan()) { return vec![]; }
+        (0..n).map(|i| if i + 1 < n { self.tops[i + 1] - self.tops[i] - self.rgutter } else { self.y + self.h - self.tops[i] }).collect()
+    }
 }
 
 /// 골라 둔 요소에 딸린 상자: 손잡이를 그릴 자리와 고칠 원고 자리.
@@ -80,6 +89,9 @@ struct BoxSel {
     cols: Vec<f32>,
     /// 칸 사이 경계의 x(지면 좌표)
     bounds: Vec<f32>,
+    /// 줄마다의 높이와, 줄 사이 경계의 y
+    rows: Vec<f32>,
+    rbounds: Vec<f32>,
     /// 같은 원고 자리에서 나온 상자의 수(템플릿 요소면 여러 곳)
     copies: usize,
     /// 이 곳만 따로 바꿀 수 있는지(템플릿 함수를 부른 자리를 안다)
@@ -92,7 +104,7 @@ struct BoxWalk<'a> {
     g: usize,
     out: Vec<Bx>,
     /// 방금 지나온 표·격자 표식: 바로 다음 프레임 묶음이 그 표다
-    pending: Option<((FileId, std::ops::Range<usize>), f32)>,
+    pending: Option<((FileId, std::ops::Range<usize>), f32, f32)>,
 }
 
 impl BoxWalk<'_> {
@@ -118,7 +130,8 @@ impl BoxWalk<'_> {
                     self.out.push(Bx {
                         page: self.page, x: ax.min(bx), y: ay.min(by), w: (bx - ax).abs(), h: (by - ay).abs(), depth,
                         g0: self.g, g1: self.g, shape: None,
-                        grid: pending.as_ref().map(|p| p.0.clone()), lefts: vec![], gutter: pending.map(|p| p.1).unwrap_or(0.0),
+                        grid: pending.as_ref().map(|p| p.0.clone()), lefts: vec![], gutter: pending.as_ref().map(|p| p.1).unwrap_or(0.0),
+                        tops: vec![], rgutter: pending.map(|p| p.2).unwrap_or(0.0),
                     });
                     let inner = if self.out[idx].grid.is_some() { Some(idx) } else { grid };
                     self.frame(&group.frame, ts2, Some(idx), inner, depth + 1);
@@ -145,7 +158,7 @@ impl BoxWalk<'_> {
                 FrameItem::Tag(Tag::Start(c, _)) => match c.func().name() {
                     "grid" | "table" => {
                         // 칸 사이 간격(첫 값만 본다)
-                        let gutter = match c.get_by_name("column-gutter") {
+                        let gut = |key: &str| match c.get_by_name(key) {
                             Ok(Value::Array(a)) => match a.iter().next() {
                                 Some(Value::Length(l)) => l.abs.to_pt() as f32,
                                 Some(Value::Relative(r)) => r.abs.abs.to_pt() as f32,
@@ -153,16 +166,27 @@ impl BoxWalk<'_> {
                             },
                             _ => 0.0,
                         };
-                        self.pending = self.src(c.span()).map(|s| (s, gutter));
+                        let (gutter, rgutter) = (gut("column-gutter"), gut("row-gutter"));
+                        self.pending = self.src(c.span()).map(|s| (s, gutter, rgutter));
                     }
                     "cell" => {
+                        let at = Point::new(pos.x, pos.y).transform(ts);
                         if let (Some(gi), Ok(Value::Int(x))) = (grid, c.get_by_name("x")) {
-                            let px = Point::new(pos.x, pos.y).transform(ts).x.to_pt() as f32;
+                            let px = at.x.to_pt() as f32;
                             let v = &mut self.out[gi].lefts;
                             let x = x.max(0) as usize;
                             if x < 64 {
                                 if v.len() <= x { v.resize(x + 1, f32::NAN); }
                                 if v[x].is_nan() || px < v[x] { v[x] = px; }
+                            }
+                        }
+                        if let (Some(gi), Ok(Value::Int(y))) = (grid, c.get_by_name("y")) {
+                            let py = at.y.to_pt() as f32;
+                            let v = &mut self.out[gi].tops;
+                            let y = y.max(0) as usize;
+                            if y < 200 {
+                                if v.len() <= y { v.resize(y + 1, f32::NAN); }
+                                if v[y].is_nan() || py < v[y] { v[y] = py; }
                             }
                         }
                     }
@@ -973,6 +997,8 @@ impl Session {
         let (name, grid) = edit::resize_kind(&text, &range)?;
         let cols = if grid { bx.col_widths() } else { vec![] };
         let bounds = if cols.is_empty() { vec![] } else { (1..bx.lefts.len()).map(|i| bx.lefts[i] - bx.gutter / 2.0).collect() };
+        let rows = if grid { bx.row_heights() } else { vec![] };
+        let rbounds = if rows.is_empty() { vec![] } else { (1..bx.tops.len()).map(|i| bx.tops[i] - bx.rgutter / 2.0).collect() };
         // 같은 원고 자리에서 나온 상자가 책 전체에 몇 곳인지(템플릿 요소)
         let mut copies = 0;
         for p in 0..self.doc.pages().len() {
@@ -984,7 +1010,7 @@ impl Session {
             let site = if el.file == file { Some(text.clone()) } else { self.world.text_of(el.file) };
             site.is_some_and(|st| edit::box_can_local(&text, &range, Some((&st, el.range.start))))
         };
-        Some(BoxSel { file, range, name, grid, page: bx.page, x: bx.x, y: bx.y, w: bx.w, h: bx.h, cols, bounds, copies: copies.max(1), local })
+        Some(BoxSel { file, range, name, grid, page: bx.page, x: bx.x, y: bx.y, w: bx.w, h: bx.h, cols, bounds, rows, rbounds, copies: copies.max(1), local })
     }
 
     /// 원고 자리 `pos`를 품은 가장 가까운 상자·표: 요소 사슬을 안쪽부터 훑어 처음으로 상자가 잡히는 것.
@@ -1013,7 +1039,7 @@ impl Session {
     fn box_json(&self, b: &BoxSel, own: bool) -> Value {
         json!({
             "page": b.page, "x": b.x, "y": b.y, "w": b.w, "h": b.h,
-            "bounds": b.bounds, "cols": b.cols, "grid": b.grid, "name": b.name, "copies": b.copies,
+            "bounds": b.bounds, "cols": b.cols, "rbounds": b.rbounds, "rows": b.rows, "grid": b.grid, "name": b.name, "copies": b.copies,
             "file": b.file.vpath().get_without_slash(),
             "line": self.world.source_of(b.file).and_then(|s| s.lines().byte_to_line(b.range.start)).unwrap_or(0) + 1,
             "own": own, "local": b.local,
@@ -1029,7 +1055,8 @@ impl Session {
     /// 상자의 오른쪽 가장자리(`col` 없음)나 칸 사이 경계(`col`번째 칸 뒤)를 `dx`pt 만큼 끈다.
     /// 고른 요소에 제 상자가 없으면(또는 고른 요소 없이 커서만 있으면) 둘러싼 상자를 고친다.
     /// 템플릿 함수가 그린 상자는 이 곳만 바꾸고, `all`이면 그 템플릿이 쓰인 모든 곳을 바꾼다.
-    fn elem_resize(&mut self, col: Option<usize>, dx: f32, all: bool) {
+    /// `vert`: 높이를 바꾼다(`col`은 줄 번호, `dx`는 아래로 끈 양).
+    fn elem_resize(&mut self, vert: bool, col: Option<usize>, dx: f32, all: bool) {
         let around = !self.elem.as_ref().is_some_and(|e| e.bx.is_some());
         let Some(mut el) = (if around { self.cbox.take() } else { self.elem.take() }) else {
             self.msg = Some(("이 요소는 지면에서 너비를 바꿀 수 없습니다.".into(), "warn"));
@@ -1040,7 +1067,7 @@ impl Session {
             let before = self.world.text_of(bx.file).unwrap_or_default();
             let same = el.file == bx.file;
             let site_text = if same { before.clone() } else { self.world.text_of(el.file).unwrap_or_default() };
-            match edit::box_resize(&before, &bx.range, Some((&site_text, el.range.start)), !all && bx.copies > 1, col, dx, Some(bx.w), &bx.cols) {
+            match edit::box_resize(&before, &bx.range, Some((&site_text, el.range.start)), !all && bx.copies > 1, vert, col, dx, Some(if vert { bx.h } else { bx.w }), if vert { &bx.rows } else { &bx.cols }) {
                 Ok(be) => {
                     // 상자가 적힌 파일과 부른 자리의 파일이 같으면 한 번에 고친다
                     let (de, se): (Vec<edit::Edit>, Vec<edit::Edit>) = if same { (be.def.iter().chain(be.site.iter()).cloned().collect(), vec![]) } else { (be.def.clone(), be.site.clone()) };
@@ -1659,7 +1686,10 @@ impl Session {
             "elemGrow" => self.elem_grow(),
             "elemDelete" => self.elem_delete(),
             "elemMove" => self.elem_move(req["dx"].as_f64().unwrap_or(0.0) as f32, req["dy"].as_f64().unwrap_or(0.0) as f32),
-            "elemResize" => self.elem_resize(req["col"].as_u64().map(|c| c as usize), req["dx"].as_f64().unwrap_or(0.0) as f32, req["all"].as_bool().unwrap_or(false)),
+            "elemResize" => match req["dy"].as_f64() {
+                Some(dy) => self.elem_resize(true, req["row"].as_u64().map(|c| c as usize), dy as f32, req["all"].as_bool().unwrap_or(false)),
+                None => self.elem_resize(false, req["col"].as_u64().map(|c| c as usize), req["dx"].as_f64().unwrap_or(0.0) as f32, req["all"].as_bool().unwrap_or(false)),
+            },
             "elemClear" => { self.elem = None; }
             _ => {}
         }

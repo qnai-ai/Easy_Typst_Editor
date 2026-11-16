@@ -1098,23 +1098,11 @@
   "ja": "テンプレートのボックス · {0} か所が一緒に変わります",
   "es": "Caja de la plantilla · {0} lugares cambian a la vez"
  },
- "오른쪽 손잡이나 칸 사이의 선을 끌면 너비가 바뀝니다.": {
-  "en": "Drag the handle on the right edge, or a line between columns, to change the width.",
-  "zh": "拖动右侧的手柄或列之间的线可改变宽度。",
-  "ja": "右端のハンドルや列の間の線をドラッグすると幅が変わります。",
-  "es": "Arrastra el tirador del borde derecho, o una línea entre columnas, para cambiar el ancho."
- },
  "손잡이 끌기": {
   "en": "Drag a handle",
   "zh": "拖动手柄",
   "ja": "ハンドルをドラッグ",
   "es": "Arrastrar un tirador"
- },
- "고른 상자·표의 너비와 칸 너비 바꾸기": {
-  "en": "Change the width of the picked box or table, or of a column",
-  "zh": "更改所选框或表格的宽度，或列宽",
-  "ja": "選んだボックス・表の幅や列幅を変更",
-  "es": "Cambiar el ancho de la caja o tabla elegida, o de una columna"
  },
  "이 요소는 지면에서 너비를 바꿀 수 없습니다.": {
   "en": "The width of this element cannot be changed on the page.",
@@ -1169,6 +1157,36 @@
   "zh": "此宽度在源文件中不是数值（表达式或来自别处的值），无法在页面上更改。",
   "ja": "この幅はソースに数値で書かれていない（式や他から来た値）ため、ページ上で変更できません。",
   "es": "Este ancho no está escrito como número en el fuente (una expresión o un valor que viene de otro sitio), así que no se puede cambiar en la página."
+ },
+ "높이 {0}mm": {
+  "en": "Height {0} mm",
+  "zh": "高度 {0}mm",
+  "ja": "高さ {0}mm",
+  "es": "Alto {0} mm"
+ },
+ "줄 높이 {0}mm": {
+  "en": "Row height {0} mm",
+  "zh": "行高 {0}mm",
+  "ja": "行の高さ {0}mm",
+  "es": "Alto de fila {0} mm"
+ },
+ "가장자리의 손잡이나 칸·줄 사이의 선을 끌면 너비와 높이가 바뀝니다.": {
+  "en": "Drag a handle on the edge, or a line between columns or rows, to change the width and height.",
+  "zh": "拖动边缘的手柄或行列之间的线可改变宽度和高度。",
+  "ja": "端のハンドルや行・列の間の線をドラッグすると幅と高さが変わります。",
+  "es": "Arrastra un tirador del borde, o una línea entre columnas o filas, para cambiar el ancho y el alto."
+ },
+ "상자·표의 너비와 높이, 칸 너비와 줄 높이 바꾸기": {
+  "en": "Change the width and height of a box or table, or of a column or row",
+  "zh": "更改框或表格的宽度和高度，或列宽和行高",
+  "ja": "ボックス・表の幅と高さ、列幅と行の高さを変更",
+  "es": "Cambiar el ancho y el alto de una caja o tabla, o de una columna o fila"
+ },
+ "이 표의 줄 높이는 원고에 수로 적혀 있지 않아(변수나 식) 지면에서 바꿀 수 없습니다.": {
+  "en": "The row heights of this table are not written as numbers in the source (a variable or an expression), so they cannot be changed on the page.",
+  "zh": "此表格的行高在源文件中不是数值（变量或表达式），无法在页面上更改。",
+  "ja": "この表の行の高さはソースに数値で書かれていない（変数や式）ため、ページ上で変更できません。",
+  "es": "Los altos de fila de esta tabla no están escritos como números en el fuente (una variable o una expresión), así que no se pueden cambiar en la página."
  },
  "언어": {
   "en": "Language",

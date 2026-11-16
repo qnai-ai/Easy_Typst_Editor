@@ -69,6 +69,22 @@ button{font:inherit;color:inherit}
 .hnd.col::after{left:5.75px;width:1.5px;opacity:.55}
 .hnd:hover::after,.hnd.drag::after{opacity:1}
 .hnd.col:hover::after,.hnd.col.drag::after{left:5px;width:3px}
+.hnd.v{width:auto;height:13px;margin-left:0;margin-top:-6.5px;cursor:ns-resize}
+.hnd.v::after{left:0;right:0;top:5px;bottom:auto;width:auto;height:3px}
+.hnd.v.edge::before{left:50%;top:2px;width:22px;height:6px;margin-top:0;margin-left:-12px}
+.hnd.v.row{cursor:row-resize}
+.hnd.v.row::after{top:5.75px;height:1.5px;opacity:.55}
+.hnd.v.row:hover::after,.hnd.v.row.drag::after{top:5px;height:3px;left:0;width:auto}
+.hnd.amb{width:7px;margin-left:-3.5px}
+.hnd.amb::after{left:2px}
+.hnd.amb.col::after{left:2.75px}
+.hnd.amb.col:hover::after,.hnd.amb.col.drag::after{left:2px}
+.hnd.amb.edge::before{left:-1px}
+.hnd.v.amb{width:auto;margin-left:0;height:7px;margin-top:-3.5px}
+.hnd.v.amb::after{left:0;top:2px}
+.hnd.v.amb.row::after{top:2.75px}
+.hnd.v.amb.row:hover::after,.hnd.v.amb.row.drag::after{top:2px}
+.hnd.v.amb.edge::before{left:50%;top:-1px}
 .boxr.amb{opacity:.4}
 .hnd.amb::after{opacity:.3}
 .hnd.amb.edge::before{opacity:.75}
@@ -359,7 +375,7 @@ function apply(v, req) {
   if (v.msg) setMsg(v.msg, v.msgKind); else if (req.op !== 'click' || !req.extend) setMsg(v.caret ? '' : T('고칠 글자를 눌러 주세요.'));
   if (v.lock) showTip(v.lock); else hideTip();
   showEbar();
-  if (v.elem && !v.msg) setMsg(T('끌거나 방향키로 옮깁니다(Shift: 5pt씩). Delete로 지웁니다. 잘못했으면 Ctrl+Z.') + (v.elem.box ? ' ' + T('오른쪽 손잡이나 칸 사이의 선을 끌면 너비가 바뀝니다.') : ''));
+  if (v.elem && !v.msg) setMsg(T('끌거나 방향키로 옮깁니다(Shift: 5pt씩). Delete로 지웁니다. 잘못했으면 Ctrl+Z.') + (v.elem.box ? ' ' + T('가장자리의 손잡이나 칸·줄 사이의 선을 끌면 너비와 높이가 바뀝니다.') : ''));
   if (v.caret && req.op !== 'click') scrollToCaret();
   if (req.op === 'open') {
     ime.focus();
@@ -438,6 +454,9 @@ function drawOverlay() {
     addRect(b.page, b.x, b.y, b.w, b.h, 'boxr' + amb);
     b.bounds.forEach((x, i) => { const c = addRect(b.page, x, b.y, 0, b.h, 'hnd col' + amb); if (c) c.dataset.col = i; });
     const e = addRect(b.page, b.x + b.w, b.y, 0, b.h, 'hnd edge' + amb); if (e) e.dataset.col = '';
+    // 높이: 줄 사이의 경계와 아래 가장자리
+    (b.rbounds || []).forEach((y, i) => { const c = addRect(b.page, b.x, y, b.w, 0, 'hnd v row' + amb); if (c) { c.dataset.row = i; c.style.height = ''; } });
+    const eb = addRect(b.page, b.x, b.y + b.h, b.w, 0, 'hnd v edge' + amb); if (eb) { eb.dataset.row = ''; eb.style.height = ''; }
   }
   if (view.caret && !(view.sel && view.sel.length)) {
     const c = view.caret; const d = addRect(c.page, c.x, c.y, 0, c.h, 'caret'); if (d) { d.style.width = Math.max(1.4, zoom * 1.3) + 'px'; d.style.marginLeft = '-0.7px'; }
@@ -519,8 +538,9 @@ pagesBox.addEventListener('mousedown', e => {
   const p = pagePoint(e); e.preventDefault(); ime.focus(); if (!p) return;
   if (composing) { ime.blur(); ime.focus(); }
   if (e.target.classList.contains('hnd') && !e.altKey && !pickMode) {
-    const c = e.target.dataset.col;
-    rdrag = { el: e.target, col: c === '' ? null : +c, x: e.clientX, dx: 0 };
+    const vert = e.target.classList.contains('v');
+    const c = vert ? e.target.dataset.row : e.target.dataset.col;
+    rdrag = { el: e.target, vert, col: c === '' ? null : +c, x: e.clientX, y: e.clientY, dx: 0, p, shift: e.shiftKey };
     e.target.classList.add('drag');
     return;
   }
@@ -539,10 +559,12 @@ pagesBox.addEventListener('contextmenu', e => {
 document.addEventListener('contextmenu', e => { if (!e.target.closest('input,#devsrc,#keys,#problems')) e.preventDefault(); });
 addEventListener('mousemove', e => {
   if (rdrag) {
-    rdrag.dx = e.clientX - rdrag.x;
-    rdrag.el.style.transform = `translateX(${rdrag.dx}px)`;
+    rdrag.dx = rdrag.vert ? e.clientY - rdrag.y : e.clientX - rdrag.x;
+    rdrag.el.style.transform = rdrag.vert ? `translateY(${rdrag.dx}px)` : `translateX(${rdrag.dx}px)`;
     const b = curBox(), pt = rdrag.dx / (PT * zoom);
-    if (b) setMsg((rdrag.col === null ? T('너비 {0}mm', mm(Math.max(0, b.w + pt))) : T('칸 너비 {0}mm', mm(Math.max(0, b.cols[rdrag.col] + pt))))
+    if (b) setMsg((rdrag.vert
+        ? (rdrag.col === null && !(b.rows && b.rows.length) ? T('높이 {0}mm', mm(Math.max(0, b.h + pt))) : T('줄 높이 {0}mm', mm(Math.max(0, b.rows[rdrag.col === null ? b.rows.length - 1 : rdrag.col] + pt))))
+        : (rdrag.col === null ? T('너비 {0}mm', mm(Math.max(0, b.w + pt))) : T('칸 너비 {0}mm', mm(Math.max(0, b.cols[rdrag.col] + pt)))))
       + (b.copies > 1 ? ' · ' + tplNote(b, e.shiftKey) : ''), b.copies > 1 && (e.shiftKey || !b.local) ? 'warn' : undefined);
     return;
   }
@@ -561,8 +583,9 @@ addEventListener('mouseup', e => {
   if (rdrag) {
     const pt = rdrag.dx / (PT * zoom), r = rdrag; rdrag = null;
     r.el.classList.remove('drag');
-    if (Math.abs(pt) > 0.3) act('elemResize', { ...(r.col === null ? {} : { col: r.col }), dx: Math.round(pt * 10) / 10, all: !!(e && e.shiftKey) });
-    else { r.el.style.transform = ''; drawOverlay(); }
+    const d = Math.round(pt * 10) / 10, all = !!(e && e.shiftKey);
+    if (Math.abs(pt) > 0.3) act('elemResize', r.vert ? { ...(r.col === null ? {} : { row: r.col }), dy: d, all } : { ...(r.col === null ? {} : { col: r.col }), dx: d, all });
+    else { r.el.style.transform = ''; if (view.elem) drawOverlay(); else act('click', { ...r.p, extend: r.shift, dbl: false, tpl: false }); }
     return;
   }
   if (edrag) {
@@ -835,7 +858,7 @@ const KEYS = [
     ['<두 번 누르기> / <세 번 누르기>', '낱말 선택 / 문단 선택'],
     ['Shift+<누르기>', '커서에서 누른 곳까지 선택'],
     ['Alt+<누르기>', '요소 고르기(통째로 지우기·옮기기)'],
-    ['<손잡이 끌기>', '고른 상자·표의 너비와 칸 너비 바꾸기'],
+    ['<손잡이 끌기>', '상자·표의 너비와 높이, 칸 너비와 줄 높이 바꾸기'],
   ]],
   ['찾기와 보기', [
     ['Ctrl+F / Ctrl+H', '찾기 / 바꾸기'],
