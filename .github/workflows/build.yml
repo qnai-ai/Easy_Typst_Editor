@@ -91,6 +91,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          # EasyTypstEditor-windows-x64.zip -> EasyTypstEditor-v0.5.0-windows-x64.zip
+          for f in packages/EasyTypstEditor-*; do
+            mv "$f" "packages/EasyTypstEditor-$TAG-${f#packages/EasyTypstEditor-}"
+          done
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Easy Typst Editor $TAG" --generate-notes
           gh release upload "$TAG" packages/* --repo "$GITHUB_REPOSITORY" --clobber
