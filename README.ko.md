@@ -15,9 +15,9 @@ Typst를 몰라도 쓰는 교재 지면 편집기. `main.typ` 하나를 열면 �
 
 | 시스템 | 꾸러미 | 실행 | 필요한 것 |
 |---|---|---|---|
-| **Windows 10/11** | `EasyTypstEditor-windows-x64.zip` | `EasyTypstEditor.exe` (zip에 `WebView2Loader.dll`이 있으면 같은 폴더에 둔다) | Microsoft Edge WebView2 런타임(요즘 Windows에는 들어 있다) |
-| **macOS 11 이상** (Apple Silicon · Intel) | `EasyTypstEditor-macos-universal.zip` | `Easy Typst Editor.app` | 없음 |
-| **Linux** (x86-64) | `EasyTypstEditor-linux-x64.tar.gz` | `./EasyTypstEditor` | WebKitGTK 4.1, GTK 3 |
+| **Windows 10/11** | `EasyTypstEditor-vX.Y.Z-windows-x64.zip` | `EasyTypstEditor.exe` (zip에 `WebView2Loader.dll`이 있으면 같은 폴더에 둔다) | Microsoft Edge WebView2 런타임(요즘 Windows에는 들어 있다) |
+| **macOS 11 이상** (Apple Silicon · Intel) | `EasyTypstEditor-vX.Y.Z-macos-universal.zip` | `Easy Typst Editor.app` | 없음 |
+| **Linux** (x86-64) | `EasyTypstEditor-vX.Y.Z-linux-x64.tar.gz` | `./EasyTypstEditor` | WebKitGTK 4.1, GTK 3 |
 
 - **macOS:** Apple의 공증을 받지 않은 앱이라 처음 실행이 막힌다. *시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기*로 한 번 허용하거나,
   `xattr -dr com.apple.quarantine "Easy Typst Editor.app"`을 실행한다.

@@ -73,9 +73,9 @@ Try [`examples/hello/main.typ`](examples/hello/main.typ) first.
 
 | System | Package | Run | Needs |
 |---|---|---|---|
-| **Windows 10/11** | `EasyTypstEditor-windows-x64.zip` | `EasyTypstEditor.exe` (keep `WebView2Loader.dll` next to it if the zip has one) | Microsoft Edge WebView2 Runtime (preinstalled on current Windows) |
-| **macOS 11+** (Apple Silicon and Intel) | `EasyTypstEditor-macos-universal.zip` | `Easy Typst Editor.app` | nothing else |
-| **Linux** (x86-64) | `EasyTypstEditor-linux-x64.tar.gz` | `./EasyTypstEditor` | WebKitGTK 4.1 and GTK 3 |
+| **Windows 10/11** | `EasyTypstEditor-vX.Y.Z-windows-x64.zip` | `EasyTypstEditor.exe` (keep `WebView2Loader.dll` next to it if the zip has one) | Microsoft Edge WebView2 Runtime (preinstalled on current Windows) |
+| **macOS 11+** (Apple Silicon and Intel) | `EasyTypstEditor-vX.Y.Z-macos-universal.zip` | `Easy Typst Editor.app` | nothing else |
+| **Linux** (x86-64) | `EasyTypstEditor-vX.Y.Z-linux-x64.tar.gz` | `./EasyTypstEditor` | WebKitGTK 4.1 and GTK 3 |
 
 - **macOS:** the app is not notarized by Apple, so the first start is blocked. Allow it once under
   *System Settings → Privacy & Security → Open Anyway*, or run `xattr -dr com.apple.quarantine "Easy Typst Editor.app"`.
