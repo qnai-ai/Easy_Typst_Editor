@@ -1,7 +1,7 @@
 //! 화면 언어 (UI language).
 //!
 //! 지원 언어: 한국어(ko), English(en), 中文(zh), 日本語(ja), Español(es).
-//! 처음엔 Windows 표시 언어를 따르고, 화면 오른쪽 위 언어 메뉴(🌐)에서 고르면 기억한다.
+//! 처음엔 시스템(Windows · macOS · Linux)의 표시 언어를 따르고, 화면 오른쪽 위 언어 메뉴(🌐)에서 고르면 기억한다.
 //! 환경 변수 `EASY_TYPST_LANG=ko|en|zh|ja|es` 가 있으면 그것이 우선한다.
 //! 엔진의 안내문은 한국어 원문으로 만들고, 화면으로 보내기 직전에 `ui/i18n.json` 으로 옮긴다.
 //! 화면(ui/index.html)도 같은 i18n.json 을 받아 쓴다.
@@ -25,7 +25,7 @@ fn saved_lang() -> Option<&'static str> {
     LANGS.iter().find(|c| **c == l).copied()
 }
 
-/// 지금 화면 언어. 우선순위: 환경 변수 EASY_TYPST_LANG > 화면에서 고른 언어(settings.json) > Windows 표시 언어.
+/// 지금 화면 언어. 우선순위: 환경 변수 EASY_TYPST_LANG > 화면에서 고른 언어(settings.json) > 시스템 표시 언어.
 pub fn code() -> &'static str {
     if let Some(c) = *CURRENT.read().unwrap() { return c; }
     let c = std::env::var("EASY_TYPST_LANG").ok()
@@ -59,9 +59,10 @@ fn system_lang() -> &'static str {
     }
 }
 
+/// macOS: 시스템 설정의 선호 언어. Linux: LANGUAGE · LC_ALL · LC_MESSAGES · LANG.
 #[cfg(not(windows))]
 fn system_lang() -> &'static str {
-    let l = std::env::var("LC_ALL").or_else(|_| std::env::var("LANG")).unwrap_or_default();
+    let l = sys_locale::get_locale().unwrap_or_default().to_ascii_lowercase();
     LANGS.iter().find(|c| l.starts_with(**c)).copied().unwrap_or("en")
 }
 
@@ -116,7 +117,7 @@ pub fn translate(v: &mut Value) {
         Value::String(s) => { let n = tr(s); if n != *s { *s = n; } }
         Value::Array(a) => a.iter_mut().for_each(translate),
         Value::Object(o) => for (k, x) in o.iter_mut() {
-            if matches!(k.as_str(), "text" | "path" | "file" | "detail" | "title" | "name") { continue; }
+            if matches!(k.as_str(), "text" | "selText" | "path" | "file" | "detail" | "title" | "name") { continue; }
             translate(x);
         },
         _ => {}

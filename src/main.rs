@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-//! 쉬운 지면 편집기 — Typst 교재를 지면에서 바로 고치는 Windows 앱.
+//! 쉬운 지면 편집기 — Typst 교재를 지면에서 바로 고치는 앱 (Windows · macOS · Linux).
 
 mod edit;
 mod index;
@@ -19,8 +19,10 @@ use session::Session;
 
 const INDEX_HTML: &str = include_str!("../ui/index.html");
 
+/// 설정·최근 목록·웹뷰 자료를 두는 폴더.
+/// Windows `%LOCALAPPDATA%`, macOS `~/Library/Application Support`, Linux `~/.local/share`(XDG_DATA_HOME) 아래.
 pub fn data_dir() -> PathBuf {
-    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    let base = dirs::data_local_dir().unwrap_or_else(std::env::temp_dir);
     let d = base.join("EasyTypstEditor");
     let _ = std::fs::create_dir_all(&d);
     d
@@ -156,19 +158,61 @@ fn serve(server: Server, app: Arc<App>) {
 
 /// 저장 안 한 변경이 있을 때: 저장(예) / 버림(아니오) / 취소. 계속해도 되면 true.
 fn confirm_discard(app: &App) -> bool {
+    match ask_save() {
+        Some(true) => app.session.lock().unwrap().as_mut().map(|s| s.save()).unwrap_or(true),
+        Some(false) => true,
+        None => false,
+    }
+}
+
+/// "저장할까요?" 알림창. 저장 Some(true) / 저장 안 함 Some(false) / 취소 None.
+fn ask_save_native() -> Option<bool> {
     let r = rfd::MessageDialog::new()
         .set_title(lang::tr("쉬운 지면 편집기"))
         .set_description(lang::tr("저장하지 않은 변경이 있습니다. 저장할까요?"))
         .set_buttons(rfd::MessageButtons::YesNoCancel)
         .show();
     match r {
-        rfd::MessageDialogResult::Yes => app.session.lock().unwrap().as_mut().map(|s| s.save()).unwrap_or(true),
-        rfd::MessageDialogResult::No => true,
-        _ => false,
+        rfd::MessageDialogResult::Yes => Some(true),
+        rfd::MessageDialogResult::No => Some(false),
+        _ => None,
     }
 }
 
-/// 탐색기에서 장별 원고(content/u01.typ 등)를 열었을 때: 같은 폴더나 위 폴더의 main.typ를 대신 연다.
+#[cfg(not(target_os = "linux"))]
+fn ask_save() -> Option<bool> { ask_save_native() }
+
+/// Linux: rfd의 알림창은 zenity가 깔려 있어야 뜬다. 그래서 창이 이미 쓰는 GTK로 직접 띄운다.
+/// GTK는 창을 만든 스레드에서만 쓸 수 있으므로, 다른 스레드(화면 서버)에서 부르면 그 스레드로 넘긴다.
+#[cfg(target_os = "linux")]
+fn ask_save() -> Option<bool> {
+    use gtk::prelude::*;
+    fn show() -> Option<bool> {
+        let parent = gtk::Window::list_toplevels().into_iter()
+            .filter_map(|w| w.downcast::<gtk::Window>().ok()).find(|w| w.is_visible());
+        let d = gtk::MessageDialog::new(parent.as_ref(), gtk::DialogFlags::MODAL, gtk::MessageType::Question,
+            gtk::ButtonsType::None, &lang::tr("저장하지 않은 변경이 있습니다. 저장할까요?"));
+        d.set_title(&lang::tr("쉬운 지면 편집기"));
+        d.add_button(&lang::tr("저장 안 함"), gtk::ResponseType::No);
+        d.add_button(&lang::tr("취소"), gtk::ResponseType::Cancel);
+        d.add_button(&lang::tr("저장"), gtk::ResponseType::Yes);
+        d.set_default_response(gtk::ResponseType::Yes);
+        let r = d.run();
+        d.close();
+        match r {
+            gtk::ResponseType::Yes => Some(true),
+            gtk::ResponseType::No => Some(false),
+            _ => None,
+        }
+    }
+    if !gtk::is_initialized() { return ask_save_native(); }   // --serve: 창이 없다
+    if gtk::is_initialized_main_thread() { return show(); }
+    let (tx, rx) = std::sync::mpsc::channel();
+    gtk::glib::MainContext::default().invoke(move || { let _ = tx.send(show()); });
+    rx.recv().ok().flatten()
+}
+
+/// 파일 관리자에서 장별 원고(content/u01.typ 등)를 열었을 때: 같은 폴더나 위 폴더의 main.typ를 대신 연다.
 fn find_main(path: PathBuf) -> PathBuf {
     if path.file_name().is_some_and(|n| n.eq_ignore_ascii_case("main.typ")) { return path; }
     let mut dir = path.parent();
@@ -219,16 +263,63 @@ fn main() {
     run_window(&url, app);
 }
 
+/// 창 밖에서 창의 스레드로 보내는 알림.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+enum Wake {
+    /// 끝내기(macOS의 ⌘Q)
+    Quit,
+    /// 다른 교재를 열었으니 화면을 다시 불러온다
+    Reload,
+}
+
+/// macOS의 메뉴 막대. 편집 메뉴가 없으면 ⌘V·⌘C 같은 글쇠가 웹뷰까지 가지 않는다.
+/// 편집기가 직접 받는 글쇠(⌘C, ⌘Z, ⌘S …)는 웹뷰가 먼저 받으므로 그대로이고,
+/// 나머지(붙여넣기, 찾기 칸 안의 복사·실행 취소 등)만 메뉴를 거쳐 처리된다.
+#[cfg(target_os = "macos")]
+fn mac_menu(proxy: tao::event_loop::EventLoopProxy<Wake>) {
+    use muda::accelerator::{Accelerator, Code, CMD_OR_CTRL};
+    use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem as Item, Submenu};
+
+    let t = |ko: &str| lang::tr(ko);
+    let name = t("쉬운 지면 편집기");
+    // 끝내기는 미리 만들어진 항목을 쓰지 않는다: 저장 안 한 변경이 있으면 먼저 물어야 한다
+    let quit = MenuItem::with_id("quit", lang::f("{0} 끝내기", &[&name]), true, Some(Accelerator::new(CMD_OR_CTRL, Code::KeyQ)));
+    let app_menu = Submenu::new(&name, true);
+    let edit_menu = Submenu::new(t("편집"), true);
+    let window_menu = Submenu::new(t("창"), true);
+    let menu = Menu::new();
+    let built = app_menu.append_items(&[
+        &Item::about(None, None), &Item::separator(),
+        &Item::hide(None), &Item::hide_others(None), &Item::show_all(None), &Item::separator(),
+        &quit,
+    ]).and_then(|_| edit_menu.append_items(&[
+        &Item::undo(Some(t("실행 취소").as_str())), &Item::redo(Some(t("다시 실행").as_str())), &Item::separator(),
+        &Item::cut(Some(t("잘라내기").as_str())), &Item::copy(Some(t("복사").as_str())), &Item::paste(Some(t("붙여넣기").as_str())),
+        &Item::select_all(Some(t("모두 선택").as_str())),
+    ])).and_then(|_| window_menu.append_items(&[&Item::minimize(None), &Item::close_window(None)]))
+        .and_then(|_| menu.append_items(&[&app_menu, &edit_menu, &window_menu]));
+    if built.is_err() { return; }
+    menu.init_for_nsapp();
+    window_menu.set_as_windows_menu_for_nsapp();
+    MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
+        if e.id == "quit" { let _ = proxy.send_event(Wake::Quit); }
+    }));
+    std::mem::forget(menu);   // 앱이 끝날 때까지 둔다
+}
+
 fn run_window(url: &str, app: Arc<App>) {
     use tao::dpi::LogicalSize;
     use tao::event::{Event, WindowEvent};
-    use tao::event_loop::{ControlFlow, EventLoop};
+    use tao::event_loop::{ControlFlow, EventLoopBuilder};
     use tao::window::WindowBuilder;
     use wry::WebViewBuilder;
     #[cfg(windows)]
     use wry::WebViewBuilderExtWindows;
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoopBuilder::<Wake>::with_user_event().build();
+    let proxy = event_loop.create_proxy();
+    #[cfg(target_os = "macos")]
+    mac_menu(proxy.clone());
     let window = WindowBuilder::new()
         .with_title(lang::tr("쉬운 지면 편집기"))
         .with_inner_size(LogicalSize::new(1280.0, 900.0))
@@ -240,14 +331,47 @@ fn run_window(url: &str, app: Arc<App>) {
     // 브라우저의 가속키(Ctrl+F, F3, Ctrl+P, F5, Ctrl+R …)는 끈다: 같은 글쇠를 편집기의 단축키로 쓴다
     #[cfg(windows)]
     let builder = builder.with_browser_accelerator_keys(false);
-    let _webview = builder
-        .build(&window)
-        .expect("Could not create the web view (Microsoft Edge WebView2 Runtime is required)");
+    // Linux(WebKitGTK): 지면에서 복사·붙여넣기를 할 수 있게 클립보드를 열어 준다
+    #[cfg(target_os = "linux")]
+    let builder = builder.with_clipboard(true);
+    #[cfg(not(target_os = "linux"))]
+    let webview = builder.build(&window);
+    // Linux: 창의 GTK 상자 안에 넣는다(창 핸들로 만드는 방식은 X11에서만 되고 Wayland에서는 안 된다)
+    #[cfg(target_os = "linux")]
+    let webview = {
+        use tao::platform::unix::WindowExtUnix;
+        use wry::WebViewBuilderExtUnix;
+        builder.build_gtk(window.default_vbox().expect("창에 GTK 상자가 없습니다"))
+    };
+    let webview = webview.expect(if cfg!(windows) {
+        "Could not create the web view (Microsoft Edge WebView2 Runtime is required)"
+    } else if cfg!(target_os = "macos") {
+        "Could not create the web view (WebKit)"
+    } else {
+        "Could not create the web view (WebKitGTK 4.1 is required: libwebkit2gtk-4.1)"
+    });
+    let url = url.to_string();
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
-        if let Event::WindowEvent { event: WindowEvent::CloseRequested, .. } = event {
+        let may_leave = || {
             let dirty = app.session.lock().unwrap().as_ref().is_some_and(|s| s.is_dirty());
-            if !dirty || confirm_discard(&app) { *control_flow = ControlFlow::Exit; }
+            !dirty || confirm_discard(&app)
+        };
+        match event {
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } | Event::UserEvent(Wake::Quit) => {
+                if may_leave() { *control_flow = ControlFlow::Exit; }
+            }
+            // macOS: Finder에서 .typ 파일을 이 앱으로 열었을 때(파일 이름이 명령줄이 아니라 이 알림으로 온다)
+            Event::Opened { urls } => {
+                if let Some(p) = urls.iter().find_map(|u| u.to_file_path().ok()) {
+                    if may_leave() {
+                        let (app, proxy) = (app.clone(), proxy.clone());
+                        std::thread::spawn(move || { app.open(&find_main(p)); let _ = proxy.send_event(Wake::Reload); });
+                    }
+                }
+            }
+            Event::UserEvent(Wake::Reload) => { let _ = webview.load_url(&url); }
+            _ => {}
         }
     });
 }

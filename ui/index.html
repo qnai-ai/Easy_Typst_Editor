@@ -283,6 +283,9 @@ const $ = id => document.getElementById(id);
 /* ---------- 화면 언어: 엔진이 <html lang>과 I18N(ui/i18n.json)을 채워 보낸다 ---------- */
 const I18N = /*I18N*/{};
 const LANG = document.documentElement.lang || 'ko';
+// macOS에서는 Ctrl 자리에 ⌘, Alt 자리에 ⌥를 쓴다(글쇠 처리도, 화면에 적는 이름도)
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+function K(s) { return MAC && s ? s.replace(/Ctrl/g, '⌘').replace(/Alt/g, '⌥') : s; }
 function T(ko, ...args) {
   let s = (LANG !== 'ko' && I18N[ko] && I18N[ko][LANG]) || ko;
   args.forEach((a, i) => { s = s.split('{' + i + '}').join(a); });
@@ -307,6 +310,7 @@ function localize() {
   document.querySelectorAll('.tb .gl').forEach(e => e.textContent = 'A');
 }
 localize();
+if (MAC) for (const el of document.querySelectorAll('[title]')) el.title = K(el.title);
 
 /* ---------- 언어 메뉴: 각 언어는 그 언어로 적는다(국기 대신 이름) ---------- */
 const LANG_NAMES = [['en', 'English'], ['es', 'Español'], ['ko', '한국어'], ['ja', '日本語'], ['zh', '简体中文']];
@@ -375,7 +379,7 @@ async function openBook(path) {
 }
 
 /* ---------- 화면 갱신 ---------- */
-function setMsg(t, kind) { const m = $('msg'); m.textContent = t || ''; m.className = kind || ''; }
+function setMsg(t, kind) { const m = $('msg'); m.textContent = K(t || ''); m.className = kind || ''; }
 function apply(v, req) {
   const first = !view || !view.open;
   view = v;
@@ -620,7 +624,7 @@ addEventListener('mouseup', e => {
   }
 });
 scroller.addEventListener('scroll', () => { placeIme(); updatePageNo(); hideTip(); showEbar(); });
-scroller.addEventListener('wheel', e => { if (e.ctrlKey) { e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)); } }, { passive: false });
+scroller.addEventListener('wheel', e => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)); } }, { passive: false });
 addEventListener('resize', () => { if (view && view.open && fitMode) { layoutPages(); drawOverlay(); } placeIme(); });
 document.addEventListener('mousedown', e => {
   if (!e.target.closest('#cmenu')) hideMenu();
@@ -644,7 +648,13 @@ function pasteClip() {
 }
 ime.addEventListener('keydown', e => {
   if (e.isComposing || e.keyCode === 229) return;
-  const k = e.key, c = e.ctrlKey || e.metaKey, sh = e.shiftKey;
+  let k = e.key, c = e.ctrlKey || e.metaKey;
+  const sh = e.shiftKey;
+  // macOS의 글쇠 관습: ⌥←/→ 낱말, ⌥↑/↓ 문단, ⌥+지우기 낱말 지우기, ⌘←/→ 줄의 처음·끝, ⌘↑/↓ 교재의 처음·끝
+  if (MAC && !e.ctrlKey) {
+    if (e.metaKey && k.startsWith('Arrow')) { c = k === 'ArrowUp' || k === 'ArrowDown'; k = k === 'ArrowLeft' || k === 'ArrowUp' ? 'Home' : 'End'; }
+    else if (e.altKey && (k.startsWith('Arrow') || k === 'Backspace' || k === 'Delete')) c = true;
+  }
   if (k === 'F1') { e.preventDefault(); toggleKeys(); return; }
   if (k === 'F3') { e.preventDefault(); findStep(sh ? -1 : 1); return; }
   if (k === 'Escape' && pickMode) { setPick(false); return; }
@@ -859,7 +869,7 @@ function showMenu(x, y) {
     if (!it) { m.append(document.createElement('hr')); continue; }
     const b = document.createElement('button');
     b.disabled = !it[2];
-    b.innerHTML = `${esc(T(it[0]))}<span>${esc(it[1])}</span>`;
+    b.innerHTML = `${esc(T(it[0]))}<span>${esc(K(it[1]))}</span>`;
     b.addEventListener('click', () => { hideMenu(); if (it[0] !== '찾기·바꾸기') ime.focus(); it[3](); });
     m.append(b);
   }
@@ -911,6 +921,14 @@ const KEYS = [
     ['F1', '이 단축키 표 여닫기'],
   ]],
 ];
+// macOS에서 글쇠가 다른 줄(K()가 Ctrl → ⌘, Alt → ⌥로 바꿔 적는다)
+const MACKEYS = {
+  'Ctrl+Backspace / Ctrl+Delete': 'Alt+Backspace / Alt+Delete',
+  'Ctrl+← / Ctrl+→': 'Alt+← / Alt+→',
+  'Home / End': 'Ctrl+← / Ctrl+→',
+  'Ctrl+↑ / Ctrl+↓': 'Alt+↑ / Alt+↓',
+  'Ctrl+Home / Ctrl+End': 'Ctrl+↑ / Ctrl+↓',
+};
 function toggleKeys(on) {
   const veil = $('keysveil');
   const show = on === undefined ? !veil.classList.contains('show') : on;
@@ -920,7 +938,7 @@ function toggleKeys(on) {
       return m ? esc(T(m[1])) : `<kbd>${esc(x)}</kbd>`;
     }).join('+')).join(', ')).join(' / ');
     $('keys').innerHTML = `<h2>${esc(T('단축키'))}<button class="tb" id="keysClose">✕</button></h2>` + KEYS.map(([name, rows]) =>
-      `<h3>${esc(T(name))}</h3><table>` + rows.map(([k, d]) => `<tr><td>${kbd(k)}</td><td>${esc(T(d))}</td></tr>`).join('') + '</table>').join('');
+      `<h3>${esc(T(name))}</h3><table>` + rows.map(([k, d]) => `<tr><td>${kbd(K(MAC && MACKEYS[k] || k))}</td><td>${esc(T(d))}</td></tr>`).join('') + '</table>').join('');
     $('keysClose').addEventListener('click', () => toggleKeys(false));
   }
   veil.classList.toggle('show', show);
