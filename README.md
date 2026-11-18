@@ -62,7 +62,7 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
 - **Table rows and columns.** Right-click in a table to insert or delete a row or a column. Empty cells can be clicked and typed into.
 - **Safe by design.** Every edit is checked against the syntax tree and rolled back if it would break compilation; nothing touches the disk until you save;
   the original is backed up before each save; and it refuses to overwrite a file another program changed in the meantime.
-- **Save as PDF.** One click (Ctrl+P) writes the pages as you see them, unsaved edits included, using the same Typst engine as `typst compile`.
+- **Export PDF.** One click (Ctrl+P) writes the pages as you see them, unsaved edits included, using the same Typst engine as `typst compile`.
 - **Developer view.** Optionally shows the source line you are editing.
 - **5 UI languages:** English, 한국어, 日本語, 简体中文, Español (🌐 menu, top-right).
 
@@ -112,7 +112,7 @@ F1 shows the keys for the system you are on.
 | Enter · Shift+Enter · Tab | New paragraph · line break · tab |
 | Ctrl+F · Ctrl+H · F3 · Shift+F3 | Find · replace · next · previous match |
 | Ctrl+Z · Ctrl+Y | Undo · redo (consecutive typing or deleting is one step) |
-| Ctrl+S · Ctrl+O · Ctrl+P | Save · open · save as PDF |
+| Ctrl+S · Ctrl+O · Ctrl+P | Save · open · export PDF |
 | Alt+click | Pick a whole element (then drag, arrow keys, or Delete) |
 | Drag a handle (click into a box or table to see them) | Width and height of a box · width of a column · height of a row. Shift: every use of the template |
 | Click an image | Pick it: resize with the handles, or replace the file |

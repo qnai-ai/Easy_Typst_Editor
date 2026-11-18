@@ -1399,34 +1399,34 @@
   "es": "Seleccionar todo"
  },
  "PDF로 저장": {
-  "en": "Save as PDF",
-  "zh": "另存为 PDF",
-  "ja": "PDFで保存",
-  "es": "Guardar como PDF"
+  "en": "Export PDF",
+  "zh": "导出 PDF",
+  "ja": "PDFに書き出し",
+  "es": "Exportar a PDF"
  },
  "PDF로 저장 (Ctrl+P). 저장하지 않은 고침도 지금 보이는 그대로 들어갑니다.": {
-  "en": "Save as PDF (Ctrl+P). Unsaved edits are included, exactly as shown.",
-  "zh": "另存为 PDF (Ctrl+P)。未保存的修改也会按当前显示的样子写入。",
-  "ja": "PDFで保存 (Ctrl+P)。保存していない修正も、いま表示されているとおりに入ります。",
-  "es": "Guardar como PDF (Ctrl+P). Incluye los cambios sin guardar, tal como se ven."
+  "en": "Export PDF (Ctrl+P). Unsaved edits are included, exactly as shown.",
+  "zh": "导出 PDF (Ctrl+P)。未保存的修改也会按当前显示的样子写入。",
+  "ja": "PDFに書き出し (Ctrl+P)。保存していない修正も、いま表示されているとおりに入ります。",
+  "es": "Exportar a PDF (Ctrl+P). Incluye los cambios sin guardar, tal como se ven."
  },
  "PDF를 만드는 중…": {
-  "en": "Creating the PDF…",
-  "zh": "正在生成 PDF…",
-  "ja": "PDFを作成中…",
-  "es": "Creando el PDF…"
+  "en": "Exporting the PDF…",
+  "zh": "正在导出 PDF…",
+  "ja": "PDFを書き出し中…",
+  "es": "Exportando el PDF…"
  },
  "PDF로 저장했습니다: ": {
-  "en": "Saved as PDF: ",
-  "zh": "已保存为 PDF：",
-  "ja": "PDFで保存しました：",
-  "es": "Guardado como PDF: "
+  "en": "Exported PDF: ",
+  "zh": "已导出 PDF：",
+  "ja": "PDFを書き出しました：",
+  "es": "PDF exportado: "
  },
  "PDF를 만들지 못했습니다.": {
-  "en": "Could not create the PDF.",
-  "zh": "无法生成 PDF。",
-  "ja": "PDFを作成できませんでした。",
-  "es": "No se pudo crear el PDF."
+  "en": "Could not export the PDF.",
+  "zh": "无法导出 PDF。",
+  "ja": "PDFを書き出せませんでした。",
+  "es": "No se pudo exportar el PDF."
  },
  "PDF를 쓰지 못했습니다. 그 PDF가 다른 프로그램에서 열려 있으면 닫고 다시 해 주세요.": {
   "en": "Could not write the PDF. If that PDF is open in another program, close it and try again.",
