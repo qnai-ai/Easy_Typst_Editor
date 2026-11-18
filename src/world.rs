@@ -71,11 +71,16 @@ impl ProjectWorld {
                 Ok((p, true))
             }
             VirtualRoot::Package(spec) => {
-                let sub = format!("typst/packages/{}/{}/{}", spec.namespace, spec.name, spec.version);
-                let mut bases = vec![];
-                if let Some(d) = std::env::var_os("APPDATA") { bases.push(PathBuf::from(d)); }
-                if let Some(d) = std::env::var_os("LOCALAPPDATA") { bases.push(PathBuf::from(d)); }
-                for b in bases {
+                let sub = format!("{}/{}/{}", spec.namespace, spec.name, spec.version);
+                // typst와 같은 자리에서 찾는다: 직접 둔 패키지(데이터 폴더) → 내려받은 패키지(캐시 폴더).
+                //   Windows  %APPDATA% · %LOCALAPPDATA%
+                //   macOS    ~/Library/Application Support · ~/Library/Caches
+                //   Linux    ~/.local/share · ~/.cache (XDG_DATA_HOME · XDG_CACHE_HOME)
+                let place = |var: &str, base: Option<PathBuf>| {
+                    std::env::var_os(var).filter(|v| !v.is_empty()).map(PathBuf::from).or_else(|| base.map(|b| b.join("typst/packages")))
+                };
+                let bases = [place("TYPST_PACKAGE_PATH", dirs::data_dir()), place("TYPST_PACKAGE_CACHE_PATH", dirs::cache_dir())];
+                for b in bases.into_iter().flatten() {
                     let dir = b.join(&sub);
                     if dir.is_dir() {
                         let p = id.vpath().realize(&dir).map_err(FileError::from)?;

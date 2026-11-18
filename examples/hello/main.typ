@@ -17,9 +17,9 @@ into `main.typ` when you press Ctrl+S — no source code needed.
 == Many languages
 
 - English: The quick brown fox jumps over the lazy dog.
-- #text(lang: "ko", font: ("Libertinus Serif", "Malgun Gothic", "Noto Sans CJK KR"))[한국어: 지면에서 글자를 눌러 바로 고칩니다.]
-- #text(lang: "ja", font: ("Libertinus Serif", "Yu Gothic", "MS Gothic"))[日本語: ページ上の文字をクリックして直接編集します。]
-- #text(lang: "zh", font: ("Libertinus Serif", "Microsoft YaHei", "SimSun"))[中文：直接点击页面上的文字进行修改。]
+- #text(lang: "ko", font: ("Libertinus Serif", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans CJK KR"))[한국어: 지면에서 글자를 눌러 바로 고칩니다.]
+- #text(lang: "ja", font: ("Libertinus Serif", "Yu Gothic", "MS Gothic", "Hiragino Sans", "Noto Sans CJK JP"))[日本語: ページ上の文字をクリックして直接編集します。]
+- #text(lang: "zh", font: ("Libertinus Serif", "Microsoft YaHei", "SimSun", "PingFang SC", "Noto Sans CJK SC"))[中文：直接点击页面上的文字进行修改。]
 - Español: Haz clic en la página para editar el texto.
 
 == Template text stays safe

@@ -2,7 +2,7 @@
 name = "easy-typst-editor"
 version = "0.4.0"
 edition = "2021"
-description = "Edit Typst documents directly on the rendered page (Windows)"
+description = "Edit Typst documents directly on the rendered page (Windows, macOS, Linux)"
 license = "MIT"
 repository = "https://github.com/qnai-ai/Easy_Typst_Editor"
 keywords = ["typst", "editor", "wysiwyg", "typesetting"]
@@ -25,6 +25,19 @@ tao = "0.37"
 rfd = "0.18"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 unicode-segmentation = "1"
+dirs = "6"
+
+# macOS · Linux: the system's preferred UI language
+[target.'cfg(not(windows))'.dependencies]
+sys-locale = "0.3"
+
+# Linux: the "unsaved changes" dialog is shown with the GTK that the window already uses
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
+# macOS: the menu bar (without an Edit menu, ⌘V / ⌘C do not reach the web view)
+[target.'cfg(target_os = "macos")'.dependencies]
+muda = { version = "0.21", default-features = false }
 
 [profile.dev]
 opt-level = 1

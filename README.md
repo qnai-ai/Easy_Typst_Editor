@@ -10,7 +10,7 @@ Ctrl+S writes the change back into the right spot of the right `.typ` file.
 🐞 **Found a bug or have an idea? [Open a GitHub issue](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose) — I fix reported issues within 24 hours.**
 
 [![Latest release](https://img.shields.io/github/v/release/qnai-ai/Easy_Typst_Editor?label=download)](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)
-![Windows 10/11](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d4)
+![Windows · macOS · Linux](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-0078d4)
 ![Typst 0.15.1](https://img.shields.io/badge/Typst-0.15.1-239dad)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -67,14 +67,34 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
 
 ## Download & run
 
-1. Download the zip from **[Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)** and unzip it anywhere.
-2. Run `EasyTypstEditor.exe` (keep `WebView2Loader.dll` next to it) and choose your project's `main.typ`.
-   Try [`examples/hello/main.typ`](examples/hello/main.typ) first.
+Download the package for your system from **[Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)**,
+unpack it anywhere, start the editor and choose your project's `main.typ`.
+Try [`examples/hello/main.typ`](examples/hello/main.typ) first.
 
-Requires Windows 10/11 with the Microsoft Edge WebView2 Runtime (preinstalled on current Windows).
-You can also open a file directly: `EasyTypstEditor.exe "C:\path\to\main.typ"`, or run `register.ps1` to open `.typ` files with a double-click.
+| System | Package | Run | Needs |
+|---|---|---|---|
+| **Windows 10/11** | `EasyTypstEditor-windows-x64.zip` | `EasyTypstEditor.exe` (keep `WebView2Loader.dll` next to it if the zip has one) | Microsoft Edge WebView2 Runtime (preinstalled on current Windows) |
+| **macOS 11+** (Apple Silicon and Intel) | `EasyTypstEditor-macos-universal.zip` | `Easy Typst Editor.app` | nothing else |
+| **Linux** (x86-64) | `EasyTypstEditor-linux-x64.tar.gz` | `./EasyTypstEditor` | WebKitGTK 4.1 and GTK 3 |
+
+- **macOS:** the app is not notarized by Apple, so the first start is blocked. Allow it once under
+  *System Settings → Privacy & Security → Open Anyway*, or run `xattr -dr com.apple.quarantine "Easy Typst Editor.app"`.
+  To open `.typ` files with a double-click, use Finder's *Get Info → Open with → Change All*.
+- **Linux:** install the web view if it is missing — Debian/Ubuntu `sudo apt install libwebkit2gtk-4.1-0`,
+  Fedora `sudo dnf install webkit2gtk4.1`, Arch `sudo pacman -S webkit2gtk-4.1`. `sh register.sh` adds the editor to the
+  application menu and opens `.typ` files with a double-click (`sh register.sh -u` undoes it).
+  The file chooser comes from your desktop (XDG desktop portal; `zenity` is used if there is none).
+- **Windows:** run `register.ps1` to open `.typ` files with a double-click.
+
+You can also open a file directly: `EasyTypstEditor "path/to/main.typ"`.
+
+macOS and Linux support is new — if something behaves differently there, please [open an issue](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose).
 
 ## Keyboard
+
+On **macOS** use ⌘ where the table says Ctrl and ⌥ where it says Alt. Caret movement follows the Mac habit:
+⌥←/→ by word, ⌥↑/↓ by paragraph, ⌥+Delete deletes a word, ⌘←/→ line start/end, ⌘↑/↓ document start/end.
+F1 shows the keys for the system you are on.
 
 | Keys | Action |
 |---|---|
@@ -114,23 +134,37 @@ src/recover.rs  verifying / recovering source positions
 src/edit.rs     source edits (insert, delete, formatting, paragraphs, indent, alignment, elements) + unit tests
 src/session.rs  editing session: caret, selection, movement, find/replace, undo, save
 src/lang.rs     UI language (strings in ui/i18n.json)
-src/main.rs     window (WebView2) + local UI server on 127.0.0.1
+src/main.rs     window (the system web view: WebView2 / WKWebView / WebKitGTK) + local UI server on 127.0.0.1
 ui/index.html   the UI
 ```
 
 ## Build from source
 
 ```powershell
-# Rust (MSVC toolchain, or GNU toolchain + MinGW)
+# Windows — Rust (MSVC toolchain, or GNU toolchain + MinGW)
 powershell -ExecutionPolicy Bypass -File build.ps1   # → dist\EasyTypstEditor.exe
 cargo test --release
 ```
 
-Headless mode for development: `EasyTypstEditor.exe --serve 47615 main.typ`, then open `http://127.0.0.1:47615/`.
+```sh
+# Linux — Rust, plus on Debian/Ubuntu: sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev
+# macOS — Rust and the Xcode command line tools
+sh build.sh              # → dist/EasyTypstEditor   or   dist/Easy Typst Editor.app
+UNIVERSAL=1 sh build.sh  # macOS: one app for Apple Silicon and Intel
+cargo test --release
+```
+
+[`.github/workflows/build.yml`](.github/workflows/build.yml) builds and tests all three systems on every push, and attaches the
+packages to the release when a `v*` tag is pushed.
+
+Headless mode for development: `EasyTypstEditor --serve 47615 main.typ`, then open `http://127.0.0.1:47615/`.
+
+Settings, the recent list and the backups made before each save live in `%LOCALAPPDATA%\EasyTypstEditor` (Windows),
+`~/Library/Application Support/EasyTypstEditor` (macOS) or `~/.local/share/EasyTypstEditor` (Linux).
+Typst packages are looked up where `typst` itself keeps them (`TYPST_PACKAGE_PATH` and `TYPST_PACKAGE_CACHE_PATH` are honoured).
 
 ## Known limitations
 
-- Windows only for now (the UI is a WebView; macOS/Linux ports are welcome).
 - Handles appear for boxes the editor can trace back to the source: tables, grids, boxes with a fill or a border, images, and boxes
   written directly in the document. An invisible box created inside a template function cannot be traced, and a size written as an
   expression (`if`, a function call) is not rewritten.
@@ -152,7 +186,7 @@ Pull requests are welcome too — especially:
 
 - **Translations:** all UI strings live in [`ui/i18n.json`](ui/i18n.json). Add your language code to each entry and to `LANGS` in `src/lang.rs`.
 - Templates or documents where text gets locked unexpectedly (a minimal `.typ` reproduction helps a lot).
-- macOS / Linux support.
+- Reports from macOS and from Linux desktops (Wayland compositors, other distributions).
 
 If this tool saves you time, a ⭐ helps other Typst users find it.
 

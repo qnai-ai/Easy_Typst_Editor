@@ -4,7 +4,7 @@
 
 ![화면 예시](docs/screenshot-ko.png)
 
-**내려받기:** [Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)에서 zip을 받아 풀고 `EasyTypstEditor.exe`를 실행한다(Windows 10/11).
+**내려받기:** [Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)에서 쓰는 시스템의 꾸러미를 받아 풀고 실행한다(Windows 10/11 · macOS 11 이상 · Linux).
 
 **Typst 결과물을 Adobe Acrobat에서 PDF 고치듯 편집한다.** 다른 점은, 고친 내용이 PDF가 아니라 원고(.typ)에 깔끔하게 반영된다는 것.
 
@@ -13,9 +13,19 @@ Typst를 몰라도 쓰는 교재 지면 편집기. `main.typ` 하나를 열면 �
 
 > **오류·건의는 [GitHub Issues](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose)로 보내 주세요. 24시간 안에 고치겠습니다.**
 
-- 실행 파일: `dist\EasyTypstEditor.exe` (같은 폴더의 `WebView2Loader.dll`과 함께 둔다)
-- 교재를 바로 열기: `EasyTypstEditor.exe "C:\...\main.typ"`
-- 빌드: `powershell -ExecutionPolicy Bypass -File build.ps1`
+| 시스템 | 꾸러미 | 실행 | 필요한 것 |
+|---|---|---|---|
+| **Windows 10/11** | `EasyTypstEditor-windows-x64.zip` | `EasyTypstEditor.exe` (zip에 `WebView2Loader.dll`이 있으면 같은 폴더에 둔다) | Microsoft Edge WebView2 런타임(요즘 Windows에는 들어 있다) |
+| **macOS 11 이상** (Apple Silicon · Intel) | `EasyTypstEditor-macos-universal.zip` | `Easy Typst Editor.app` | 없음 |
+| **Linux** (x86-64) | `EasyTypstEditor-linux-x64.tar.gz` | `./EasyTypstEditor` | WebKitGTK 4.1, GTK 3 |
+
+- **macOS:** Apple의 공증을 받지 않은 앱이라 처음 실행이 막힌다. *시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기*로 한 번 허용하거나,
+  `xattr -dr com.apple.quarantine "Easy Typst Editor.app"`을 실행한다.
+- **Linux:** 웹뷰가 없으면 깐다 — Debian/Ubuntu `sudo apt install libwebkit2gtk-4.1-0`, Fedora `sudo dnf install webkit2gtk4.1`,
+  Arch `sudo pacman -S webkit2gtk-4.1`. 파일 고르기 창은 데스크톱의 것을 쓴다(XDG desktop portal, 없으면 `zenity`).
+- 교재를 바로 열기: `EasyTypstEditor "…/main.typ"`
+- 빌드: Windows는 `powershell -ExecutionPolicy Bypass -File build.ps1`, macOS · Linux는 `sh build.sh`
+- macOS · Linux 지원은 새로 넣은 것이다. 거기서 다르게 움직이는 것이 있으면 Issues로 알려 주세요.
 
 ## 확정한 설계 (처음 계획에서 고친 점)
 
@@ -37,10 +47,13 @@ Typst를 몰라도 쓰는 교재 지면 편집기. `main.typ` 하나를 열면 �
 | Enter / Shift+Enter | 빈 줄(문단 나눔) / `\ `(강제 줄바꿈). 굵게·밑줄 안에서 Enter를 치면 꾸밈을 닫았다 다시 연다. |
 | Tab | Typst에는 탭 위치가 없어, 줄 왼쪽 끝에서 2em 간격의 다음 자리까지 `#h(..pt)`를 넣는다(넣을 때 한 번 계산하는 고정 너비). |
 | 내어쓰기 | 문단을 `#par(hanging-indent: 1em)[..]`로 감싼다. 1em씩 늘리고 줄이며 0이 되면 벗긴다. |
-| 안전장치 | 고칠 때마다 구문 구조가 뜻밖에 달라지면 거부하고, 조판 오류가 나면 자동으로 되돌린다. 저장 전까지 디스크에 쓰지 않는다. 저장 직전 원본을 `%LOCALAPPDATA%\EasyTypstEditor\backup\`에 복사하고, 연 뒤에 다른 프로그램이 파일을 바꿨으면 저장하지 않는다. |
+| 안전장치 | 고칠 때마다 구문 구조가 뜻밖에 달라지면 거부하고, 조판 오류가 나면 자동으로 되돌린다. 저장 전까지 디스크에 쓰지 않는다. 저장 직전 원본을 자료 폴더의 `backup`에 복사하고(Windows `%LOCALAPPDATA%\EasyTypstEditor`, macOS `~/Library/Application Support/EasyTypstEditor`, Linux `~/.local/share/EasyTypstEditor`), 연 뒤에 다른 프로그램이 파일을 바꿨으면 저장하지 않는다. |
 | 소스 창 | 기본 화면에서 뺐다. `개발자용 보기`를 누르면 고치는 자리의 원고가 읽기 전용으로 보인다. |
 
 ## 쓰는 법
+
+**macOS**에서는 표의 Ctrl 자리에 ⌘, Alt 자리에 ⌥를 쓴다. 커서 옮기기는 Mac의 관습을 따른다:
+⌥←/→ 낱말, ⌥↑/↓ 문단, ⌥+지우기 낱말 지우기, ⌘←/→ 줄의 처음·끝, ⌘↑/↓ 교재의 처음·끝. F1의 단축키 표는 쓰는 시스템에 맞게 나온다.
 
 | 동작 | 결과 |
 |---|---|
@@ -74,19 +87,23 @@ src/index.rs    지면 색인: 글자마다 지면 위치와 원본 위치(바�
 src/recover.rs  원본 위치 검증·복원(본문 대조)
 src/edit.rs     원고 고치기 연산(입력·지우기·꾸밈·문단·내어쓰기·맞춤·요소) + 단위 시험
 src/session.rs  편집 세션: 커서·선택·이동·찾기/바꾸기·실행 취소·저장
-src/main.rs     창(WebView2)과 화면용 내부 서버(127.0.0.1)
+src/main.rs     창(시스템 웹뷰: WebView2 / WKWebView / WebKitGTK)과 화면용 내부 서버(127.0.0.1)
 ui/index.html   화면
 ```
 
-개발용: `EasyTypstEditor.exe --serve 47615 "main.typ"` 로 띄우면 창 없이 `http://127.0.0.1:47615/` 에서 같은 화면을 본다.
+개발용: `EasyTypstEditor --serve 47615 "main.typ"` 로 띄우면 창 없이 `http://127.0.0.1:47615/` 에서 같은 화면을 본다.
 단위 시험: `cargo test --release`.
 
-빌드 환경: Rust(MSVC, 또는 GNU 툴체인 + MinGW/WinLibs). 빌드 산출물 위치를 바꾸려면 `CARGO_TARGET_DIR`이나 `.cargo/config.toml`의 `target-dir`을 쓴다.
+빌드 환경: Windows는 Rust(MSVC, 또는 GNU 툴체인 + MinGW/WinLibs)와 `build.ps1`. Linux는 Rust와 WebKitGTK·GTK 개발 꾸러미
+(Debian/Ubuntu: `sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev`), macOS는 Rust와 Xcode 명령줄 도구, 그리고 `sh build.sh`
+(macOS에서 `UNIVERSAL=1 sh build.sh`는 Apple Silicon·Intel 겸용 앱을 만든다).
+`.github/workflows/build.yml`이 푸시할 때마다 세 시스템에서 빌드·시험하고, `v*` 태그를 푸시하면 꾸러미를 그 릴리스에 붙인다.
+빌드 산출물 위치를 바꾸려면 `CARGO_TARGET_DIR`이나 `.cargo/config.toml`의 `target-dir`을 쓴다.
 
 ## 화면 언어
 
-한국어·English·日本語·简体中文·Español을 지원한다. 처음엔 Windows 표시 언어를 따르고, 도구 모음 오른쪽 끝의 🌐 메뉴에서 바꾸면 기억한다
-(`%LOCALAPPDATA%\EasyTypstEditor\settings.json`). 환경 변수 `EASY_TYPST_LANG=ko|en|zh|ja|es`가 있으면 그것이 우선한다.
+한국어·English·日本語·简体中文·Español을 지원한다. 처음엔 시스템의 표시 언어를 따르고, 도구 모음 오른쪽 끝의 🌐 메뉴에서 바꾸면 기억한다
+(자료 폴더의 `settings.json`). 환경 변수 `EASY_TYPST_LANG=ko|en|zh|ja|es`가 있으면 그것이 우선한다.
 번역문은 `ui/i18n.json` 한 파일에 있다(엔진 안내문과 화면 글 모두).
 
 ## 알려진 한계
@@ -100,7 +117,10 @@ ui/index.html   화면
 
 ## .typ 더블클릭으로 열기
 
-`register.ps1`을 실행하면 .typ 파일이 이 편집기로 열린다(현재 사용자만). 처음 한 번은 Windows의 '앱 선택' 창에서 EasyTypstEditor를 고르고 '항상'을 눌러야 한다. 되돌리기: `register.ps1 -Undo`.
+- **Windows:** `register.ps1`을 실행하면 .typ 파일이 이 편집기로 열린다(현재 사용자만). 처음 한 번은 Windows의 '앱 선택' 창에서 EasyTypstEditor를 고르고 '항상'을 눌러야 한다. 되돌리기: `register.ps1 -Undo`.
+- **Linux:** `sh register.sh`가 앱 메뉴에 넣고 .typ를 이 편집기로 잇는다(현재 사용자만). 되돌리기: `sh register.sh -u`.
+- **macOS:** Finder에서 .typ 파일의 *정보 가져오기 → 다음으로 열기 → 모두 변경*으로 고른다.
+
 장별 원고(content/u01.typ 등)를 열어도 같은 폴더나 위 폴더의 main.typ를 찾아 교재 전체를 연다.
 
 

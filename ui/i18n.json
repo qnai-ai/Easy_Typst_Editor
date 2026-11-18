@@ -1349,5 +1349,53 @@
   "zh": "语言",
   "ja": "言語",
   "es": "Idioma"
+ },
+ "저장 안 함": {
+  "en": "Don't Save",
+  "zh": "不保存",
+  "ja": "保存しない",
+  "es": "No guardar"
+ },
+ "취소": {
+  "en": "Cancel",
+  "zh": "取消",
+  "ja": "キャンセル",
+  "es": "Cancelar"
+ },
+ "편집": {
+  "en": "Edit",
+  "zh": "编辑",
+  "ja": "編集",
+  "es": "Edición"
+ },
+ "창": {
+  "en": "Window",
+  "zh": "窗口",
+  "ja": "ウインドウ",
+  "es": "Ventana"
+ },
+ "{0} 끝내기": {
+  "en": "Quit {0}",
+  "zh": "退出 {0}",
+  "ja": "{0} を終了",
+  "es": "Salir de {0}"
+ },
+ "실행 취소": {
+  "en": "Undo",
+  "zh": "撤销",
+  "ja": "取り消す",
+  "es": "Deshacer"
+ },
+ "다시 실행": {
+  "en": "Redo",
+  "zh": "重做",
+  "ja": "やり直す",
+  "es": "Rehacer"
+ },
+ "모두 선택": {
+  "en": "Select All",
+  "zh": "全选",
+  "ja": "すべてを選択",
+  "es": "Seleccionar todo"
  }
 }
