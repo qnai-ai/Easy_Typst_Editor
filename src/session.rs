@@ -276,11 +276,11 @@ pub fn translate(world: &ProjectWorld, d: &SourceDiagnostic) -> Problem {
     let (title, hint) = if m.contains("file not found") {
         ("조판에 필요한 파일을 찾지 못했습니다.", "main.typ가 있는 폴더(또는 그 아래 폴더)에 이 파일이 있는지, 이름이 바뀌지 않았는지 확인해 주세요.")
     } else if m.contains("unknown font family") {
-        ("교재에 쓰인 글꼴이 이 컴퓨터에 없습니다.", "글꼴을 설치한 뒤 교재를 다시 열어 주세요. 지금은 다른 글꼴로 대신 짜여 쪽 나눔이 달라질 수 있습니다.")
+        ("문서에 쓰인 글꼴이 이 컴퓨터에 없습니다.", "글꼴을 설치한 뒤 문서를 다시 열어 주세요. 지금은 다른 글꼴로 대신 짜여 쪽 나눔이 달라질 수 있습니다.")
     } else if m.contains("access denied") || m.contains("project root") || m.contains("outside") {
-        ("교재 폴더 밖의 파일을 불러오려 했습니다.", "main.typ가 교재 폴더의 맨 위에 있는지 확인해 주세요.")
+        ("문서 폴더 밖의 파일을 불러오려 했습니다.", "main.typ가 문서 폴더의 맨 위에 있는지 확인해 주세요.")
     } else if m.contains("package") || m.contains("패키지") {
-        ("교재가 쓰는 Typst 패키지가 이 컴퓨터에 없습니다.", "교재가 쓰는 공통 패키지를 이 컴퓨터의 typst에 이어 준 뒤(교재 폴더의 link.ps1 같은 설치 스크립트 실행, 또는 평소 방식으로 한 번 조판) 다시 열어 주세요.")
+        ("문서가 쓰는 Typst 패키지가 이 컴퓨터에 없습니다.", "문서가 쓰는 공통 패키지를 이 컴퓨터의 typst에 이어 준 뒤(문서 폴더의 link.ps1 같은 설치 스크립트 실행, 또는 평소 방식으로 한 번 조판) 다시 열어 주세요.")
     } else if m.contains("failed to decode image") || m.contains("unknown image format") {
         ("그림 파일을 읽지 못했습니다.", "그림 파일이 깨지지 않았는지 확인해 주세요.")
     } else {
@@ -1118,7 +1118,7 @@ impl Session {
             }
             if !dest.exists() {
                 if std::fs::copy(&src, &dest).is_err() {
-                    self.msg = Some(("고른 그림 파일을 교재 폴더로 복사하지 못했습니다.".into(), "error"));
+                    self.msg = Some(("고른 그림 파일을 문서 폴더로 복사하지 못했습니다.".into(), "error"));
                     return;
                 }
             }
@@ -2103,6 +2103,13 @@ impl Session {
         })
     }
 
+    /// 지금 화면에 보이는 조판(저장 안 한 고침 포함)을 PDF로. 실패하면 Typst의 오류 문장.
+    pub fn export_pdf(&mut self) -> Result<Vec<u8>, String> {
+        self.flush_comp();
+        typst_pdf::pdf(&self.doc, &typst_pdf::PdfOptions::default())
+            .map_err(|errs| errs.iter().map(|e| e.message.to_string()).collect::<Vec<_>>().join(" / "))
+    }
+
     pub fn page_svg(&self, i: usize) -> Option<String> {
         self.doc.pages().get(i).map(|p| typst_svg::svg(p, &Default::default()))
     }
@@ -2118,4 +2125,19 @@ impl Session {
 impl G {
     /// 낱말 선택이 글자 노드 밖으로 나가지 않도록 하는 아래 한계.
     fn node_start(&self, _text: &str) -> usize { 0 }
+}
+
+#[cfg(test)]
+mod pdf_tests {
+    use super::*;
+
+    #[test]
+    fn export_example_pdf() {
+        let main = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/hello/main.typ");
+        let fonts = Arc::new(crate::world::load_fonts());
+        let mut s = Session::open(&main, fonts).unwrap_or_else(|_| panic!("open failed"));
+        let pdf = s.export_pdf().expect("pdf");
+        assert!(pdf.starts_with(b"%PDF-"));
+        assert!(pdf.len() > 10_000);
+    }
 }

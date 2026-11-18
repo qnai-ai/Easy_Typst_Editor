@@ -48,6 +48,7 @@ Typst를 몰라도 쓰는 교재 지면 편집기. `main.typ` 하나를 열면 �
 | Tab | Typst에는 탭 위치가 없어, 줄 왼쪽 끝에서 2em 간격의 다음 자리까지 `#h(..pt)`를 넣는다(넣을 때 한 번 계산하는 고정 너비). |
 | 내어쓰기 | 문단을 `#par(hanging-indent: 1em)[..]`로 감싼다. 1em씩 늘리고 줄이며 0이 되면 벗긴다. |
 | 안전장치 | 고칠 때마다 구문 구조가 뜻밖에 달라지면 거부하고, 조판 오류가 나면 자동으로 되돌린다. 저장 전까지 디스크에 쓰지 않는다. 저장 직전 원본을 자료 폴더의 `backup`에 복사하고(Windows `%LOCALAPPDATA%\EasyTypstEditor`, macOS `~/Library/Application Support/EasyTypstEditor`, Linux `~/.local/share/EasyTypstEditor`), 연 뒤에 다른 프로그램이 파일을 바꿨으면 저장하지 않는다. |
+| PDF로 저장 | 도구 모음의 `PDF로 저장`(Ctrl+P). 저장하지 않은 고침도 지금 보이는 그대로 들어가며, `typst compile`과 같은 엔진으로 만든다. 처음 권하는 자리는 main.typ 옆의 main.pdf. |
 | 소스 창 | 기본 화면에서 뺐다. `개발자용 보기`를 누르면 고치는 자리의 원고가 읽기 전용으로 보인다. |
 
 ## 쓰는 법
@@ -74,7 +75,7 @@ Typst를 몰라도 쓰는 교재 지면 편집기. `main.typ` 하나를 열면 �
 | Enter / Shift+Enter / Tab | 새 문단 / 줄바꿈 / 탭 간격 |
 | 내어쓰기 ◀ ▶ | 둘째 줄부터 들여 쓰기 |
 | Ctrl+F / Ctrl+H / F3 / Shift+F3 | 찾기 / 바꾸기 / 다음 / 앞의 찾은 곳 |
-| Ctrl+Z / Ctrl+Y / Ctrl+S / Ctrl+O | 실행 취소 / 다시 실행 / 저장 / 교재 열기. 이어서 입력하거나 지운 것은 한 번에 되돌린다 |
+| Ctrl+Z / Ctrl+Y / Ctrl+S / Ctrl+O / Ctrl+P | 실행 취소 / 다시 실행 / 저장 / 열기 / PDF로 저장. 이어서 입력하거나 지운 것은 한 번에 되돌린다 |
 | Ctrl+휠, Ctrl+ + / Ctrl+ −, Ctrl+0 | 확대 / 축소 / 너비 맞춤 |
 | Ctrl+G / Page Up / Page Down | 쪽 번호로 가기 / 화면 넘기기 |
 | F1 | 단축키 표 |

@@ -229,7 +229,7 @@ impl ProjectWorld {
                 let now = now.strip_prefix(BOM).unwrap_or(&now);
                 if Some(now) != e.disk_text.as_deref() {
                     let name = e.path.file_name().unwrap_or_default().to_string_lossy();
-                    return Err(crate::lang::f("저장하지 않았습니다. 교재를 연 뒤에 다른 프로그램이 {0} 파일을 바꿨습니다. 교재를 다시 열어 주세요.", &[&name]));
+                    return Err(crate::lang::f("저장하지 않았습니다. 문서를 연 뒤에 다른 프로그램이 {0} 파일을 바꿨습니다. 문서를 다시 열어 주세요.", &[&name]));
                 }
             }
         }

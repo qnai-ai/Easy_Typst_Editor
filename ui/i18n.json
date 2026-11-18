@@ -6,7 +6,7 @@
   "ja": "Easy Typst Editor",
   "es": "Easy Typst Editor"
  },
- "교재의 main.typ 고르기": {
+ "문서의 main.typ 고르기": {
   "en": "Choose the main.typ of your document",
   "zh": "选择文档的 main.typ",
   "ja": "ドキュメントの main.typ を選択",
@@ -24,13 +24,13 @@
   "ja": "保存されていない変更があります。保存しますか？",
   "es": "Hay cambios sin guardar. ¿Quieres guardarlos?"
  },
- "교재 열기 (Ctrl+O)": {
+ "열기 (Ctrl+O)": {
   "en": "Open document (Ctrl+O)",
   "zh": "打开文档 (Ctrl+O)",
   "ja": "ドキュメントを開く (Ctrl+O)",
   "es": "Abrir documento (Ctrl+O)"
  },
- "교재 열기": {
+ "열기": {
   "en": "Open",
   "zh": "打开",
   "ja": "開く",
@@ -174,13 +174,13 @@
   "ja": "開発者ビュー",
   "es": "Vista de desarrollador"
  },
- "교재의 <b>main.typ</b> 파일 하나를 고르면 책이 쪽 단위로 펼쳐집니다.<br>지면에서 글자를 눌러 바로 고치고, 저장하면 원고 파일에 반영됩니다.": {
+ "문서의 <b>main.typ</b> 파일 하나를 고르면 문서가 쪽 단위로 펼쳐집니다.<br>지면에서 글자를 눌러 바로 고치고, 저장하면 원고 파일에 반영됩니다.": {
   "en": "Choose the <b>main.typ</b> of a Typst project and every page is laid out in front of you.<br>Click on the page to edit the text directly — saving writes the changes back to your .typ source.",
   "zh": "选择 Typst 项目的 <b>main.typ</b>，所有页面就会逐页展开。<br>直接点击页面上的文字进行修改，保存后会写回 .typ 源文件。",
   "ja": "Typst プロジェクトの <b>main.typ</b> を選ぶと、全ページがそのまま表示されます。<br>ページ上の文字をクリックして直接編集し、保存すると .typ ソースに反映されます。",
   "es": "Elige el <b>main.typ</b> de un proyecto Typst y verás todas sus páginas.<br>Haz clic en la página para editar el texto directamente; al guardar, los cambios se escriben en tu código .typ."
  },
- "교재를 조판하는 중…": {
+ "문서를 조판하는 중…": {
   "en": "Typesetting the document…",
   "zh": "正在排版文档…",
   "ja": "ドキュメントを組版中…",
@@ -198,7 +198,7 @@
   "ja": "編集位置：",
   "es": "Editando en:"
  },
- "교재를 열어 주세요.": {
+ "문서를 열어 주세요.": {
   "en": "Open a document to start.",
   "zh": "请打开一个文档。",
   "ja": "ドキュメントを開いてください。",
@@ -246,7 +246,7 @@
   "ja": "アプリのエンジンとの接続が切れました。アプリを再起動してください。",
   "es": "Se perdió la conexión con el motor de la aplicación. Reinicia la aplicación."
  },
- "교재를 열지 못했습니다.": {
+ "문서를 열지 못했습니다.": {
   "en": "Could not open the document.",
   "zh": "无法打开文档。",
   "ja": "ドキュメントを開けませんでした。",
@@ -276,7 +276,7 @@
   "ja": "ドラッグか矢印キーで移動（Shift：5pt ずつ）。Delete で削除。間違えたら Ctrl+Z。",
   "es": "Arrastra o usa las flechas para mover (Mayús: pasos de 5pt). Supr lo borra. Ctrl+Z para deshacer."
  },
- "교재를 조판하지 못했습니다. 아래를 확인해 주세요.": {
+ "문서를 조판하지 못했습니다. 아래를 확인해 주세요.": {
   "en": "The document could not be typeset. Please check the following:",
   "zh": "文档无法排版。请检查以下内容：",
   "ja": "ドキュメントを組版できませんでした。以下を確認してください。",
@@ -324,7 +324,7 @@
   "ja": "{0} {1} 行目",
   "es": "{0} línea {1}"
  },
- "최근에 연 교재": {
+ "최근에 연 문서": {
   "en": "Recent documents",
   "zh": "最近打开的文档",
   "ja": "最近開いたドキュメント",
@@ -342,37 +342,37 @@
   "ja": "このファイルが main.typ のあるフォルダ（またはその下）にあり、名前が変わっていないか確認してください。",
   "es": "Comprueba que el archivo esté en la carpeta de main.typ (o una subcarpeta) y que no se haya renombrado."
  },
- "교재에 쓰인 글꼴이 이 컴퓨터에 없습니다.": {
+ "문서에 쓰인 글꼴이 이 컴퓨터에 없습니다.": {
   "en": "A font used by the document is not installed on this computer.",
   "zh": "文档使用的字体未安装在此电脑上。",
   "ja": "ドキュメントで使われているフォントがこのコンピューターにありません。",
   "es": "Una fuente usada por el documento no está instalada en este equipo."
  },
- "글꼴을 설치한 뒤 교재를 다시 열어 주세요. 지금은 다른 글꼴로 대신 짜여 쪽 나눔이 달라질 수 있습니다.": {
+ "글꼴을 설치한 뒤 문서를 다시 열어 주세요. 지금은 다른 글꼴로 대신 짜여 쪽 나눔이 달라질 수 있습니다.": {
   "en": "Install the font and reopen the document. For now a fallback font is used, so page breaks may differ.",
   "zh": "安装字体后请重新打开文档。目前使用替代字体排版，分页可能不同。",
   "ja": "フォントをインストールしてからドキュメントを開き直してください。今は代替フォントで組まれるため、改ページが変わることがあります。",
   "es": "Instala la fuente y vuelve a abrir el documento. Por ahora se usa una fuente alternativa, así que los saltos de página pueden variar."
  },
- "교재 폴더 밖의 파일을 불러오려 했습니다.": {
+ "문서 폴더 밖의 파일을 불러오려 했습니다.": {
   "en": "The document tried to load a file outside its project folder.",
   "zh": "文档试图读取项目文件夹之外的文件。",
   "ja": "ドキュメントがプロジェクトフォルダの外のファイルを読み込もうとしました。",
   "es": "El documento intentó cargar un archivo fuera de la carpeta del proyecto."
  },
- "main.typ가 교재 폴더의 맨 위에 있는지 확인해 주세요.": {
+ "main.typ가 문서 폴더의 맨 위에 있는지 확인해 주세요.": {
   "en": "Make sure main.typ is at the top of the project folder.",
   "zh": "请确认 main.typ 位于项目文件夹的最上层。",
   "ja": "main.typ がプロジェクトフォルダの最上位にあるか確認してください。",
   "es": "Asegúrate de que main.typ esté en la raíz de la carpeta del proyecto."
  },
- "교재가 쓰는 Typst 패키지가 이 컴퓨터에 없습니다.": {
+ "문서가 쓰는 Typst 패키지가 이 컴퓨터에 없습니다.": {
   "en": "A Typst package used by the document is not available on this computer.",
   "zh": "此电脑上没有文档使用的 Typst 包。",
   "ja": "ドキュメントが使う Typst パッケージがこのコンピューターにありません。",
   "es": "Un paquete Typst usado por el documento no está disponible en este equipo."
  },
- "교재가 쓰는 공통 패키지를 이 컴퓨터의 typst에 이어 준 뒤(교재 폴더의 link.ps1 같은 설치 스크립트 실행, 또는 평소 방식으로 한 번 조판) 다시 열어 주세요.": {
+ "문서가 쓰는 공통 패키지를 이 컴퓨터의 typst에 이어 준 뒤(문서 폴더의 link.ps1 같은 설치 스크립트 실행, 또는 평소 방식으로 한 번 조판) 다시 열어 주세요.": {
   "en": "Make the package available locally (for example, compile the document once with the typst CLI so it downloads the package, or put the package next to the project), then reopen it.",
   "zh": "请先让该包在本机可用（例如用 typst 命令行编译一次以下载该包，或把包放在项目旁边），然后重新打开。",
   "ja": "パッケージをローカルで使えるようにしてから（typst CLI で一度コンパイルしてダウンロードする、またはプロジェクトの近くに置くなど）開き直してください。",
@@ -504,7 +504,7 @@
   "ja": "{0} に書き込めませんでした：{1}",
   "es": "No se pudo escribir {0}: {1}"
  },
- "저장하지 않았습니다. 교재를 연 뒤에 다른 프로그램이 {0} 파일을 바꿨습니다. 교재를 다시 열어 주세요.": {
+ "저장하지 않았습니다. 문서를 연 뒤에 다른 프로그램이 {0} 파일을 바꿨습니다. 문서를 다시 열어 주세요.": {
   "en": "Not saved: another program changed {0} after the document was opened. Please reopen the document.",
   "zh": "未保存：打开文档后有其他程序修改了 {0}。请重新打开文档。",
   "ja": "保存しませんでした。ドキュメントを開いた後に別のプログラムが {0} を変更しました。開き直してください。",
@@ -942,7 +942,7 @@
   "ja": "段落単位で移動",
   "es": "Mover por párrafos"
  },
- "교재의 처음 / 끝": {
+ "문서의 처음 / 끝": {
   "en": "Start / End of the document",
   "zh": "文档开头 / 结尾",
   "ja": "ドキュメントの先頭 / 末尾",
@@ -1014,7 +1014,7 @@
   "ja": "拡大 / 縮小",
   "es": "Acercar / Alejar"
  },
- "저장 / 교재 열기": {
+ "저장 / 열기": {
   "en": "Save / Open document",
   "zh": "保存 / 打开文档",
   "ja": "保存 / ドキュメントを開く",
@@ -1272,8 +1272,8 @@
   "ja": "選んだ画像ファイルを読み込めませんでした。",
   "es": "No se pudo leer el archivo de imagen elegido."
  },
- "고른 그림 파일을 교재 폴더로 복사하지 못했습니다.": {
-  "en": "Could not copy the chosen image file into the book folder.",
+ "고른 그림 파일을 문서 폴더로 복사하지 못했습니다.": {
+  "en": "Could not copy the chosen image file into the project folder.",
   "zh": "无法将所选图片文件复制到书稿文件夹。",
   "ja": "選んだ画像ファイルを本のフォルダーにコピーできませんでした。",
   "es": "No se pudo copiar el archivo de imagen elegido a la carpeta del libro."
@@ -1397,5 +1397,41 @@
   "zh": "全选",
   "ja": "すべてを選択",
   "es": "Seleccionar todo"
+ },
+ "PDF로 저장": {
+  "en": "Save as PDF",
+  "zh": "另存为 PDF",
+  "ja": "PDFで保存",
+  "es": "Guardar como PDF"
+ },
+ "PDF로 저장 (Ctrl+P). 저장하지 않은 고침도 지금 보이는 그대로 들어갑니다.": {
+  "en": "Save as PDF (Ctrl+P). Unsaved edits are included, exactly as shown.",
+  "zh": "另存为 PDF (Ctrl+P)。未保存的修改也会按当前显示的样子写入。",
+  "ja": "PDFで保存 (Ctrl+P)。保存していない修正も、いま表示されているとおりに入ります。",
+  "es": "Guardar como PDF (Ctrl+P). Incluye los cambios sin guardar, tal como se ven."
+ },
+ "PDF를 만드는 중…": {
+  "en": "Creating the PDF…",
+  "zh": "正在生成 PDF…",
+  "ja": "PDFを作成中…",
+  "es": "Creando el PDF…"
+ },
+ "PDF로 저장했습니다: ": {
+  "en": "Saved as PDF: ",
+  "zh": "已保存为 PDF：",
+  "ja": "PDFで保存しました：",
+  "es": "Guardado como PDF: "
+ },
+ "PDF를 만들지 못했습니다.": {
+  "en": "Could not create the PDF.",
+  "zh": "无法生成 PDF。",
+  "ja": "PDFを作成できませんでした。",
+  "es": "No se pudo crear el PDF."
+ },
+ "PDF를 쓰지 못했습니다. 그 PDF가 다른 프로그램에서 열려 있으면 닫고 다시 해 주세요.": {
+  "en": "Could not write the PDF. If that PDF is open in another program, close it and try again.",
+  "zh": "无法写入 PDF。如果该 PDF 已在其他程序中打开，请关闭后重试。",
+  "ja": "PDFを書き込めませんでした。そのPDFが別のプログラムで開いている場合は、閉じてからもう一度お試しください。",
+  "es": "No se pudo escribir el PDF. Si ese PDF está abierto en otro programa, ciérrelo e inténtelo de nuevo."
  }
 }

@@ -47,7 +47,7 @@ impl App {
             Err(problems) => {
                 let list: Vec<Value> = problems.iter().map(|p| json!({ "title": lang::tr(&p.title), "detail": p.detail, "hint": lang::tr(&p.hint) })).collect();
                 *self.session.lock().unwrap() = None;
-                json!({ "open": false, "problems": list, "msg": "교재를 열지 못했습니다.", "msgKind": "error" })
+                json!({ "open": false, "problems": list, "msg": "문서를 열지 못했습니다.", "msgKind": "error" })
             }
         }
     }
@@ -105,7 +105,7 @@ fn serve(server: Server, app: Arc<App>) {
             "/api/open" => {
                 let chosen = match jb["path"].as_str() {
                     Some(p) => Some(PathBuf::from(p)),
-                    None => rfd::FileDialog::new().set_title(lang::tr("교재의 main.typ 고르기")).add_filter(lang::tr("Typst 원고"), &["typ"]).pick_file(),
+                    None => rfd::FileDialog::new().set_title(lang::tr("문서의 main.typ 고르기")).add_filter(lang::tr("Typst 원고"), &["typ"]).pick_file(),
                 };
                 let v = match chosen {
                     Some(p) => {
@@ -113,6 +113,34 @@ fn serve(server: Server, app: Arc<App>) {
                         if dirty && !confirm_discard(&app) { json!({ "cancelled": true }) } else { app.open(&p) }
                     }
                     None => json!({ "cancelled": true }),
+                };
+                respond_json(req, &v);
+            }
+            "/api/pdf" => {
+                // 저장 위치는 typst compile 과 같게: main.typ 옆의 main.pdf 를 먼저 권한다.
+                let target = app.session.lock().unwrap().as_ref().map(|s| s.main_path.clone());
+                let v = match target {
+                    None => json!({ "ok": false }),
+                    Some(main) => {
+                        let name = format!("{}.pdf", main.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "document".into()));
+                        let mut dlg = rfd::FileDialog::new().set_title(lang::tr("PDF로 저장")).add_filter("PDF", &["pdf"]).set_file_name(&name);
+                        if let Some(dir) = main.parent() { dlg = dlg.set_directory(dir); }
+                        match dlg.save_file() {
+                            None => json!({ "ok": false, "cancelled": true }),
+                            Some(mut out) => {
+                                if out.extension().is_none() { out.set_extension("pdf"); }
+                                let bytes = app.session.lock().unwrap().as_mut().map(|s| s.export_pdf());
+                                match bytes {
+                                    Some(Ok(b)) => match std::fs::write(&out, b) {
+                                        Ok(()) => json!({ "ok": true, "msg": "PDF로 저장했습니다: ", "file": out.display().to_string() }),
+                                        Err(e) => json!({ "ok": false, "msg": "PDF를 쓰지 못했습니다. 그 PDF가 다른 프로그램에서 열려 있으면 닫고 다시 해 주세요.", "detail": e.to_string() }),
+                                    },
+                                    Some(Err(e)) => json!({ "ok": false, "msg": "PDF를 만들지 못했습니다.", "detail": e }),
+                                    None => json!({ "ok": false }),
+                                }
+                            }
+                        }
+                    }
                 };
                 respond_json(req, &v);
             }

@@ -16,11 +16,14 @@ body{font-family:"Pretendard","Malgun Gothic","맑은 고딕",system-ui,sans-ser
 button{font:inherit;color:inherit}
 
 /* 도구 모음 */
-#bar{display:flex;align-items:center;gap:4px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
-#bar .grp{display:flex;align-items:center;gap:2px;padding:0 6px;border-right:1px solid var(--line)}
-#bar .grp:last-child{border-right:0}
-#bar .sp{flex:1}
-#langbox{position:relative;margin-left:4px;padding-left:6px;border-left:1px solid var(--line)}
+#bar{background:var(--panel);border-bottom:1px solid var(--line)}
+#bar .row{display:flex;align-items:center;flex-wrap:wrap;row-gap:4px;min-height:40px;padding:0 10px}
+#bar .r2{min-height:36px;background:#f7f8fa;border-top:1px solid #eceef2}
+#bar .grp{display:flex;align-items:center;gap:2px}
+#bar .grp+.grp::before{content:'';align-self:center;width:1px;height:18px;background:var(--line);margin:0 8px 0 6px}
+#bar .sp{flex:1;min-width:8px} #bar .sp+.grp::before{display:none}
+#bar .r2 .tb{height:28px}
+#langbox{position:relative;margin-left:2px}
 #bLang{display:flex;align-items:center;gap:5px;color:var(--muted)} #bLang:hover{color:var(--ink)}
 #bLang .caret{font-size:9px}
 #langmenu{display:none;position:absolute;right:0;top:34px;z-index:50;min-width:150px;padding:4px;background:var(--panel);
@@ -57,7 +60,7 @@ button{font:inherit;color:inherit}
 .tb .k{font-size:11px;color:var(--muted)}
 #pageno{width:46px;height:26px;text-align:right;border:1px solid var(--line);border-radius:5px;font:inherit;padding:0 5px}
 #zoomv{min-width:44px;text-align:center;color:var(--muted)}
-#title{font-weight:600;margin:0 8px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#title{font-weight:600;font-size:13.5px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* 본문 */
 #main{flex:1;display:flex;min-height:0;position:relative}
@@ -182,55 +185,64 @@ kbd{font:11.5px Consolas,"D2Coding",monospace;background:#f1f3f7;border:1px soli
 </head>
 <body>
 <div id="bar">
-  <div class="grp">
-    <button class="tb" id="bOpen" title="교재 열기 (Ctrl+O)">교재 열기</button>
-    <button class="tb primary" id="bSave" title="저장 (Ctrl+S)" disabled>저장</button>
+  <div class="row r1">
+    <div class="grp">
+      <button class="tb" id="bOpen" title="열기 (Ctrl+O)">열기</button>
+      <button class="tb primary" id="bSave" title="저장 (Ctrl+S)" disabled>저장</button>
+      <button class="tb" id="bPdf" title="PDF로 저장 (Ctrl+P). 저장하지 않은 고침도 지금 보이는 그대로 들어갑니다." disabled>PDF로 저장</button>
+    </div>
+    <div class="grp">
+      <button class="tb" id="bUndo" title="실행 취소 (Ctrl+Z)" disabled>↶ 취소</button>
+      <button class="tb" id="bRedo" title="다시 실행 (Ctrl+Y)" disabled>↷ 다시</button>
+    </div>
+    <div class="grp">
+      <button class="tb" id="bBold" title="굵게 (Ctrl+B)"><b>가</b></button>
+      <button class="tb" id="bItalic" title="기울임 (Ctrl+I)"><i>가</i></button>
+      <button class="tb" id="bUnder" title="밑줄 (Ctrl+U)"><u>가</u></button>
+      <button class="tb" id="bStrike" title="취소선 (Ctrl+Shift+X)"><s>가</s></button>
+    </div>
+    <div class="grp">
+      <button class="tb" id="bSizeDn" title="글자 작게 (Ctrl+[)"><span class="gl sm">가</span><sup>−</sup></button>
+      <input id="fsize" title="글자 크기(pt). 숫자를 넣고 Enter" inputmode="decimal">
+      <button class="tb" id="bSizeUp" title="글자 크게 (Ctrl+])"><span class="gl">가</span><sup>+</sup></button>
+      <button class="tb" id="bColor" title="글자 색"><span class="gl" id="colorA">가</span></button>
+    </div>
+    <div class="grp">
+      <button class="tb" id="bAlignL" title="왼쪽 맞춤 (Ctrl+L). 다시 누르면 기본 맞춤으로 돌아갑니다."><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M2 6.5h7M2 9.5h12M2 12.5h7"/></svg></button>
+      <button class="tb" id="bAlignC" title="가운데 맞춤 (Ctrl+E). 다시 누르면 기본 맞춤으로 돌아갑니다."><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M4.5 6.5h7M2 9.5h12M4.5 12.5h7"/></svg></button>
+      <button class="tb" id="bAlignR" title="오른쪽 맞춤 (Ctrl+R). 다시 누르면 기본 맞춤으로 돌아갑니다."><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M7 6.5h7M2 9.5h12M7 12.5h7"/></svg></button>
+    </div>
+    <div class="grp">
+      <button class="tb" id="bOutdent" title="내어쓰기 줄이기">◀ 내어쓰기</button>
+      <button class="tb" id="bIndent" title="내어쓰기 늘리기 (둘째 줄부터 들여 씀)">내어쓰기 ▶</button>
+    </div>
   </div>
-  <div class="grp">
-    <button class="tb" id="bUndo" title="실행 취소 (Ctrl+Z)" disabled>↶ 취소</button>
-    <button class="tb" id="bRedo" title="다시 실행 (Ctrl+Y)" disabled>↷ 다시</button>
-  </div>
-  <div class="grp">
-    <button class="tb" id="bBold" title="굵게 (Ctrl+B)"><b>가</b></button>
-    <button class="tb" id="bItalic" title="기울임 (Ctrl+I)"><i>가</i></button>
-    <button class="tb" id="bUnder" title="밑줄 (Ctrl+U)"><u>가</u></button>
-    <button class="tb" id="bStrike" title="취소선 (Ctrl+Shift+X)"><s>가</s></button>
-  </div>
-  <div class="grp">
-    <button class="tb" id="bSizeDn" title="글자 작게 (Ctrl+[)"><span class="gl sm">가</span><sup>−</sup></button>
-    <input id="fsize" title="글자 크기(pt). 숫자를 넣고 Enter" inputmode="decimal">
-    <button class="tb" id="bSizeUp" title="글자 크게 (Ctrl+])"><span class="gl">가</span><sup>+</sup></button>
-    <button class="tb" id="bColor" title="글자 색"><span class="gl" id="colorA">가</span></button>
-  </div>
-  <div class="grp">
-    <button class="tb" id="bAlignL" title="왼쪽 맞춤 (Ctrl+L). 다시 누르면 기본 맞춤으로 돌아갑니다."><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M2 6.5h7M2 9.5h12M2 12.5h7"/></svg></button>
-    <button class="tb" id="bAlignC" title="가운데 맞춤 (Ctrl+E). 다시 누르면 기본 맞춤으로 돌아갑니다."><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M4.5 6.5h7M2 9.5h12M4.5 12.5h7"/></svg></button>
-    <button class="tb" id="bAlignR" title="오른쪽 맞춤 (Ctrl+R). 다시 누르면 기본 맞춤으로 돌아갑니다."><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M7 6.5h7M2 9.5h12M7 12.5h7"/></svg></button>
-  </div>
-  <div class="grp">
-    <button class="tb" id="bOutdent" title="내어쓰기 줄이기">◀ 내어쓰기</button>
-    <button class="tb" id="bIndent" title="내어쓰기 늘리기 (둘째 줄부터 들여 씀)">내어쓰기 ▶</button>
-  </div>
-  <div class="grp">
-    <button class="tb" id="bPrev" title="앞 쪽">‹</button>
-    <input id="pageno" value="1" title="쪽 번호를 넣고 Enter"> <span id="pagetot" class="k">/ 0</span>
-    <button class="tb" id="bNext" title="다음 쪽">›</button>
-  </div>
-  <div class="grp">
-    <button class="tb" id="bZoomOut" title="축소">－</button>
-    <span id="zoomv">100%</span>
-    <button class="tb" id="bZoomIn" title="확대">＋</button>
-    <button class="tb" id="bFit" title="창 너비에 맞춤">너비 맞춤</button>
-  </div>
-  <span class="sp"></span>
-  <span id="title"></span>
-  <button class="tb" id="bFind" title="찾기·바꾸기 (Ctrl+F, Ctrl+H)">찾기</button>
-  <button class="tb" id="bKeys" title="단축키 보기 (F1)">단축키</button>
-  <button class="tb" id="bElem" title="요소 고르기: 글자가 아니라 덩어리(표제어 줄, 통계 줄, 자리 잡힌 글 등)를 통째로 골라 지우거나 옮깁니다. Alt를 누른 채 지면을 눌러도 됩니다.">요소 고르기</button>
-  <button class="tb" id="bDev" title="개발자용 보기: 고치는 자리의 원본을 보여 줍니다">개발자용 보기</button>
-  <div id="langbox">
+  <div class="row r2">
+    <div class="grp"><span id="title"></span></div>
+    <div class="grp">
+      <button class="tb" id="bPrev" title="앞 쪽">‹</button>
+      <input id="pageno" value="1" title="쪽 번호를 넣고 Enter"> <span id="pagetot" class="k">/ 0</span>
+      <button class="tb" id="bNext" title="다음 쪽">›</button>
+    </div>
+    <div class="grp">
+      <button class="tb" id="bZoomOut" title="축소">－</button>
+      <span id="zoomv">100%</span>
+      <button class="tb" id="bZoomIn" title="확대">＋</button>
+      <button class="tb" id="bFit" title="창 너비에 맞춤">너비 맞춤</button>
+    </div>
+    <span class="sp"></span>
+    <div class="grp">
+      <button class="tb" id="bFind" title="찾기·바꾸기 (Ctrl+F, Ctrl+H)">찾기</button>
+      <button class="tb" id="bElem" title="요소 고르기: 글자가 아니라 덩어리(표제어 줄, 통계 줄, 자리 잡힌 글 등)를 통째로 골라 지우거나 옮깁니다. Alt를 누른 채 지면을 눌러도 됩니다.">요소 고르기</button>
+      <button class="tb" id="bDev" title="개발자용 보기: 고치는 자리의 원본을 보여 줍니다">개발자용 보기</button>
+    </div>
+    <div class="grp">
+      <button class="tb" id="bKeys" title="단축키 보기 (F1)">단축키</button>
+      <div id="langbox">
     <button class="tb" id="bLang" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg><span id="langname"></span><span class="caret">▾</span></button>
     <div id="langmenu" role="menu"></div>
+  </div>
+    </div>
   </div>
 </div>
 
@@ -240,13 +252,13 @@ kbd{font:11.5px Consolas,"D2Coding",monospace;background:#f1f3f7;border:1px soli
     <div id="start">
       <div class="card">
         <h1>쉬운 지면 편집기</h1>
-        <p id="intro">교재의 <b>main.typ</b> 파일 하나를 고르면 책이 쪽 단위로 펼쳐집니다.<br>지면에서 글자를 눌러 바로 고치고, 저장하면 원고 파일에 반영됩니다.</p>
-        <button class="tb primary big" id="bOpen2">교재 열기</button>
+        <p id="intro">문서의 <b>main.typ</b> 파일 하나를 고르면 문서가 쪽 단위로 펼쳐집니다.<br>지면에서 글자를 눌러 바로 고치고, 저장하면 원고 파일에 반영됩니다.</p>
+        <button class="tb primary big" id="bOpen2">열기</button>
         <div id="problems"></div>
         <div id="recent"></div>
       </div>
     </div>
-    <div id="veil"><span class="spin"></span><span id="veilmsg">교재를 조판하는 중…</span></div>
+    <div id="veil"><span class="spin"></span><span id="veilmsg">문서를 조판하는 중…</span></div>
   </div>
   <aside id="dev">
     <header>고치는 자리: <b id="devwhere">-</b></header>
@@ -269,7 +281,7 @@ kbd{font:11.5px Consolas,"D2Coding",monospace;background:#f1f3f7;border:1px soli
     </div>
   </div>
 </div>
-<div id="status"><span id="msg">교재를 열어 주세요.</span><span id="dirty"></span></div>
+<div id="status"><span id="msg">문서를 열어 주세요.</span><span id="dirty"></span></div>
 <textarea id="ime" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
 <div id="tip"></div>
 <div id="colors"><div class="sw" id="colorSw"></div><div class="row"><button id="colorAuto">자동(기본 색)</button><input type="color" id="colorPick" title="다른 색"></div></div>
@@ -366,15 +378,27 @@ async function pump() {
   }
   running = false;
 }
+async function savePdf() {
+  if (!view || !view.open) return;
+  while (running || queue.length) await new Promise(r => setTimeout(r, 30)); // 앞선 고침이 조판될 때까지
+  $('veil').classList.add('show'); $('veilmsg').textContent = T('PDF를 만드는 중…');
+  try {
+    const r = await fetch('/api/pdf', { method: 'POST', body: '{}' });
+    const v = await r.json();
+    if (v.ok) setMsg(v.msg + v.file, 'info');
+    else if (v.msg) setMsg(v.msg + (v.detail ? ' (' + v.detail + ')' : ''), 'error');
+  } catch (e) { setMsg(T('PDF를 만들지 못했습니다.'), 'error'); }
+  $('veil').classList.remove('show');
+}
 async function openBook(path) {
-  $('veil').classList.add('show'); $('veilmsg').textContent = T(path ? '교재를 조판하는 중…' : '파일을 고르는 중…');
+  $('veil').classList.add('show'); $('veilmsg').textContent = T(path ? '문서를 조판하는 중…' : '파일을 고르는 중…');
   try {
     const r = await fetch('/api/open', { method: 'POST', body: JSON.stringify({ path: path || null }) });
     const v = await r.json();
     if (v.cancelled) { $('veil').classList.remove('show'); return; }
     pageEls = []; pagesBox.innerHTML = '';
     apply(v, { op: 'open' });
-  } catch (e) { setMsg(T('교재를 열지 못했습니다.'), 'error'); }
+  } catch (e) { setMsg(T('문서를 열지 못했습니다.'), 'error'); }
   $('veil').classList.remove('show');
 }
 
@@ -391,6 +415,7 @@ function apply(v, req) {
   layoutPages(first || req.op === 'open');
   drawOverlay();
   $('bSave').disabled = !v.dirty.length;
+  $('bPdf').disabled = false;
   $('bUndo').disabled = !v.canUndo; $('bRedo').disabled = !v.canRedo;
   $('bBold').classList.toggle('on', !!v.fmt.bold); $('bUnder').classList.toggle('on', !!v.fmt.underline);
   $('bItalic').classList.toggle('on', !!v.fmt.italic); $('bStrike').classList.toggle('on', !!v.fmt.strike);
@@ -418,7 +443,7 @@ function showProblems(list) {
   const box = $('problems');
   if (!list || !list.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
-  box.innerHTML = '<h3>' + T('교재를 조판하지 못했습니다. 아래를 확인해 주세요.') + '</h3><ul>' +
+  box.innerHTML = '<h3>' + T('문서를 조판하지 못했습니다. 아래를 확인해 주세요.') + '</h3><ul>' +
     list.map(p => `<li>${esc(p.title)}${p.detail ? `<br><code>${esc(p.detail)}</code>` : ''}${p.hint ? `<br>→ ${esc(p.hint)}` : ''}</li>`).join('') + '</ul>';
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -678,6 +703,7 @@ ime.addEventListener('keydown', e => {
     else if (l === 'z') act(sh ? 'redo' : 'undo');
     else if (l === 'y') act('redo');
     else if (l === 's') act('save');
+    else if (l === 'p') savePdf();
     else if (l === 'o') openBook();
     else if (l === 'a') act('selectAll');
     else if (l === 'f') openFind(false);
@@ -736,7 +762,8 @@ addEventListener('keydown', e => {
   if (c && l === 'h') { e.preventDefault(); openFind(true); return; }
   if (c && l === 'o') { e.preventDefault(); openBook(); return; }
   if (c && l === 's') { e.preventDefault(); act('save'); return; }
-  if (c && (l === 'p' || l === 'r')) { e.preventDefault(); return; }
+  if (c && l === 'p') { e.preventDefault(); savePdf(); return; }
+  if (c && l === 'r') { e.preventDefault(); return; }
   if (e.target === $('pageno') || e.target.closest('#findbar') || e.target.closest('#devsrc')) return;
   if (view && view.open) ime.focus();
 });
@@ -900,7 +927,7 @@ const KEYS = [
     ['Ctrl+← / Ctrl+→', '낱말 단위로 옮기기'],
     ['Home / End', '줄의 처음 / 끝'],
     ['Ctrl+↑ / Ctrl+↓', '문단 단위로 옮기기'],
-    ['Ctrl+Home / Ctrl+End', '교재의 처음 / 끝'],
+    ['Ctrl+Home / Ctrl+End', '문서의 처음 / 끝'],
     ['Ctrl+A', '글 상자 전체 선택'],
     ['<두 번 누르기> / <세 번 누르기>', '낱말 선택 / 문단 선택'],
     ['Shift+<누르기>', '커서에서 누른 곳까지 선택'],
@@ -917,7 +944,8 @@ const KEYS = [
     ['Ctrl+0', '창 너비에 맞춤'],
   ]],
   ['파일', [
-    ['Ctrl+S / Ctrl+O', '저장 / 교재 열기'],
+    ['Ctrl+S / Ctrl+O', '저장 / 열기'],
+    ['Ctrl+P', 'PDF로 저장'],
     ['F1', '이 단축키 표 여닫기'],
   ]],
 ];
@@ -949,7 +977,7 @@ $('keysveil').addEventListener('mousedown', e => { if (e.target === $('keysveil'
 /* ---------- 도구 모음 ---------- */
 const on = (id, f) => $(id).addEventListener('click', () => { f(); ime.focus(); });
 on('bOpen', () => openBook()); on('bOpen2', () => openBook());
-on('bSave', () => act('save')); on('bUndo', () => act('undo')); on('bRedo', () => act('redo'));
+on('bSave', () => act('save')); on('bPdf', () => savePdf()); on('bUndo', () => act('undo')); on('bRedo', () => act('redo'));
 on('bBold', () => act('bold')); on('bUnder', () => act('underline'));
 on('bItalic', () => act('italic')); on('bStrike', () => act('strike'));
 on('bSizeDn', () => act('textSize', { delta: -1 })); on('bSizeUp', () => act('textSize', { delta: 1 }));
@@ -1037,7 +1065,7 @@ async function loadRecent() {
   try {
     const r = await fetch('/api/recent'); const list = await r.json(); const box = $('recent');
     if (!list.length) { box.innerHTML = ''; return; }
-    box.innerHTML = '<h2>' + T('최근에 연 교재') + '</h2>';
+    box.innerHTML = '<h2>' + T('최근에 연 문서') + '</h2>';
     for (const it of list) {
       const a = document.createElement('a'); a.innerHTML = `${esc(it.title)}<small>${esc(it.path)}</small>`;
       a.addEventListener('click', () => openBook(it.path)); box.append(a);
