@@ -2692,6 +2692,84 @@ pub fn table_op(text: &str, pos: usize, kind: &str) -> R<(String, usize)> {
     Ok((out, caret))
 }
 
+// ───────────────────────── 수식
+
+/// 수식 원문(`$..$`)을 안쪽 글과 블록 여부로 나눈다. 블록 수식은 `$` 바로 안쪽이 공백이다.
+pub fn math_parts(src: &str) -> (String, bool) {
+    let inner = src.strip_prefix('$').and_then(|x| x.strip_suffix('$')).unwrap_or(src);
+    let block = inner.len() >= 2 && inner.starts_with(char::is_whitespace) && inner.ends_with(char::is_whitespace);
+    (inner.trim().to_string(), block)
+}
+
+/// 안쪽 글과 블록 여부로 수식 원문을 만든다. 옛 원문이 있으면 그 바깥 공백(줄바꿈·들여쓰기)을 살린다.
+pub fn math_build(old: Option<&str>, body: &str, block: bool) -> String {
+    let body = body.trim();
+    if !block { return format!("${body}$"); }
+    if let Some(o) = old {
+        let inner = o.strip_prefix('$').and_then(|x| x.strip_suffix('$')).unwrap_or(o);
+        let (_, was_block) = math_parts(o);
+        if was_block {
+            let lead = &inner[..inner.len() - inner.trim_start().len()];
+            let trail = &inner[inner.trim_end().len()..];
+            if !body.contains('\n') || lead.contains('\n') { return format!("${lead}{body}{trail}$"); }
+        }
+    }
+    if body.is_empty() { "$ $".into() } else { format!("$ {body} $") }
+}
+
+/// 수식 노드가 이 구간에 있는지.
+fn equation_at(text: &str, r: &Range<usize>) -> bool {
+    let node = tree(text);
+    find_node(&LinkedNode::new(&node), r, SyntaxKind::Equation).is_some()
+}
+
+/// `r`에 있는 수식을 `new`(원문 `$..$`, 빈 글이면 수식을 지움)로 바꾼 본문.
+pub fn math_replace(text: &str, r: &Range<usize>, new: &str) -> R<String> {
+    if !equation_at(text, r) { return Err("고칠 수식을 찾지 못했습니다.".into()); }
+    let mut t = text.to_string();
+    if new.is_empty() {
+        // 수식을 지우면 그 앞뒤 공백이 겹치지 않게 한쪽을 함께 지운다
+        let mut rr = r.clone();
+        let before = t[..rr.start].chars().next_back();
+        let after = t[rr.end..].chars().next();
+        if before == Some(' ') && matches!(after, Some(' ') | Some('\n') | Some('\r') | None) { rr.start -= 1; }
+        else if after == Some(' ') && matches!(before, Some('\n') | None) { rr.end += 1; }
+        t.replace_range(rr, "");
+        if bad(&tree(&t)) { return Err("수식을 지우면 조판 오류가 나서 지우지 않았습니다.".into()); }
+        return Ok(t);
+    }
+    t.replace_range(r.clone(), new);
+    let nr = r.start..r.start + new.len();
+    if bad(&tree(&t)) || !equation_at(&t, &nr) { return Err("수식 문법이 맞지 않습니다.".into()); }
+    Ok(t)
+}
+
+/// 커서 자리에 수식 원문을 넣는다. 넣은 수식의 구간을 돌려준다.
+pub fn math_insert(w: &mut Work, src: &str) -> R<Range<usize>> { math_insert_opt(w, src, true) }
+
+/// `space`: 낱말에 바로 붙으면 사이를 띄울지(붙여 넣는 글처럼 띄어쓰기를 이미 갖춘 경우는 false).
+pub fn math_insert_opt(w: &mut Work, src: &str, space: bool) -> R<Range<usize>> {
+    if w.sel().is_some() { delete_sel_opt(w, false)?; }
+    let p = w.caret;
+    let node = tree(&w.text);
+    let root = LinkedNode::new(&node);
+    if !matches!(ctx(&root, p), Ctx::Markup) { return Err("이 자리에는 수식을 넣을 수 없습니다. 본문 글 사이를 눌러 커서를 놓아 주세요.".into()); }
+    let guard = if expr_ends_at(&root, p).is_some() { ";" } else { "" };
+    // 낱말에 바로 붙여 넣으면 사이를 띄운다(글줄 안 수식이 낱말에 붙지 않게)
+    let before = if space && guard.is_empty() && prev_char(&w.text, p).is_some_and(char::is_alphanumeric) { " " } else { "" };
+    let after = if space && next_char(&w.text, p).is_some_and(char::is_alphanumeric) { " " } else { "" };
+    let lead = format!("{guard}{before}");
+    let ins = format!("{lead}{src}{after}");
+    let mut t = w.text.clone();
+    t.insert_str(p, &ins);
+    let r = p + lead.len()..p + lead.len() + src.len();
+    if bad(&tree(&t)) || !equation_at(&t, &r) { return Err("이 자리에는 수식을 넣을 수 없습니다.".into()); }
+    w.text = t;
+    let end = r.end + after.len();
+    w.caret = end; w.anchor = end;
+    Ok(r)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2706,6 +2784,28 @@ mod tests {
         }
     }
     fn show(w: &Work) -> String { let mut t = w.text.clone(); t.insert(w.caret, '|'); t }
+    #[test] fn math_parts_build() {
+        assert_eq!(math_parts("$x^2$"), ("x^2".into(), false));
+        assert_eq!(math_parts("$ a + b $"), ("a + b".into(), true));
+        assert_eq!(math_build(Some("$\n  a\n$"), "b + c", true), "$\n  b + c\n$");
+        assert_eq!(math_build(Some("$a$"), "b", true), "$ b $");
+        assert_eq!(math_build(Some("$ a $"), "b", false), "$b$");
+    }
+    #[test] fn math_rep() {
+        let t = "Area $pi r^2$ here.";
+        let r = 5..13;
+        assert_eq!(math_replace(t, &r, "$pi r^3$").unwrap(), "Area $pi r^3$ here.");
+        assert!(math_replace(t, &r, "$pi \"r$").is_err());
+        assert!(math_replace(t, &r, "$a$ $b$").is_err());
+        assert_eq!(math_replace(t, &r, "").unwrap(), "Area here.");
+    }
+    #[test] fn math_ins() {
+        let mut x = w("Let |be."); let r = math_insert(&mut x, "$x$").unwrap();
+        assert_eq!(&x.text[r], "$x$"); assert_eq!(x.text, "Let $x$ be.");
+        let mut z = w("a|b"); let r = math_insert(&mut z, "$x$").unwrap(); assert_eq!(z.text, "a $x$ b"); assert_eq!(&z.text[r], "$x$");
+        let mut y = w("#f(|)"); assert!(math_insert(&mut y, "$x$").is_err());
+    }
+
 
     #[test] fn el_chain() { let t = "#let f() = {\n  place(top, dx: 1mm, block({\n    text(size: 1pt)[가나]\n  }))\n}"; let c = elem_chain(t, t.find("가나").unwrap()); assert_eq!(c.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), ["text", "block", "place"]); }
     #[test] fn el_del_stmt() { let t = "#let f() = {\n  v(1mm)\n  text[가]\n  v(2mm)\n}"; let c = elem_chain(t, t.find("가").unwrap()); assert_eq!(elem_delete(t, &c[0].range).unwrap(), "#let f() = {\n  v(1mm)\n  v(2mm)\n}"); }

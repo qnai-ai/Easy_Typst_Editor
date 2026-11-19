@@ -60,6 +60,13 @@ It was built to edit real books: a 277-page textbook re-typesets in about half a
 - **Images.** Click an image to pick it, drag to resize (the aspect ratio is kept), or replace the file: the new file is copied
   next to the old one and the path in the source is rewritten.
 - **Table rows and columns.** Right-click in a table to insert or delete a row or a column. Empty cells can be clicked and typed into.
+- **Equations.** Click an equation and its Typst source opens in a small box next to it; the page is re-typeset as you type,
+  a syntax error is shown in the box instead of breaking the page, and a checkbox switches between inline `$x$` and block `$ x $`.
+  Enter keeps the change, Esc throws it away, and the whole edit is one undo step. Ctrl+M (or the ∑ button) inserts a new equation
+  at the caret; buttons insert common pieces (`sum_(i=1)^n`, `sqrt()`, `alpha`, `<=` …). Labels such as `<eq:1>` and numbering stay as they are.
+- **Paste LaTeX math.** Paste text with LaTeX math (`$rac{a}{b}$`, `$$..$$`, `\(..\)`, `\[..\]`, e.g. from ChatGPT or a paper) and the
+  equations arrive as Typst equations; pasting LaTeX into the equation box converts it too. Ctrl+Shift+V pastes the text unchanged.
+  The conversion uses [tex2typst](https://github.com/qwinsi/tex2typst) (Apache-2.0, bundled; see `ui/vendor/tex2typst.LICENSE.txt`).
 - **Safe by design.** Every edit is checked against the syntax tree and rolled back if it would break compilation; nothing touches the disk until you save;
   the original is backed up before each save; and it refuses to overwrite a file another program changed in the meantime.
 - **Export PDF.** One click (Ctrl+P) writes the pages as you see them, unsaved edits included, using the same Typst engine as `typst compile`.
@@ -117,6 +124,8 @@ F1 shows the keys for the system you are on.
 | Drag a handle (click into a box or table to see them) | Width and height of a box · width of a column · height of a row. Shift: every use of the template |
 | Click an image | Pick it: resize with the handles, or replace the file |
 | Right-click in a table | Insert or delete a row or a column |
+| Click an equation · Ctrl+M | Edit that equation · insert a new one (Enter: done, Esc: discard) |
+| Ctrl+V · Ctrl+Shift+V | Paste (LaTeX math becomes Typst math) · paste unchanged |
 | Ctrl+wheel · Ctrl+Plus · Ctrl+Minus · Ctrl+0 | Zoom in/out · fit width |
 | Ctrl+G · Page Up · Page Down | Go to page · scroll a screen |
 | F1 | Show all shortcuts |

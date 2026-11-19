@@ -16,6 +16,7 @@ pub const K_ATOM: u8 = 1; // 공백·이스케이프·줄임표 등: 통째로 �
 pub const K_LOCK: u8 = 2; // 원본 위치는 알지만 지면에서 고칠 수 없음(코드·문자열·수식 등)
 pub const K_NONE: u8 = 3; // 원본 위치를 알 수 없음(자동 생성)
 pub const K_STR: u8 = 4; // 따옴표 문자열 안의 글자(제목 등): 글자만 고칠 수 있음
+pub const K_MATH: u8 = 5; // 수식($..$) 안의 글자: 수식 원문을 통째로 고친다(s..e = 수식 전체)
 
 #[derive(Clone, Debug)]
 pub struct G {
@@ -122,10 +123,35 @@ impl Index {
             b.out.page_items.push((istart, b.out.item_text.len()));
         }
         let mut out = b.out;
+        out.adopt_math();
         out.index_files();
         crate::recover::recover(world, &mut out, &changed);
         out.index_files();
         out
+    }
+
+    /// 수식 안에서 표준 라이브러리가 만든 글자(`dif`의 d 등)는 원고 자리가 없다:
+    /// 같은 줄에 바싹 붙은 수식 글자가 있으면 그 수식의 글자로 본다.
+    fn adopt_math(&mut self) {
+        let n = self.glyphs.len();
+        for pass in 0..2 {
+            for k in 0..n {
+                let i = if pass == 0 { k } else { n - 1 - k };
+                if self.glyphs[i].kind != K_NONE { continue; }
+                let g = &self.glyphs[i];
+                let near = |j: usize| {
+                    let h = &self.glyphs[j];
+                    h.kind == K_MATH && h.page == g.page && h.line == g.line
+                        && (h.x0.min(h.x1) - g.x1.max(g.x0)).max(g.x0.min(g.x1) - h.x1.max(h.x0)) < g.size * 0.6
+                };
+                let from = if pass == 0 { i.checked_sub(1) } else { (i + 1 < n).then_some(i + 1) };
+                if let Some(j) = from.filter(|&j| near(j)) {
+                    let h = self.glyphs[j].clone();
+                    let g = &mut self.glyphs[i];
+                    g.kind = K_MATH; g.file = h.file; g.s = h.s; g.e = h.e; g.node = h.node; g.node_kind = h.node_kind;
+                }
+            }
+        }
     }
 
     pub fn index_files(&mut self) {
@@ -273,9 +299,20 @@ impl<'a> Builder<'a> {
         let Some(id) = span.id() else { return none };
         let Ok(source) = self.world.source(id) else { return none };
         let Some(node) = source.find(span) else { return none };
+        let editable_file = self.world.in_project(id);
+        // 수식 안의 글자는 수식 전체($..$)를 한 덩어리로 가리킨다
+        if editable_file {
+            let mut p = Some(node.clone());
+            while let Some(n) = p {
+                if n.kind() == SyntaxKind::Equation {
+                    let r = n.range();
+                    return (Some(id), r.start as u32, r.end as u32, K_MATH, SyntaxKind::Equation);
+                }
+                p = n.parent().cloned();
+            }
+        }
         let r = node.range();
         let nk = node.kind();
-        let editable_file = self.world.in_project(id);
         let kind = if !editable_file {
             K_LOCK
         } else {

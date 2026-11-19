@@ -18,6 +18,9 @@ use typst_kit::fonts::FontStore;
 use session::Session;
 
 const INDEX_HTML: &str = include_str!("../ui/index.html");
+/// LaTeX 수식 → Typst 수식 변환기(tex2typst, Apache-2.0). 라이선스는 ui/vendor/tex2typst.LICENSE.txt
+const TEX2TYPST_JS: &str = include_str!("../ui/vendor/tex2typst.min.js");
+const TEX2TYPST_LICENSE: &str = include_str!("../ui/vendor/tex2typst.LICENSE.txt");
 
 /// 설정·최근 목록·웹뷰 자료를 두는 폴더.
 /// Windows `%LOCALAPPDATA%`, macOS `~/Library/Application Support`, Linux `~/.local/share`(XDG_DATA_HOME) 아래.
@@ -96,6 +99,15 @@ fn serve(server: Server, app: Arc<App>) {
                 let v = match g.as_mut() { Some(s) => s.view(), None => json!({ "open": false }) };
                 drop(g);
                 respond_json(req, &v);
+            }
+            "/vendor/tex2typst.js" => {
+                let _ = req.respond(Response::from_string(TEX2TYPST_JS)
+                    .with_header(header("Content-Type", "text/javascript; charset=utf-8"))
+                    .with_header(header("Cache-Control", "max-age=31536000, immutable")));
+            }
+            "/vendor/tex2typst.LICENSE.txt" => {
+                let _ = req.respond(Response::from_string(TEX2TYPST_LICENSE)
+                    .with_header(header("Content-Type", "text/plain; charset=utf-8")));
             }
             "/api/recent" => respond_json(req, &json!(load_recent())),
             "/api/lang" => {

@@ -1433,5 +1433,173 @@
   "zh": "无法写入 PDF。如果该 PDF 已在其他程序中打开，请关闭后重试。",
   "ja": "PDFを書き込めませんでした。そのPDFが別のプログラムで開いている場合は、閉じてからもう一度お試しください。",
   "es": "No se pudo escribir el PDF. Si ese PDF está abierto en otro programa, ciérrelo e inténtelo de nuevo."
+ },
+ "수식 넣기 (Ctrl+M). 지면의 수식을 누르면 그 수식을 고칩니다.": {
+  "en": "Insert equation (Ctrl+M). Click an equation on the page to edit it.",
+  "zh": "插入公式 (Ctrl+M)。点击页面上的公式即可修改。",
+  "ja": "数式を挿入 (Ctrl+M)。ページ上の数式をクリックすると編集できます。",
+  "es": "Insertar ecuación (Ctrl+M). Haz clic en una ecuación de la página para editarla."
+ },
+ "수식": {
+  "en": "Equation",
+  "zh": "公式",
+  "ja": "数式",
+  "es": "Ecuación"
+ },
+ "블록 수식": {
+  "en": "Block equation",
+  "zh": "独立公式",
+  "ja": "ブロック数式",
+  "es": "Ecuación en bloque"
+ },
+ "블록 수식은 따로 한 줄에 가운데로 놓입니다($ x $). 끄면 글줄 안의 수식($x$).": {
+  "en": "A block equation sits centred on its own line ($ x $). Turn it off for an inline equation ($x$).",
+  "zh": "独立公式单独成行并居中 ($ x $)。关闭则为行内公式 ($x$)。",
+  "ja": "ブロック数式は独立した行の中央に置かれます ($ x $)。オフにすると行内の数式 ($x$) になります。",
+  "es": "Una ecuación en bloque va centrada en su propia línea ($ x $). Desactívalo para una ecuación en línea ($x$)."
+ },
+ "예: x^2 + y^2 = r^2": {
+  "en": "e.g. x^2 + y^2 = r^2",
+  "zh": "例：x^2 + y^2 = r^2",
+  "ja": "例: x^2 + y^2 = r^2",
+  "es": "p. ej. x^2 + y^2 = r^2"
+ },
+ "이 수식 지우기": {
+  "en": "Delete this equation",
+  "zh": "删除此公式",
+  "ja": "この数式を削除",
+  "es": "Eliminar esta ecuación"
+ },
+ "고친 것을 버리기 (Esc)": {
+  "en": "Discard the changes (Esc)",
+  "zh": "放弃修改 (Esc)",
+  "ja": "変更を破棄 (Esc)",
+  "es": "Descartar los cambios (Esc)"
+ },
+ "다 고쳤음 (Enter, 줄바꿈은 Shift+Enter)": {
+  "en": "Done (Enter; Shift+Enter for a new line)",
+  "zh": "完成 (Enter；换行用 Shift+Enter)",
+  "ja": "完了 (Enter。改行は Shift+Enter)",
+  "es": "Listo (Enter; Shift+Enter para una nueva línea)"
+ },
+ "확인": {
+  "en": "OK",
+  "zh": "确定",
+  "ja": "OK",
+  "es": "Aceptar"
+ },
+ "새 수식": {
+  "en": "New equation",
+  "zh": "新公式",
+  "ja": "新しい数式",
+  "es": "Nueva ecuación"
+ },
+ "수식 고치기": {
+  "en": "Edit equation",
+  "zh": "修改公式",
+  "ja": "数式を編集",
+  "es": "Editar ecuación"
+ },
+ "수식을 고치는 중입니다. Enter: 확인 · Esc: 취소": {
+  "en": "Editing an equation. Enter: done · Esc: cancel",
+  "zh": "正在修改公式。Enter：完成 · Esc：取消",
+  "ja": "数式を編集中です。Enter: 完了 · Esc: 取り消し",
+  "es": "Editando una ecuación. Enter: listo · Esc: cancelar"
+ },
+ "수식을 누르기": {
+  "en": "Click an equation",
+  "zh": "点击公式",
+  "ja": "数式をクリック",
+  "es": "Clic en una ecuación"
+ },
+ "그 수식 고치기(고치는 대로 조판됩니다)": {
+  "en": "Edit that equation (re-typeset as you type)",
+  "zh": "修改该公式（输入时即时排版）",
+  "ja": "その数式を編集（入力するとすぐ組版）",
+  "es": "Editar esa ecuación (se recompone mientras escribes)"
+ },
+ "커서 자리에 새 수식 넣기": {
+  "en": "Insert a new equation at the cursor",
+  "zh": "在光标处插入新公式",
+  "ja": "カーソル位置に新しい数式を挿入",
+  "es": "Insertar una ecuación nueva en el cursor"
+ },
+ "수식 확인 / 수식 안 줄바꿈 / 고친 것 버리기": {
+  "en": "Confirm equation / New line inside the equation / Discard changes",
+  "zh": "确认公式 / 公式内换行 / 放弃修改",
+  "ja": "数式を確定 / 数式内で改行 / 変更を破棄",
+  "es": "Confirmar ecuación / Nueva línea en la ecuación / Descartar cambios"
+ },
+ "먼저 수식을 넣을 자리를 눌러 커서를 놓아 주세요.": {
+  "en": "First click where the equation should go to place the cursor.",
+  "zh": "请先点击要插入公式的位置放置光标。",
+  "ja": "まず数式を入れる位置をクリックしてカーソルを置いてください。",
+  "es": "Primero haz clic donde debe ir la ecuación para colocar el cursor."
+ },
+ "조판 오류": {
+  "en": "Typesetting error",
+  "zh": "排版错误",
+  "ja": "組版エラー",
+  "es": "Error de composición"
+ },
+ "수식을 지웠습니다. 되돌리려면 Ctrl+Z를 누르세요.": {
+  "en": "Equation deleted. Press Ctrl+Z to undo.",
+  "zh": "已删除公式。按 Ctrl+Z 可撤销。",
+  "ja": "数式を削除しました。元に戻すには Ctrl+Z を押してください。",
+  "es": "Ecuación eliminada. Pulsa Ctrl+Z para deshacer."
+ },
+ "고칠 수식을 찾지 못했습니다.": {
+  "en": "Could not find the equation to edit.",
+  "zh": "找不到要修改的公式。",
+  "ja": "編集する数式が見つかりませんでした。",
+  "es": "No se encontró la ecuación que editar."
+ },
+ "수식을 지우면 조판 오류가 나서 지우지 않았습니다.": {
+  "en": "The equation was not deleted because that would break typesetting.",
+  "zh": "删除该公式会导致排版错误，因此未删除。",
+  "ja": "削除すると組版エラーになるため、数式を削除しませんでした。",
+  "es": "No se eliminó la ecuación porque rompería la composición."
+ },
+ "수식 문법이 맞지 않습니다.": {
+  "en": "The equation syntax is not valid.",
+  "zh": "公式语法不正确。",
+  "ja": "数式の記法が正しくありません。",
+  "es": "La sintaxis de la ecuación no es válida."
+ },
+ "이 자리에는 수식을 넣을 수 없습니다. 본문 글 사이를 눌러 커서를 놓아 주세요.": {
+  "en": "An equation cannot go here. Click between words of the body text to place the cursor.",
+  "zh": "此处不能插入公式。请点击正文文字之间放置光标。",
+  "ja": "ここには数式を入れられません。本文の文字の間をクリックしてカーソルを置いてください。",
+  "es": "Aquí no se puede insertar una ecuación. Haz clic entre palabras del texto para colocar el cursor."
+ },
+ "이 자리에는 수식을 넣을 수 없습니다.": {
+  "en": "An equation cannot go here.",
+  "zh": "此处不能插入公式。",
+  "ja": "ここには数式を入れられません。",
+  "es": "Aquí no se puede insertar una ecuación."
+ },
+ "Typst 수식 문법으로 씁니다. 고치는 대로 지면에 바로 조판됩니다. LaTeX 수식을 붙여 넣으면 Typst로 바꿉니다.": {
+  "en": "Written in Typst math syntax. The page is re-typeset as you type. Pasted LaTeX is converted to Typst.",
+  "zh": "使用 Typst 公式语法书写。输入时页面会即时重新排版。粘贴的 LaTeX 公式会转换为 Typst。",
+  "ja": "Typst の数式記法で書きます。入力するとすぐにページが組み直されます。LaTeX の数式を貼り付けると Typst に変換します。",
+  "es": "Se escribe con la sintaxis matemática de Typst. La página se recompone mientras escribes. El LaTeX pegado se convierte a Typst."
+ },
+ "LaTeX를 Typst 수식으로 바꿔 넣었습니다. 원래 글 그대로 넣으려면 Ctrl+Shift+V.": {
+  "en": "Converted the LaTeX to Typst math. To paste the original text instead, use Ctrl+Shift+V.",
+  "zh": "已将 LaTeX 转换为 Typst 公式。若要按原文粘贴，请用 Ctrl+Shift+V。",
+  "ja": "LaTeX を Typst の数式に変換しました。元の文字のまま貼り付けるには Ctrl+Shift+V。",
+  "es": "Se convirtió el LaTeX a matemáticas de Typst. Para pegar el texto original, usa Ctrl+Shift+V."
+ },
+ "LaTeX 수식 {0}개를 Typst 수식으로 바꿔 넣었습니다. 되돌리려면 Ctrl+Z를 누르세요.": {
+  "en": "Converted {0} LaTeX equation(s) to Typst. Press Ctrl+Z to undo.",
+  "zh": "已将 {0} 个 LaTeX 公式转换为 Typst。按 Ctrl+Z 可撤销。",
+  "ja": "LaTeX の数式 {0} 個を Typst に変換して挿入しました。元に戻すには Ctrl+Z を押してください。",
+  "es": "Se convirtieron {0} ecuaciones LaTeX a Typst. Pulsa Ctrl+Z para deshacer."
+ },
+ "LaTeX 수식은 Typst로 바꿔 붙여넣기 / 바꾸지 않고 붙여넣기": {
+  "en": "Paste, converting LaTeX math to Typst / Paste without converting",
+  "zh": "粘贴并将 LaTeX 公式转换为 Typst / 按原文粘贴",
+  "ja": "LaTeX の数式を Typst に変換して貼り付け / 変換せずに貼り付け",
+  "es": "Pegar convirtiendo las ecuaciones LaTeX a Typst / Pegar sin convertir"
  }
 }

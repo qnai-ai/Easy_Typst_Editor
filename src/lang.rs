@@ -117,7 +117,7 @@ pub fn translate(v: &mut Value) {
         Value::String(s) => { let n = tr(s); if n != *s { *s = n; } }
         Value::Array(a) => a.iter_mut().for_each(translate),
         Value::Object(o) => for (k, x) in o.iter_mut() {
-            if matches!(k.as_str(), "text" | "selText" | "path" | "file" | "detail" | "title" | "name") { continue; }
+            if matches!(k.as_str(), "text" | "selText" | "path" | "file" | "detail" | "title" | "name" | "body") { continue; }
             translate(x);
         },
         _ => {}

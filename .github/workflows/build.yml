@@ -45,7 +45,7 @@ jobs:
         shell: pwsh
         run: |
           ./build.ps1
-          Copy-Item README.md, README.ko.md, LICENSE, register.ps1 dist
+          Copy-Item README.md, README.ko.md, LICENSE, register.ps1, ui/vendor/tex2typst.LICENSE.txt dist
           Copy-Item examples dist -Recurse
           Compress-Archive -Path dist/* -DestinationPath EasyTypstEditor-${{ matrix.name }}.zip
 
@@ -53,7 +53,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           UNIVERSAL=1 sh build.sh
-          cp README.md README.ko.md LICENSE dist/
+          cp README.md README.ko.md LICENSE ui/vendor/tex2typst.LICENSE.txt dist/
           cp -R examples dist/
           # ditto keeps the app's permissions and signature inside the zip
           ditto -c -k dist EasyTypstEditor-${{ matrix.name }}.zip
@@ -62,7 +62,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sh build.sh
-          cp README.md README.ko.md LICENSE dist/
+          cp README.md README.ko.md LICENSE ui/vendor/tex2typst.LICENSE.txt dist/
           cp -R examples dist/
           tar -czf EasyTypstEditor-${{ matrix.name }}.tar.gz --transform 's,^dist,EasyTypstEditor,' dist
 

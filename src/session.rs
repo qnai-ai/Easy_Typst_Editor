@@ -13,7 +13,7 @@ use typst_kit::fonts::FontStore;
 use typst_layout::PagedDocument;
 
 use crate::edit::{self, Style, Work};
-use crate::index::{Index, Reuse, G, K_ATOM, K_LOCK, K_NONE, K_STR, K_TEXT};
+use crate::index::{Index, Reuse, G, K_ATOM, K_LOCK, K_MATH, K_NONE, K_STR, K_TEXT};
 use crate::world::ProjectWorld;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -211,6 +211,21 @@ impl BoxWalk<'_> {
     }
 }
 
+/// 고치고 있는 수식: 지면에서 누른 수식(또는 새로 넣는 수식)과, 고치기 전의 파일 본문.
+struct MathSel {
+    file: FileId,
+    /// 원고에서 수식(`$..$`)의 구간. 아직 넣지 않은 새 수식이면 None.
+    range: Option<std::ops::Range<usize>>,
+    /// 고치기 시작하기 전의 파일 본문(Esc로 되돌릴 때)
+    base: String,
+    /// 이 수식을 고쳐 되돌리기 걸음을 하나 쌓았는지
+    stepped: bool,
+    /// 수식을 찾지 못할 때(새 수식) 상자를 그릴 자리: (쪽, x, 기준선 y, 글자 크기)
+    spot: (u32, f32, f32, f32),
+    caret_before: Option<Pos>,
+    err: Option<String>,
+}
+
 struct Lock { page: u32, x: f32, y: f32, w: f32, h: f32, reason: String }
 
 struct Step {
@@ -258,6 +273,7 @@ pub struct Session {
     under_fn: String,
     /// 커서(또는 상자가 없는 고른 요소)를 품은 가장 가까운 상자·표: 요소를 고르지 않아도 손잡이를 보여 준다
     cbox: Option<ElemSel>,
+    math: Option<MathSel>,
 }
 
 fn editable(g: &G) -> bool { (g.kind == K_TEXT || g.kind == K_ATOM || g.kind == K_STR) && g.e > g.s }
@@ -317,7 +333,7 @@ impl Session {
                     let mut s = Session {
                         world, doc, ix, hashes: vec![], main_path: main.clone(), title,
                         caret: None, anchor: None, lock: None, elem: None, undo: vec![], redo: vec![], comp: None,
-                        goal_x: None, msg: None, warnings, rev: 0, last_ms: 0, timing: String::new(), ix_src: vec![], under_fn: String::new(), cbox: None,
+                        goal_x: None, msg: None, warnings, rev: 0, last_ms: 0, timing: String::new(), ix_src: vec![], under_fn: String::new(), cbox: None, math: None,
                     };
                     s.hashes = Self::hash_pages(&s.doc);
                     s.under_fn = s.world.underline_fn();
@@ -470,6 +486,9 @@ impl Session {
         }
         let (gi, sc) = best?;
         if sc == 0.0 { return Some((gi, true)); }
+        // 수식은 글자 사이가 넓게 벌어진다(연산자 둘레, 분수·첨자): 그 틈을 눌러도 수식을 누른 것으로 본다
+        let g = &self.ix.glyphs[gi];
+        if g.kind == K_MATH && sc < g.size * 0.8 { return Some((gi, false)); }
         match best_e { Some((ge, _)) => Some((ge, false)), None => Some((gi, false)) }
     }
 
@@ -525,6 +544,10 @@ impl Session {
             return;
         };
         let g = self.glyph(gi).clone();
+        if g.kind == K_MATH && !extend {
+            if let Some(file) = g.file { self.math_open(file, g.s as usize..g.e as usize, (g.page, g.x0, g.y, g.size)); }
+            return;
+        }
         if !editable(&g) {
             if extend { return; }
             // 같은 줄에서 이어진 못 고치는 글자들을 묶어 보여 준다
@@ -1900,6 +1923,7 @@ impl Session {
         if !op.starts_with("elem") && !matches!(op, "pick" | "save" | "click" | "imageReplace") { self.elem = None; }
         let text = req["text"].as_str().unwrap_or("");
         if op != "elemResize" { self.cbox = None; }
+        if !op.starts_with("math") { self.math = None; }
         self.act_op(op, text, req);
         if matches!(op, "click" | "pick" | "elemGrow" | "elemMove") { self.refresh_cbox(); }
     }
@@ -1915,6 +1939,12 @@ impl Session {
                 if !extend && self.empty_cell_click(page, x, y) { return; }
                 self.click(page, x, y, extend, req["dbl"].as_bool().unwrap_or(false), req["tpl"].as_bool().unwrap_or(false));
             }
+            "insertParts" => self.insert_parts(req["parts"].as_array().cloned().unwrap_or_default()),
+            "mathSet" => self.math_set(req["body"].as_str().unwrap_or(""), req["block"].as_bool().unwrap_or(false)),
+            "mathNew" => self.math_new(),
+            "mathDelete" => self.math_delete(),
+            "mathCancel" => self.math_cancel(),
+            "mathDone" => self.math_done(),
             "imageReplace" => self.image_replace(req["path"].as_str().unwrap_or("")),
             "tableOp" => {
                 let kind = req["kind"].as_str().unwrap_or("").to_string();
@@ -1982,6 +2012,173 @@ impl Session {
             "elemClear" => { self.elem = None; }
             _ => {}
         }
+    }
+
+    // ───────────── 수식
+
+    /// 글과 수식이 섞인 붙여넣기(LaTeX 수식을 화면에서 Typst로 바꾼 것): 한 걸음으로 넣는다.
+    /// parts: [{"text": ".."} 또는 {"math": "Typst 수식 안쪽", "block": bool}]
+    fn insert_parts(&mut self, parts: Vec<Value>) {
+        let n = parts.iter().filter(|p| p["math"].is_string()).count();
+        let ok = self.apply(0, true, |w| {
+            for p in &parts {
+                if let Some(t) = p["text"].as_str() {
+                    edit::insert(w, t)?;
+                } else if let Some(m) = p["math"].as_str() {
+                    let src = edit::math_build(None, m, p["block"].as_bool().unwrap_or(false));
+                    edit::math_insert_opt(w, &src, false)?;
+                }
+            }
+            Ok(())
+        });
+        if ok && n > 0 && self.msg.is_none() {
+            self.msg = Some((crate::lang::f("LaTeX 수식 {0}개를 Typst 수식으로 바꿔 넣었습니다. 되돌리려면 Ctrl+Z를 누르세요.", &[&n]), "info"));
+        }
+    }
+
+    fn math_open(&mut self, file: FileId, r: std::ops::Range<usize>, spot: (u32, f32, f32, f32)) {
+        self.flush_comp();
+        let Some(base) = self.world.text_of(file) else { return };
+        let caret_before = self.caret.map(|c| c.pos);
+        self.caret = None; self.anchor = None; self.lock = None;
+        self.math = Some(MathSel { file, range: Some(r), base, stepped: false, spot, caret_before, err: None });
+    }
+
+    /// 커서 자리에 새 수식을 넣을 준비: 원고에는 첫 글자를 칠 때 넣는다.
+    fn math_new(&mut self) {
+        self.flush_comp();
+        let Some(c) = self.caret else {
+            self.msg = Some(("먼저 수식을 넣을 자리를 눌러 커서를 놓아 주세요.".into(), "info"));
+            return;
+        };
+        let Some(base) = self.world.text_of(c.pos.file) else { return };
+        // 글을 선택해 두었으면 그 앞에 넣는다(선택한 글은 그대로 둔다)
+        let off = self.sel_range().map(|(a, _)| a).unwrap_or(c.pos.off);
+        self.anchor = None;
+        self.math = Some(MathSel { file: c.pos.file, range: None, base, stepped: false, spot: (c.page, c.x, c.y, c.size), caret_before: Some(Pos { file: c.pos.file, off }), err: None });
+        self.caret = None;
+    }
+
+    /// 고친 본문을 조판해 보고, 되면 되돌리기 걸음(수식 하나에 한 걸음)을 갱신한다.
+    fn math_commit(&mut self, text: String) -> bool {
+        let Some(m) = self.math.as_ref() else { return false };
+        let file = m.file;
+        if let Err(e) = self.try_text(file, &text) {
+            if let Some(m) = self.math.as_mut() { m.err = Some(if e.is_empty() { "조판 오류".into() } else { e }); }
+            return false;
+        }
+        let m = self.math.as_mut().unwrap();
+        m.err = None;
+        let after_pos = m.range.as_ref().map(|r| Pos { file, off: r.end });
+        if m.stepped {
+            if let Some(last) = self.undo.last_mut() { last.after = text; last.caret_after = after_pos; last.time = Instant::now(); }
+        } else {
+            m.stepped = true;
+            let st = Step { file, before: m.base.clone(), after: text, caret_before: m.caret_before, caret_after: after_pos, kind: 0, time: Instant::now() };
+            self.push_undo(st);
+        }
+        true
+    }
+
+    fn math_set(&mut self, body: &str, block: bool) {
+        let Some(m) = self.math.as_ref() else { return };
+        let file = m.file;
+        let Some(text) = self.world.text_of(file) else { return };
+        match m.range.clone() {
+            Some(r) => {
+                let old = text[r.clone()].to_string();
+                let new = edit::math_build(Some(&old), body, block);
+                if new == old { if let Some(m) = self.math.as_mut() { m.err = None; } return; }
+                match edit::math_replace(&text, &r, &new) {
+                    Ok(t) => {
+                        if let Some(m) = self.math.as_mut() { m.range = Some(r.start..r.start + new.len()); }
+                        // 조판에 실패하면 구간을 그대로 둔다
+                        if !self.math_commit(t) { if let Some(m) = self.math.as_mut() { m.range = Some(r); } }
+                    }
+                    Err(e) => if let Some(m) = self.math.as_mut() { m.err = Some(e); },
+                }
+            }
+            None => {
+                if body.trim().is_empty() { return; }
+                let src = edit::math_build(None, body, block);
+                let off = m.caret_before.map(|p| p.off).unwrap_or(0);
+                let mut w = edit::Work::new(text, off, off);
+                match edit::math_insert(&mut w, &src) {
+                    Ok(r) => {
+                        if let Some(m) = self.math.as_mut() { m.range = Some(r); }
+                        if !self.math_commit(w.text) { if let Some(m) = self.math.as_mut() { m.range = None; } }
+                    }
+                    Err(e) => if let Some(m) = self.math.as_mut() { m.err = Some(e); },
+                }
+            }
+        }
+    }
+
+    fn math_delete(&mut self) {
+        let Some(m) = self.math.as_ref() else { return };
+        let file = m.file;
+        let Some(r) = m.range.clone() else { self.math_cancel(); return };
+        let Some(text) = self.world.text_of(file) else { return };
+        match edit::math_replace(&text, &r, "") {
+            Ok(t) => {
+                let off = r.start.min(t.len());
+                if let Some(m) = self.math.as_mut() { m.range = None; }
+                if self.math_commit(t) {
+                    if let Some(st) = self.undo.last_mut() { st.caret_after = Some(Pos { file, off }); }
+                    self.math = None;
+                    self.caret = Some(self.locate(Pos { file, off }, false, None));
+                    self.msg = Some(("수식을 지웠습니다. 되돌리려면 Ctrl+Z를 누르세요.".into(), "info"));
+                } else if let Some(m) = self.math.as_mut() { m.range = Some(r); }
+            }
+            Err(e) => if let Some(m) = self.math.as_mut() { m.err = Some(e); },
+        }
+    }
+
+    /// Esc: 이 수식에서 고친 것을 모두 되돌린다.
+    fn math_cancel(&mut self) {
+        let Some(m) = self.math.take() else { return };
+        if m.stepped {
+            self.undo.pop();
+            self.set_text(m.file, &m.base);
+            if let Err(e) = self.compile() { self.msg = Some((format!("되돌리는 중 조판 오류: {e}"), "error")); }
+        }
+        self.caret = m.caret_before.map(|p| self.locate(p, true, None));
+    }
+
+    /// 다 고쳤다: 커서를 수식 바로 뒤에 둔다.
+    fn math_done(&mut self) {
+        let Some(m) = self.math.take() else { return };
+        let pos = match m.range { Some(r) => Some(Pos { file: m.file, off: r.end }), None => m.caret_before };
+        self.caret = pos.map(|p| self.locate(p, true, None));
+    }
+
+    fn math_view(&self) -> Value {
+        let Some(m) = &self.math else { return Value::Null };
+        let text = self.world.text_of(m.file).unwrap_or_default();
+        let (body, block) = match &m.range {
+            Some(r) if r.end <= text.len() => edit::math_parts(&text[r.clone()]),
+            _ => (String::new(), false),
+        };
+        // 지면에서 이 수식의 글자들이 차지한 상자(첫 쪽에 놓인 부분)
+        let mut bb: Option<(u32, f32, f32, f32, f32)> = None;
+        if let Some(r) = &m.range {
+            for g in &self.ix.glyphs {
+                if g.kind != K_MATH || g.file != Some(m.file) || g.s as usize != r.start || g.e as usize != r.end { continue; }
+                let (x0, x1) = (g.x0.min(g.x1), g.x0.max(g.x1));
+                let (y0, y1) = (g.y - g.size * 0.9, g.y + g.size * 0.35);
+                bb = Some(match bb {
+                    None => (g.page, x0, y0, x1, y1),
+                    Some(b) if b.0 == g.page => (b.0, b.1.min(x0), b.2.min(y0), b.3.max(x1), b.4.max(y1)),
+                    Some(b) => b,
+                });
+            }
+        }
+        let (page, x, y, w, h) = match bb {
+            Some(b) => (b.0, b.1, b.2, (b.3 - b.1).max(2.0), (b.4 - b.2).max(2.0)),
+            None => (m.spot.0, m.spot.1, m.spot.2 - m.spot.3 * 0.9, 2.0, m.spot.3 * 1.25),
+        };
+        json!({ "page": page, "x": x, "y": y, "w": w, "h": h, "body": body, "block": block,
+            "isNew": m.range.is_none(), "err": m.err })
     }
 
     // ───────────── 화면에 보낼 정보
@@ -2098,6 +2295,7 @@ impl Session {
             "timing": self.timing,
             "problems": [],
             "elem": self.elem_view(),
+            "math": self.math_view(),
             "cell": cell,
             "box": self.cbox.as_ref().and_then(|e| e.bx.as_ref()).map(|b| self.box_json(b, false)),
         })
@@ -2139,5 +2337,91 @@ mod pdf_tests {
         let pdf = s.export_pdf().expect("pdf");
         assert!(pdf.starts_with(b"%PDF-"));
         assert!(pdf.len() > 10_000);
+    }
+}
+
+#[cfg(test)]
+mod math_tests {
+    use super::*;
+
+    fn open(name: &str, src: &str) -> Session {
+        let dir = std::env::temp_dir().join(format!("ete-math-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let main = dir.join("main.typ");
+        std::fs::write(&main, src).unwrap();
+        let fonts = Arc::new(crate::world::load_fonts());
+        Session::open(&main, fonts).unwrap_or_else(|_| panic!("open failed"))
+    }
+
+    #[test]
+    fn math_glyph_kinds() {
+        let s = open("kinds", "Circle $pi r^2$ ok.
+
+$ sum_(i=1)^n i $
+");
+        let m: Vec<_> = s.ix.glyphs.iter().filter(|g| g.kind == K_MATH).collect();
+        assert_eq!(m.len(), 9);
+        assert!(m[..3].iter().all(|g| (g.s, g.e) == (7, 15)));
+        let s = open("kinds2", "#set math.equation(numbering: \"(1)\")
+$ integral_0^1 x^2 dif x = 1/3 $
+");
+        // `dif`의 d는 표준 라이브러리에서 오지만 수식의 글자로 친다
+        let d = s.ix.glyphs.iter().position(|g| s.ix.item_text[g.item as usize] == "d").unwrap();
+        assert_eq!(s.ix.glyphs[d].kind, K_MATH);
+        assert_eq!(s.ix.glyphs.iter().filter(|g| g.kind == K_MATH).count(), 10);
+    }
+
+    #[test]
+    fn math_edit_flow() {
+        let mut s = open("flow", "Circle $pi r^2$ ok.
+");
+        let g = s.ix.glyphs.iter().find(|g| g.kind == K_MATH).unwrap().clone();
+        s.act(&json!({ "op": "click", "page": 0, "x": (g.x0 + g.x1) / 2.0, "y": g.y - 2.0 }));
+        assert_eq!(s.math_view()["body"], "pi r^2");
+        s.act(&json!({ "op": "mathSet", "body": "pi r^2 h", "block": false }));
+        s.act(&json!({ "op": "mathSet", "body": "pi r^3", "block": true }));
+        assert_eq!(s.world.text_of(s.math.as_ref().unwrap().file).unwrap(), "Circle $ pi r^3 $ ok.
+");
+        s.act(&json!({ "op": "mathSet", "body": "pi \"r", "block": true }));
+        assert!(s.math_view()["err"].is_string());
+        s.act(&json!({ "op": "mathDone" }));
+        let file = s.caret.unwrap().pos.file;
+        assert_eq!(s.world.text_of(file).unwrap(), "Circle $ pi r^3 $ ok.
+");
+        s.act(&json!({ "op": "undo" }));
+        assert_eq!(s.world.text_of(file).unwrap(), "Circle $pi r^2$ ok.
+");
+        // 새 수식 넣기와 지우기
+        s.act(&json!({ "op": "redo" }));
+        s.act(&json!({ "op": "mathNew" }));
+        s.act(&json!({ "op": "mathSet", "body": "x", "block": false }));
+        s.act(&json!({ "op": "mathSet", "body": "x^2", "block": false }));
+        s.act(&json!({ "op": "mathDone" }));
+        assert_eq!(s.world.text_of(file).unwrap(), "Circle $ pi r^3 $$x^2$ ok.
+");
+        s.act(&json!({ "op": "undo" }));
+        assert_eq!(s.world.text_of(file).unwrap(), "Circle $ pi r^3 $ ok.
+");
+        let g = s.ix.glyphs.iter().find(|g| g.kind == K_MATH).unwrap().clone();
+        s.act(&json!({ "op": "click", "page": 0, "x": (g.x0 + g.x1) / 2.0, "y": g.y - 2.0 }));
+        s.act(&json!({ "op": "mathDelete" }));
+        assert_eq!(s.world.text_of(file).unwrap(), "Circle ok.
+");
+    }
+
+    #[test]
+    fn paste_parts() {
+        let mut s = open("parts", "Hello world.
+");
+        let g = s.ix.glyphs.iter().find(|g| s.ix.item_text[g.item as usize].get(g.tr.0 as usize..g.tr.1 as usize) == Some("w")).unwrap().clone();
+        s.act(&json!({ "op": "click", "page": 0, "x": g.x0 - 0.01, "y": g.y - 2.0 }));
+        let parts = json!([{ "text": "area " }, { "math": "pi r^2", "block": false }, { "text": ", and " }]);
+        s.act(&json!({ "op": "insertParts", "parts": parts }));
+        let file = s.caret.unwrap().pos.file;
+        assert_eq!(s.world.text_of(file).unwrap(), "Hello area $pi r^2$, and world.
+");
+        s.act(&json!({ "op": "undo" }));
+        assert_eq!(s.world.text_of(file).unwrap(), "Hello world.
+");
     }
 }
