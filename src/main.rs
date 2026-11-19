@@ -34,6 +34,8 @@ pub fn data_dir() -> PathBuf {
 struct App {
     session: Mutex<Option<Session>>,
     fonts: OnceLock<Arc<FontStore>>,
+    /// 마지막으로 열지 못한 까닭. 명령줄(파일 더블클릭)로 열다 실패했을 때 첫 화면에 보여 준다.
+    failed: Mutex<Option<Value>>,
 }
 
 impl App {
@@ -43,6 +45,7 @@ impl App {
         match Session::open(path, self.fonts()) {
             Ok(mut s) => {
                 add_recent(&s.title, &s.main_path);
+                *self.failed.lock().unwrap() = None;
                 let v = s.view();
                 *self.session.lock().unwrap() = Some(s);
                 v
@@ -50,7 +53,9 @@ impl App {
             Err(problems) => {
                 let list: Vec<Value> = problems.iter().map(|p| json!({ "title": lang::tr(&p.title), "detail": p.detail, "hint": lang::tr(&p.hint) })).collect();
                 *self.session.lock().unwrap() = None;
-                json!({ "open": false, "problems": list, "msg": "문서를 열지 못했습니다.", "msgKind": "error" })
+                let v = json!({ "open": false, "problems": list, "msg": "문서를 열지 못했습니다.", "msgKind": "error" });
+                *self.failed.lock().unwrap() = Some(v.clone());
+                v
             }
         }
     }
@@ -96,7 +101,7 @@ fn serve(server: Server, app: Arc<App>) {
             }
             "/api/state" => {
                 let mut g = app.session.lock().unwrap();
-                let v = match g.as_mut() { Some(s) => s.view(), None => json!({ "open": false }) };
+                let v = match g.as_mut() { Some(s) => s.view(), None => app.failed.lock().unwrap().clone().unwrap_or_else(|| json!({ "open": false })) };
                 drop(g);
                 respond_json(req, &v);
             }
@@ -281,7 +286,7 @@ fn main() {
         }
         i += 1;
     }
-    let app = Arc::new(App { session: Mutex::new(None), fonts: OnceLock::new() });
+    let app = Arc::new(App { session: Mutex::new(None), fonts: OnceLock::new(), failed: Mutex::new(None) });
     let server = Server::http(("127.0.0.1", port)).expect("포트를 열지 못했습니다");
     let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(port);
     {
