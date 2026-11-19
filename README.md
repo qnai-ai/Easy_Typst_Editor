@@ -1,206 +1,239 @@
 <div align="center">
 
-# Easy Typst Editor
+<img src="docs/readme/en/hero.png" alt="Easy Typst Editor — Edit Typst like a PDF. Save clean .typ source." width="860">
 
-**Edit your Typst output the way you'd edit a PDF in Adobe Acrobat — except every change goes back into clean `.typ` source.**
+<br>
 
-Open a `main.typ`, see every page exactly as Typst typesets it, click on the text and type.
-Ctrl+S writes the change back into the right spot of the right `.typ` file.
-
-🐞 **Found a bug or have an idea? [Open a GitHub issue](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose) — I fix reported issues within 24 hours.**
-
-[![Latest release](https://img.shields.io/github/v/release/qnai-ai/Easy_Typst_Editor?label=download)](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)
-![Windows · macOS · Linux](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-0078d4)
-![Typst 0.15.1](https://img.shields.io/badge/Typst-0.15.1-239dad)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Download free](https://img.shields.io/github/v/release/qnai-ai/Easy_Typst_Editor?label=Download%20free&style=for-the-badge&color=1f6feb)](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)
+&nbsp;
+![Windows · macOS · Linux](https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-0b1f44?style=for-the-badge)
+&nbsp;
+[![MIT](https://img.shields.io/badge/License-MIT-28a745?style=for-the-badge)](LICENSE)
 
 **English** · [한국어](README.ko.md)
 
-![Easy Typst Editor screenshot](docs/screenshot-en.png)
-
 </div>
 
-## Why?
+<br>
 
-[Typst](https://typst.app) is a wonderful typesetting system — but the people who need to *fix a typo in the book*
-(editors, co-authors, proofreaders, teachers, students) often don't want to touch markup.
-Easy Typst Editor lets them work on the **rendered pages**, while the result is still an ordinary,
-version-control-friendly Typst project.
+## 😩 Sound familiar?
 
-It was built to edit real books: a 277-page textbook re-typesets in about half a second per edit.
+> 💬 *“Could you fix one typo on page 132, line 3?”* — your co-author, again.
+>
+> 💬 *“I opened the .typ file… but I have no idea where to change it.”* — your editor, stuck in front of markup.
+>
+> 💬 *“Every formula ChatGPT gave me is LaTeX.”* — so you retype them all in Typst.
 
-## Features
+[Typst](https://typst.app) is a wonderful typesetting system — but **not everyone who needs to fix a document knows Typst.**
+**Easy Typst Editor** lets you edit right on the typeset *page*, and keeps the result as clean `.typ` source.
 
-- **What you see is the real output.** Typst 0.15.1 is embedded, so pages, fonts and page breaks match `typst compile`.
-- **Click and type, like a word processor.** Insert, delete, paste, select by drag / double-click (word) / triple-click (paragraph) /
-  Shift+arrows, move by word and paragraph, find and replace. See [Keyboard](#keyboard).
-- **Hold Backspace and it keeps going.** Deleting walks straight through inline template markup such as `#lk("a")[word]`,
-  removes elements that end up empty, and steps from one text box into the next, so a run of entries can be cleared with the key alone.
-  An item written as a function argument (`#stack(check[A], check[B])`) goes away the same way once its text is gone; an item that
-  is already empty has no text to click, so press Backspace at the start of the next item or Delete at the end of the previous one.
-  A selection may span several text boxes: the text inside each is deleted and the structure is kept.
-- **Formatting that writes clean Typst:** Ctrl+B → `*bold*`, Ctrl+I → `_italic_`, Ctrl+U → `#underline[...]` (or your template's own `#u[...]`),
-  strikethrough, paragraph alignment (`#align(center)[...]`), Enter → new paragraph, Shift+Enter → `\` line break, Tab, hanging indent.
-  Typing over a selection keeps its formatting. Ctrl+B follows what is actually typeset, not only the marks in the source:
-  it also turns off bold that comes from `#text(weight: "bold")[...]`, a template function or a `#show` rule.
-  Ctrl+U does the same for an underline drawn by a rule (for example `#show emph: it => underline(it.body)`): it removes the
-  `_..._` that the rule decorates and keeps the bold if there was one.
-- **Multi-file projects.** Edits go to whichever included file the text came from (`content/ch01.typ`, …).
-- **Template text is protected.** Page numbers, outlines, headers and other computed text are locked — click them and the editor explains why.
-- **Move or delete whole blocks.** Alt+click any element (a placed label, a heading line, a template element) to drag it or delete it.
-- **Resize boxes and tables with the mouse.** Click into a box or table and faint handles appear on its edges: drag the right edge
-  for the width, the bottom edge for the height, a line between two columns or rows for that column or row. The editor rewrites
-  `width:` / `height:` / `columns:` / `rows:` in the source and keeps the unit you wrote (`60mm` stays mm, `80%` stays %).
-  A value given as a variable is changed where the variable is set.
-- **One template box, not all of them.** Dragging a box that a template function draws changes only the one you dragged: the function
-  gets a parameter (`#let key(body, width: 100%) = block(width: width, ..)`) and the call gets the value (`#key(width: 80%)[..]`).
-  Hold Shift while dragging to change every place the template is used.
-- **Font size and colour.** Toolbar buttons and Ctrl+[ / Ctrl+]. If the selection is the whole content of a `#text(..)[..]`, its
-  argument is changed; otherwise the selection is wrapped in `#text(size: ..)[..]` / `#text(fill: ..)[..]`.
-- **Images.** Click an image to pick it, drag to resize (the aspect ratio is kept), or replace the file: the new file is copied
-  next to the old one and the path in the source is rewritten.
-- **Table rows and columns.** Right-click in a table to insert or delete a row or a column. Empty cells can be clicked and typed into.
-- **Equations.** Click an equation and its Typst source opens in a small box next to it; the page is re-typeset as you type,
-  a syntax error is shown in the box instead of breaking the page, and a checkbox switches between inline `$x$` and block `$ x $`.
-  Enter keeps the change, Esc throws it away, and the whole edit is one undo step. Ctrl+M (or the ∑ button) inserts a new equation
-  at the caret; buttons insert common pieces (`sum_(i=1)^n`, `sqrt()`, `alpha`, `<=` …). Labels such as `<eq:1>` and numbering stay as they are.
-- **Paste LaTeX math.** Paste text with LaTeX math (`$rac{a}{b}$`, `$$..$$`, `\(..\)`, `\[..\]`, e.g. from ChatGPT or a paper) and the
-  equations arrive as Typst equations; pasting LaTeX into the equation box converts it too. Ctrl+Shift+V pastes the text unchanged.
-  The conversion uses [tex2typst](https://github.com/qwinsi/tex2typst) (Apache-2.0, bundled; see `ui/vendor/tex2typst.LICENSE.txt`).
-- **Safe by design.** Every edit is checked against the syntax tree and rolled back if it would break compilation; nothing touches the disk until you save;
-  the original is backed up before each save; and it refuses to overwrite a file another program changed in the meantime.
-- **Export PDF.** One click (Ctrl+P) writes the pages as you see them, unsaved edits included, using the same Typst engine as `typst compile`.
-- **Developer view.** Optionally shows the source line you are editing.
-- **5 UI languages:** English, 한국어, 日本語, 简体中文, Español (🌐 menu, top-right).
+<br>
 
-## Download & run
+<div align="center"><img src="docs/readme/en/steps.png" alt="Three steps: open main.typ, click and type, Ctrl+S" width="860"></div>
 
-Download the package for your system from **[Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)**,
-unpack it anywhere, start the editor and choose your project's `main.typ`.
-Try [`examples/hello/main.typ`](examples/hello/main.typ) first.
+<br>
 
-| System | Package | Run | Needs |
-|---|---|---|---|
-| **Windows 10/11** | `EasyTypstEditor-vX.Y.Z-windows-x64.zip` | `EasyTypstEditor.exe` (keep `WebView2Loader.dll` next to it if the zip has one) | Microsoft Edge WebView2 Runtime (preinstalled on current Windows) |
-| **macOS 11+** (Apple Silicon and Intel) | `EasyTypstEditor-vX.Y.Z-macos-universal.zip` | `Easy Typst Editor.app` | nothing else |
-| **Linux** (x86-64) | `EasyTypstEditor-vX.Y.Z-linux-x64.tar.gz` | `./EasyTypstEditor` | WebKitGTK 4.1 and GTK 3 |
+## ✨ Five things it does well
 
-- **macOS:** the app is not notarized by Apple, so the first start is blocked. Allow it once under
-  *System Settings → Privacy & Security → Open Anyway*, or run `xattr -dr com.apple.quarantine "Easy Typst Editor.app"`.
-  To open `.typ` files with a double-click, use Finder's *Get Info → Open with → Change All*.
-- **Linux:** install the web view if it is missing — Debian/Ubuntu `sudo apt install libwebkit2gtk-4.1-0`,
-  Fedora `sudo dnf install webkit2gtk4.1`, Arch `sudo pacman -S webkit2gtk-4.1`. `sh register.sh` adds the editor to the
-  application menu and opens `.typ` files with a double-click (`sh register.sh -u` undoes it).
-  The file chooser comes from your desktop (XDG desktop portal; `zenity` is used if there is none).
-- **Windows:** run `register.ps1` to open `.typ` files with a double-click.
+<div align="center"><img src="docs/readme/en/point-source.png" alt="POINT 1: edit the page, the source changes cleanly" width="860"></div>
 
-You can also open a file directly: `EasyTypstEditor "path/to/main.typ"`.
+- Click any text on the page and type. Select, delete, paste, find & replace — just like a word processor.
+- **Ctrl+B → `*bold*`, Ctrl+I → `_italic_`, Ctrl+U → `#underline[..]`.** The source reads as if a person wrote it.
+- Multi-file books are fine: each edit lands in the file and line it came from (`content/ch01.typ` …).
 
-macOS and Linux support is new — if something behaves differently there, please [open an issue](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose).
+<br>
 
-## Keyboard
+<div align="center"><img src="docs/readme/en/point-math.png" alt="POINT 2: click an equation, it re-typesets as you type" width="860"></div>
 
-On **macOS** use ⌘ where the table says Ctrl and ⌥ where it says Alt. Caret movement follows the Mac habit:
-⌥←/→ by word, ⌥↑/↓ by paragraph, ⌥+Delete deletes a word, ⌘←/→ line start/end, ⌘↑/↓ document start/end.
-F1 shows the keys for the system you are on.
+- Click an equation to open its source; **the page re-typesets as you type.** A typo never breaks the page.
+- Enter to confirm, Esc to cancel, one undo per equation edit. **Ctrl+M** inserts a new one.
+- Equation numbers and labels (`<eq:1>`) stay put, and “Equation 1” references follow along.
+
+<br>
+
+<div align="center"><img src="docs/readme/en/point-latex.png" alt="POINT 3: paste LaTeX from ChatGPT, get Typst math" width="860"></div>
+
+- Understands `$..$`, `$$..$$`, `\(..\)` and `\[..\]` — also when pasted into the equation box.
+- **Ctrl+Shift+V** pastes plain text. Prices like `$5 and $6` are not mistaken for math.
+- Conversion is done by the open-source [tex2typst](https://github.com/qwinsi/tex2typst) (Apache-2.0), entirely on your PC.
+
+<br>
+
+<div align="center"><img src="docs/readme/en/point-table.png" alt="POINT 4: type into table cells, right-click to add rows and columns" width="860"></div>
+
+- Click a cell and type. Right-click to **insert or delete rows and columns.**
+- Click inside a table or box and handles appear: drag to resize **column widths, row heights and boxes**, keeping the units in your source (`mm`, `%`, `fr`).
+- Click an image to resize it; “Replace image” swaps the file.
+
+<br>
+
+<div align="center"><img src="docs/readme/en/point-safe.png" alt="POINT 5: hard to break, easy to undo" width="860"></div>
+
+- Every edit is syntax-checked; an edit that would break typesetting is **rolled back automatically.**
+- Text your template generates (page numbers, outline, references) is locked, and tells you why when clicked.
+- Nothing touches the disk until you save. Each save backs up the original, and it won't overwrite a file another program changed meanwhile.
+
+<br>
+
+## 📚 How people use it — use cases
+
+> Cases 1–3 are **illustrative scenarios** of where the editor fits best; case 4 is a real book being made with it.
+
+<table>
+<tr><td width="50%" valign="top">
+
+### 📖 Case 1. A co-author's proofreading pass
+
+**Before** An editor reviewing a 300-page textbook PDF finds 40 typos.
+They used to annotate the PDF, send it to the author, who hunted each one down in `.typ` and sent a new PDF back.
+
+**Now** The editor opens `main.typ`, fixes the text on the page, hits Ctrl+S.
+Same mistake everywhere? Ctrl+F → “Replace all”.
+
+**Result** **Zero** round trips. The author just reviews the changed lines in git.
+
+</td><td width="50%" valign="top">
+
+### 🧮 Case 2. A math teacher's worksheet
+
+**Before** Problems drafted with ChatGPT come with math like `\frac{a}{b}` — all LaTeX.
+
+**Now** Copy the whole answer and paste it on the page: prose stays prose, math becomes Typst math.
+Click any formula you don't like and see it re-typeset as you fix it.
+
+**Result** No retyping formulas. A worksheet takes a few pastes.
+
+</td></tr>
+<tr><td width="50%" valign="top">
+
+### 🔬 Case 3. A grad student's lab report
+
+**Before** One more measurement means one more table row, and a coefficient changes in an equation. Deadline: one hour.
+
+**Now** Right-click in the table → “Insert row below”, click the cells, type the values.
+Drag a handle to widen a cramped column; click the equation and change just the coefficient.
+
+**Result** Equation numbers and “Equation 2” references stay correct — Typst handles them. The source is still clean Typst.
+
+</td><td width="50%" valign="top">
+
+### 🏷️ Case 4. A real 277-page vocabulary textbook
+
+This editor was **born to make a real book.**
+A 277-page Korean vocabulary textbook is being edited with it, and each edit re-typesets in **about half a second.**
+
+Even with a complex template (processed headwords, per-chapter files, an automatic outline),
+editable text is editable, and template-generated text is safely locked.
+
+</td></tr>
+</table>
+
+<div align="center"><img src="docs/screenshot-ko.png" alt="Editing the real 277-page textbook; the source in the developer view on the right" width="860"><br><sub>Case 4 · the real textbook. Right: the source in the developer view (the line being edited is highlighted).</sub></div>
+
+<br>
+
+## 🆚 Compared with editing the source by hand
+
+| | Editing `.typ` by hand | **Easy Typst Editor** |
+|---|---|---|
+| Finding the spot | Read the PDF, then search the source | **Click it on the page** |
+| Syntax slips | One bracket can break the build | **Breaking edits roll back automatically** |
+| Math | Memorise the syntax | **Click, edit, see it typeset · paste LaTeX** |
+| Adding a table row | Count cells, type `[..]` | **One right-click** |
+| Collaborators | Must learn Typst | **If they can use a word processor, they're set** |
+| Output | `.typ` | **The same clean `.typ`** (diff-friendly in git) |
+
+<br>
+
+## ⬇️ Download & run
+
+Grab the package for your system from **[Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)**, unzip, run, and pick a `main.typ`.
+First time? Try [`examples/hello/main.typ`](examples/hello/main.typ).
+
+| System | Package | Run |
+|---|---|---|
+| 🪟 **Windows 10/11** | `…-windows-x64.zip` | `EasyTypstEditor.exe` |
+| 🍎 **macOS 11+** (Apple Silicon · Intel) | `…-macos-universal.zip` | `Easy Typst Editor.app` |
+| 🐧 **Linux** (x86-64) | `…-linux-x64.tar.gz` | `./EasyTypstEditor` (needs WebKitGTK 4.1) |
+
+<details>
+<summary><b>First run on macOS · Linux</b></summary>
+
+- **macOS:** the app isn't notarized by Apple, so the first launch is blocked. Allow it once in *System Settings → Privacy & Security → Open Anyway*, or run
+  `xattr -dr com.apple.quarantine "Easy Typst Editor.app"`.
+- **Linux:** install the webview if missing — Debian/Ubuntu `sudo apt install libwebkit2gtk-4.1-0`, Fedora `sudo dnf install webkit2gtk4.1`,
+  Arch `sudo pacman -S webkit2gtk-4.1`. `sh register.sh` adds it to the app menu and opens .typ files on double-click.
+- **Windows:** run `register.ps1` to open .typ files on double-click.
+
+</details>
+
+<br>
+
+## ❓ FAQ
+
+<details><summary><b>Is it really free?</b></summary>
+
+Yes. It's open source under the MIT license — use, modify and redistribute it at home, at work or at school.
+</details>
+
+<details><summary><b>Can I use it without knowing Typst?</b></summary>
+
+Yes. Fixing text, making it bold or adding a table row works like a word processor. Only math uses Typst math syntax — and the symbol buttons and LaTeX paste help with that.
+</details>
+
+<details><summary><b>Could it break my source?</b></summary>
+
+Every edit is syntax-checked and rolled back if typesetting breaks. Nothing is written until you save, and each save backs up the original.
+Ctrl+Z undoes as far back as you like.
+</details>
+
+<details><summary><b>Does my document leave my computer?</b></summary>
+
+No. The Typst engine (0.15.1) is built into the app, so everything happens on your PC. The window talks to the engine only on 127.0.0.1.
+</details>
+
+<details><summary><b>Does it look exactly like `typst compile`?</b></summary>
+
+Yes. Same Typst 0.15.1 engine and the same fonts, so page size and page breaks match. “Save as PDF” (Ctrl+P) uses that engine too.
+</details>
+
+<details><summary><b>Why can't I edit some text?</b></summary>
+
+Page numbers, the outline and reference numbers are computed by your template — those characters aren't in the source, so they're locked. Clicking them tells you why;
+Alt+click picks the whole element to move or delete it. If something is locked that shouldn't be, please [open an issue](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose).
+</details>
+
+<details><summary><b>Keyboard shortcuts at a glance</b></summary>
+
+On macOS use ⌘ for Ctrl and ⌥ for Alt. Press F1 in the app for the full list.
 
 | Keys | Action |
 |---|---|
-| Click / drag / Shift+click / Shift+arrows | Caret / select |
-| Double-click · triple-click · Ctrl+A | Select word · paragraph · the whole text box |
-| Backspace · Delete | Delete a character; hold to keep deleting across markup and text boxes |
-| Ctrl+Backspace · Ctrl+Delete | Delete a word |
-| Ctrl+← · Ctrl+→ · Ctrl+↑ · Ctrl+↓ | Move by word · by paragraph |
-| Home · End · Ctrl+Home · Ctrl+End | Line start · end · document start · end |
-| Ctrl+X · Ctrl+C · Ctrl+V | Cut · copy · paste (also in the right-click menu) |
-| Ctrl+B · Ctrl+I · Ctrl+U · Ctrl+Shift+X | Bold · italic · underline · strikethrough |
-| Ctrl+] · Ctrl+[ | Larger · smaller text |
-| Ctrl+L · Ctrl+E · Ctrl+R · Ctrl+J | Align left · center · right · back to the template's alignment |
-| Enter · Shift+Enter · Tab | New paragraph · line break · tab |
-| Ctrl+F · Ctrl+H · F3 · Shift+F3 | Find · replace · next · previous match |
-| Ctrl+Z · Ctrl+Y | Undo · redo (consecutive typing or deleting is one step) |
-| Ctrl+S · Ctrl+O · Ctrl+P | Save · open · export PDF |
-| Alt+click | Pick a whole element (then drag, arrow keys, or Delete) |
-| Drag a handle (click into a box or table to see them) | Width and height of a box · width of a column · height of a row. Shift: every use of the template |
-| Click an image | Pick it: resize with the handles, or replace the file |
-| Right-click in a table | Insert or delete a row or a column |
-| Click an equation · Ctrl+M | Edit that equation · insert a new one (Enter: done, Esc: discard) |
-| Ctrl+V · Ctrl+Shift+V | Paste (LaTeX math becomes Typst math) · paste unchanged |
-| Ctrl+wheel · Ctrl+Plus · Ctrl+Minus · Ctrl+0 | Zoom in/out · fit width |
-| Ctrl+G · Page Up · Page Down | Go to page · scroll a screen |
-| F1 | Show all shortcuts |
+| Click · drag · Shift+arrows | Caret · selection |
+| Ctrl+B · Ctrl+I · Ctrl+U | Bold · italic · underline |
+| Ctrl+Z · Ctrl+Y · Ctrl+S · Ctrl+P | Undo · redo · save · save as PDF |
+| Ctrl+F · Ctrl+H | Find · replace |
+| Click an equation · Ctrl+M | Edit equation · insert equation |
+| Ctrl+V · Ctrl+Shift+V | Paste (LaTeX → Typst) · paste as plain text |
+| Right-click in a table | Insert / delete rows and columns |
+| Alt+click | Pick a whole element (move · delete) |
 
-## How it works
+</details>
 
-Typst knows which source span produced each glyph. The editor builds an index from every glyph on the page to its
-source position, **verifies** it against the source text, and recovers positions that `show` rules lose by matching the
-rendered text against the source. Text that cannot be mapped safely is locked rather than guessed.
-Each edit is applied to the source in memory, the document is re-typeset incrementally, and the pages are redrawn as SVG.
+<br>
 
-```
-src/world.rs    Typst World: files in memory, written to disk only on save
-src/index.rs    glyph ↔ source index (recomputed only for changed pages)
-src/recover.rs  verifying / recovering source positions
-src/edit.rs     source edits (insert, delete, formatting, paragraphs, indent, alignment, elements) + unit tests
-src/session.rs  editing session: caret, selection, movement, find/replace, undo, save
-src/lang.rs     UI language (strings in ui/i18n.json)
-src/main.rs     window (the system web view: WebView2 / WKWebView / WebKitGTK) + local UI server on 127.0.0.1
-ui/index.html   the UI
-```
+## 🐞 Bugs fixed within 24 hours
 
-## Build from source
+Found something odd, or want a feature? Tell us in **[GitHub Issues](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose)** — we aim to fix it within 24 hours.
+A small `.typ` file or a screenshot that shows the problem makes it much faster.
+If it helps you, a ⭐ helps other Typst users find it.
 
-```powershell
-# Windows — Rust (MSVC toolchain, or GNU toolchain + MinGW)
-powershell -ExecutionPolicy Bypass -File build.ps1   # → dist\EasyTypstEditor.exe
-cargo test --release
-```
+## 📘 Learn more
 
-```sh
-# Linux — Rust, plus on Debian/Ubuntu: sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev
-# macOS — Rust and the Xcode command line tools
-sh build.sh              # → dist/EasyTypstEditor   or   dist/Easy Typst Editor.app
-UNIVERSAL=1 sh build.sh  # macOS: one app for Apple Silicon and Intel
-cargo test --release
-```
-
-[`.github/workflows/build.yml`](.github/workflows/build.yml) builds and tests all three systems on every push, and attaches the
-packages to the release when a `v*` tag is pushed.
-
-Headless mode for development: `EasyTypstEditor --serve 47615 main.typ`, then open `http://127.0.0.1:47615/`.
-To open a document at a given page: `EasyTypstEditor --page 120 main.typ` (the page's position in the PDF, counting from 1).
-
-Settings, the recent list and the backups made before each save live in `%LOCALAPPDATA%\EasyTypstEditor` (Windows),
-`~/Library/Application Support/EasyTypstEditor` (macOS) or `~/.local/share/EasyTypstEditor` (Linux).
-Typst packages are looked up where `typst` itself keeps them (`TYPST_PACKAGE_PATH` and `TYPST_PACKAGE_CACHE_PATH` are honoured).
-
-## Known limitations
-
-- Handles appear for boxes the editor can trace back to the source: tables, grids, boxes with a fill or a border, images, and boxes
-  written directly in the document. An invisible box created inside a template function cannot be traced, and a size written as an
-  expression (`if`, a function call) is not rewritten.
-- Rows and columns can be inserted or deleted only in tables whose cells are written one by one in the source: not in tables built
-  by code (`..rows.map(..)`), and not when there are merged cells or `table.header(..)` groups.
-- The caret in an empty paragraph (right after Enter) is drawn at an estimated position.
-- Find works on the text as printed on the page. "Replace all" changes only matches whose source is plain text
-  (matches inside template-generated text, or spanning markup, are skipped and counted).
-- If the same text appears several times on a page and cannot be told apart by context, it is locked (safer than editing the wrong one).
-
-## Bugs & suggestions — fixed within 24 hours
-
-Please report anything that goes wrong, and anything you wish it did, on **[GitHub Issues](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose)**.
-I fix reported issues within 24 hours. A minimal `.typ` file (or a screenshot) that shows the problem makes it much faster.
-
-## Contributing
-
-Pull requests are welcome too — especially:
-
-- **Translations:** all UI strings live in [`ui/i18n.json`](ui/i18n.json). Add your language code to each entry and to `LANGS` in `src/lang.rs`.
-- Templates or documents where text gets locked unexpectedly (a minimal `.typ` reproduction helps a lot).
-- Reports from macOS and from Linux desktops (Wayland compositors, other distributions).
-
-If this tool saves you time, a ⭐ helps other Typst users find it.
+- **[Full manual](docs/manual.md)** — every feature, all shortcuts, how it works, building from source, known limitations
+- Translations welcome: all UI text lives in one file, [`ui/i18n.json`](ui/i18n.json) (한국어 · English · 日本語 · 简体中文 · Español).
 
 ## License
 
-[MIT](LICENSE). Easy Typst Editor is not affiliated with Typst GmbH or Adobe; it embeds the open-source [Typst](https://github.com/typst/typst) compiler (Apache-2.0).
+[MIT](LICENSE). Bundles the open-source [Typst](https://github.com/typst/typst) compiler (Apache-2.0) and [tex2typst](https://github.com/qwinsi/tex2typst) (Apache-2.0, license: [`ui/vendor/tex2typst.LICENSE.txt`](ui/vendor/tex2typst.LICENSE.txt)).
+Not affiliated with Typst GmbH or Adobe.

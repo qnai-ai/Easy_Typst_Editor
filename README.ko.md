@@ -1,186 +1,239 @@
-# 쉬운 지면 편집기 (Easy Typst Editor)
+<div align="center">
+
+<img src="docs/readme/ko/hero.png" alt="쉬운 지면 편집기 — PDF 고치듯 Typst를 고친다. 저장은 깨끗한 .typ 원고로." width="860">
+
+<br>
+
+[![지금 무료로 내려받기](https://img.shields.io/github/v/release/qnai-ai/Easy_Typst_Editor?label=%EB%AC%B4%EB%A3%8C%20%EB%82%B4%EB%A0%A4%EB%B0%9B%EA%B8%B0&style=for-the-badge&color=1f6feb)](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)
+&nbsp;
+![Windows · macOS · Linux](https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-0b1f44?style=for-the-badge)
+&nbsp;
+[![MIT](https://img.shields.io/badge/%EB%9D%BC%EC%9D%B4%EC%84%A0%EC%8A%A4-MIT-28a745?style=for-the-badge)](LICENSE)
 
 [English](README.md) · **한국어**
 
-![화면 예시](docs/screenshot-ko.png)
+</div>
 
-**내려받기:** [Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)에서 쓰는 시스템의 꾸러미를 받아 풀고 실행한다(Windows 10/11 · macOS 11 이상 · Linux).
+<br>
 
-**Typst 결과물을 Adobe Acrobat에서 PDF 고치듯 편집한다.** 다른 점은, 고친 내용이 PDF가 아니라 원고(.typ)에 깔끔하게 반영된다는 것.
+## 😩 이런 적, 있으시죠?
 
-Typst를 몰라도 쓰는 교재 지면 편집기. `main.typ` 하나를 열면 책이 쪽 단위로 펼쳐지고,
-지면에서 글자를 눌러 바로 고친 뒤 저장하면 해당 원고(.typ) 파일에 반영된다.
+> 💬 *“132쪽 셋째 줄에 오타 하나만 고쳐 주세요.”* — 공동 저자에게 또 메시지가 왔다.
+>
+> 💬 *“.typ 파일은 열어 봤는데… 어디를 고쳐야 할지 모르겠어요.”* — 편집자는 마크업 앞에서 멈췄다.
+>
+> 💬 *“ChatGPT가 준 수식이 전부 LaTeX예요.”* — 하나하나 Typst로 다시 쳤다.
 
-> **오류·건의는 [GitHub Issues](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose)로 보내 주세요. 24시간 안에 고치겠습니다.**
+[Typst](https://typst.app)는 훌륭한 조판 시스템이지만, **고치는 사람이 모두 Typst를 알지는 않습니다.**
+**쉬운 지면 편집기**는 조판된 *지면* 위에서 바로 고치게 해 주고, 결과는 그대로 깨끗한 `.typ` 원고로 남깁니다.
 
-| 시스템 | 꾸러미 | 실행 | 필요한 것 |
-|---|---|---|---|
-| **Windows 10/11** | `EasyTypstEditor-vX.Y.Z-windows-x64.zip` | `EasyTypstEditor.exe` (zip에 `WebView2Loader.dll`이 있으면 같은 폴더에 둔다) | Microsoft Edge WebView2 런타임(요즘 Windows에는 들어 있다) |
-| **macOS 11 이상** (Apple Silicon · Intel) | `EasyTypstEditor-vX.Y.Z-macos-universal.zip` | `Easy Typst Editor.app` | 없음 |
-| **Linux** (x86-64) | `EasyTypstEditor-vX.Y.Z-linux-x64.tar.gz` | `./EasyTypstEditor` | WebKitGTK 4.1, GTK 3 |
+<br>
 
-- **macOS:** Apple의 공증을 받지 않은 앱이라 처음 실행이 막힌다. *시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기*로 한 번 허용하거나,
-  `xattr -dr com.apple.quarantine "Easy Typst Editor.app"`을 실행한다.
-- **Linux:** 웹뷰가 없으면 깐다 — Debian/Ubuntu `sudo apt install libwebkit2gtk-4.1-0`, Fedora `sudo dnf install webkit2gtk4.1`,
-  Arch `sudo pacman -S webkit2gtk-4.1`. 파일 고르기 창은 데스크톱의 것을 쓴다(XDG desktop portal, 없으면 `zenity`).
-- 교재를 바로 열기: `EasyTypstEditor "…/main.typ"`
-- 빌드: Windows는 `powershell -ExecutionPolicy Bypass -File build.ps1`, macOS · Linux는 `sh build.sh`
-- macOS · Linux 지원은 새로 넣은 것이다. 거기서 다르게 움직이는 것이 있으면 Issues로 알려 주세요.
+<div align="center"><img src="docs/readme/ko/steps.png" alt="딱 세 단계: main.typ 열기, 누르고 고치기, Ctrl+S" width="860"></div>
 
-## 확정한 설계 (처음 계획에서 고친 점)
+<br>
 
-| 항목 | 확정 내용 |
+## ✨ 핵심 기능 5가지
+
+<div align="center"><img src="docs/readme/ko/point-source.png" alt="POINT 1: 지면을 고치면 원고가 깔끔하게 바뀝니다" width="860"></div>
+
+- 지면의 글자를 누르고 그대로 치세요. 고르기, 지우기, 붙여넣기, 찾기·바꾸기까지 워드와 같습니다.
+- **Ctrl+B → `*굵게*`, Ctrl+I → `_기울임_`, Ctrl+U → `#underline[..]`.** 사람이 쓴 것 같은 Typst가 남습니다.
+- 여러 파일로 나뉜 책도 OK. 고친 글은 그 글이 나온 파일(`content/ch01.typ` …)의 그 줄로 들어갑니다.
+
+<br>
+
+<div align="center"><img src="docs/readme/ko/point-math.png" alt="POINT 2: 수식도 누르면 고치는 대로 조판됩니다" width="860"></div>
+
+- 수식을 누르면 원문 창이 뜨고, **치는 대로 지면이 바로 다시 조판**됩니다. 문법이 틀려도 지면은 깨지지 않아요.
+- Enter는 확인, Esc는 취소, 한 수식을 고친 것은 되돌리기 한 번. 새 수식은 **Ctrl+M**.
+- 수식 번호와 꼬리표(`<eq:1>`)는 그대로. 본문의 “식 1” 참조도 알아서 따라갑니다.
+
+<br>
+
+<div align="center"><img src="docs/readme/ko/point-latex.png" alt="POINT 3: ChatGPT의 LaTeX 수식, 붙여 넣으면 Typst 수식으로" width="860"></div>
+
+- `$..$`, `$$..$$`, `\(..\)`, `\[..\]` 모두 알아봅니다. 수식 창에 붙여 넣어도 바꿔 줍니다.
+- 그냥 글로 넣고 싶으면 **Ctrl+Shift+V**. `$5 and $6` 같은 금액은 수식으로 오해하지 않습니다.
+- 변환은 오픈 소스 [tex2typst](https://github.com/qwinsi/tex2typst)(Apache-2.0)가 맡습니다. 인터넷 연결 없이 PC 안에서 처리합니다.
+
+<br>
+
+<div align="center"><img src="docs/readme/ko/point-table.png" alt="POINT 4: 표는 칸을 눌러 쓰고, 오른쪽 클릭으로 줄·칸 추가" width="860"></div>
+
+- 칸을 누르고 바로 입력. 오른쪽 클릭으로 **줄·칸 넣기와 지우기**.
+- 표나 상자 안을 누르면 가장자리에 손잡이가 생깁니다. 끌면 **칸 너비·줄 높이·상자 크기**가 바뀌고, 원고에 적힌 단위(`mm`, `%`, `fr`)를 지킵니다.
+- 그림은 눌러서 크기 조절, 「그림 바꾸기」로 파일 교체.
+
+<br>
+
+<div align="center"><img src="docs/readme/ko/point-safe.png" alt="POINT 5: 망가뜨리기는 어렵고 되돌리기는 쉽게" width="860"></div>
+
+- 고칠 때마다 구문을 검사해, 조판이 깨질 고침은 **자동으로 되돌립니다.**
+- 쪽 번호·차례·참조처럼 템플릿이 만드는 글은 잠기고, 누르면 이유를 알려 줍니다.
+- 저장 전까지 디스크는 그대로. 저장할 때마다 원본을 따로 백업하고, 다른 프로그램이 그새 파일을 바꿨으면 덮어쓰지 않습니다.
+
+<br>
+
+## 📚 이렇게 씁니다 — 상세 사례
+
+> 아래 1~3은 이 편집기가 잘 맞는 **대표적인 상황을 예로 든 것**이고, 4는 실제로 만들고 있는 책입니다.
+
+<table>
+<tr><td width="50%" valign="top">
+
+### 📖 사례 1. 교재 공동 저자의 오탈자 수정
+
+**상황** 출판사 편집자가 300쪽 교재 PDF를 검토하다 오탈자 40곳을 찾았습니다.
+예전엔 PDF에 메모를 달아 저자에게 보내고, 저자가 `.typ`에서 하나하나 찾아 고친 뒤 다시 PDF를 만들어 보냈습니다.
+
+**이렇게** 편집자가 `main.typ`를 열고, 지면에서 바로 고치고, Ctrl+S.
+Ctrl+F로 같은 실수를 찾아 「모두 바꾸기」.
+
+**결과** 저자와 주고받는 왕복이 **0번**. 저자는 git에서 바뀐 줄만 확인하면 끝.
+
+</td><td width="50%" valign="top">
+
+### 🧮 사례 2. 수학 선생님의 학습지
+
+**상황** ChatGPT로 문제를 만들면 수식이 전부 `\frac{a}{b}` 같은 LaTeX로 나옵니다.
+
+**이렇게** 답을 통째로 복사해 지면에 붙여 넣으면 글은 글대로, 수식은 Typst 수식으로 들어갑니다.
+마음에 안 드는 수식은 눌러서 고치면 바로 조판된 모습이 보입니다.
+
+**결과** 수식을 다시 칠 필요가 없습니다. 학습지 한 장이 붙여넣기 몇 번으로 끝.
+
+</td></tr>
+<tr><td width="50%" valign="top">
+
+### 🔬 사례 3. 대학원생의 실험 보고서
+
+**상황** 측정을 한 번 더 해서 표에 줄을 늘리고, 식 하나의 계수를 바꿔야 합니다. 마감은 한 시간 뒤.
+
+**이렇게** 표 안에서 오른쪽 클릭 → 「아래에 줄 넣기」, 칸을 눌러 값 입력.
+좁은 칸은 손잡이를 끌어 넓히고, 식은 눌러서 계수만 고칩니다.
+
+**결과** 식 번호와 “식 2” 참조는 Typst가 그대로 맞춰 줍니다. 원고는 여전히 깔끔한 Typst.
+
+</td><td width="50%" valign="top">
+
+### 🏷️ 사례 4. 실제로 만들고 있는 277쪽 어휘 교재
+
+이 편집기는 **실제 책을 만들려고** 태어났습니다.
+277쪽짜리 어휘 교재를 이 편집기로 고치고 있고, 한 번 고칠 때마다 **0.5초 안팎**이면 다시 조판됩니다.
+
+복잡한 템플릿(표제어 가공, 장별 파일, 자동 차례)이 있어도
+고칠 수 있는 글은 고치고, 템플릿이 만든 글은 안전하게 잠급니다.
+
+</td></tr>
+</table>
+
+<div align="center"><img src="docs/screenshot-ko.png" alt="277쪽 실제 교재를 편집하는 화면. 오른쪽은 개발자용 보기로 본 원고" width="860"><br><sub>사례 4 · 실제 교재 화면. 오른쪽은 「개발자용 보기」로 연 원고(고치는 줄이 노랗게 표시됩니다).</sub></div>
+
+<br>
+
+## 🆚 원고를 직접 고칠 때와 비교하면
+
+| | `.typ` 원고를 직접 고칠 때 | **쉬운 지면 편집기** |
+|---|---|---|
+| 고칠 곳 찾기 | PDF에서 보고, 원고에서 다시 검색 | **지면에서 바로 누르기** |
+| 문법 실수 | 괄호 하나로 조판이 깨질 수 있음 | **깨질 고침은 자동으로 되돌림** |
+| 수식 | 문법을 외워서 입력 | **누르고 고치면 바로 조판 · LaTeX 붙여넣기** |
+| 표 줄·칸 추가 | 칸 수를 세어 `[..]` 입력 | **오른쪽 클릭 한 번** |
+| 함께 일하는 사람 | Typst를 배워야 함 | **워드를 쓸 줄 알면 충분** |
+| 결과물 | `.typ` | **똑같이 깨끗한 `.typ`** (git으로 비교 가능) |
+
+<br>
+
+## ⬇️ 내려받기 · 실행
+
+**[Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)** 에서 내 시스템용 꾸러미를 받아 풀고 실행한 뒤 `main.typ`를 고르세요.
+처음이라면 [`examples/hello/main.typ`](examples/hello/main.typ)로 시작해 보세요.
+
+| 시스템 | 꾸러미 | 실행 |
+|---|---|---|
+| 🪟 **Windows 10/11** | `…-windows-x64.zip` | `EasyTypstEditor.exe` |
+| 🍎 **macOS 11 이상** (Apple Silicon · Intel) | `…-macos-universal.zip` | `Easy Typst Editor.app` |
+| 🐧 **Linux** (x86-64) | `…-linux-x64.tar.gz` | `./EasyTypstEditor` (WebKitGTK 4.1 필요) |
+
+<details>
+<summary><b>macOS · Linux에서 처음 실행할 때</b></summary>
+
+- **macOS:** Apple의 공증을 받지 않은 앱이라 처음 실행이 막힙니다. *시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기*로 한 번 허용하거나
+  `xattr -dr com.apple.quarantine "Easy Typst Editor.app"`을 실행하세요.
+- **Linux:** 웹뷰가 없으면 설치하세요 — Debian/Ubuntu `sudo apt install libwebkit2gtk-4.1-0`, Fedora `sudo dnf install webkit2gtk4.1`,
+  Arch `sudo pacman -S webkit2gtk-4.1`. `sh register.sh`로 앱 메뉴에 넣고 .typ 더블클릭으로 열 수 있습니다.
+- **Windows:** `register.ps1`을 실행하면 .typ 파일을 더블클릭으로 엽니다.
+
+</details>
+
+<br>
+
+## ❓ 자주 묻는 질문
+
+<details><summary><b>정말 무료인가요?</b></summary>
+
+네. MIT 라이선스 오픈 소스입니다. 개인·회사·학교 어디서나 무료로 쓰고 고쳐서 배포해도 됩니다.
+</details>
+
+<details><summary><b>Typst를 전혀 몰라도 쓸 수 있나요?</b></summary>
+
+네. 글을 고치고, 굵게 하고, 표에 줄을 넣는 일은 워드처럼 하면 됩니다. 수식만은 Typst 수식 문법으로 쓰지만, 기호 단추와 LaTeX 붙여넣기가 도와줍니다.
+</details>
+
+<details><summary><b>제 원고가 망가지지 않을까요?</b></summary>
+
+고칠 때마다 구문을 검사하고, 조판이 깨지면 자동으로 되돌립니다. 저장하기 전에는 디스크에 쓰지 않고, 저장할 때마다 원본을 백업합니다.
+Ctrl+Z로 몇 번이고 되돌릴 수 있습니다.
+</details>
+
+<details><summary><b>문서가 인터넷으로 나가나요?</b></summary>
+
+아니요. Typst 조판 엔진(0.15.1)이 앱 안에 들어 있어 모든 일이 내 PC 안에서 일어납니다. 화면과 엔진은 내 PC 안(127.0.0.1)에서만 이야기합니다.
+</details>
+
+<details><summary><b>`typst compile`로 만든 PDF와 똑같이 보이나요?</b></summary>
+
+네. 같은 Typst 0.15.1 엔진과 같은 글꼴을 쓰므로 판형·쪽 나눔이 같습니다. 「PDF로 저장」(Ctrl+P)도 같은 엔진으로 만듭니다.
+</details>
+
+<details><summary><b>어떤 글은 왜 고쳐지지 않나요?</b></summary>
+
+쪽 번호·차례·참조 번호처럼 템플릿이 계산해서 만드는 글은 원고에 그 글자가 없어 잠깁니다. 누르면 이유가 나오고,
+덩어리째 옮기거나 지우려면 Alt+클릭으로 고르면 됩니다. 잠기면 안 될 글이 잠긴다면 [이슈](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose)로 알려 주세요.
+</details>
+
+<details><summary><b>단축키를 한눈에 보고 싶어요</b></summary>
+
+macOS에서는 Ctrl 대신 ⌘, Alt 대신 ⌥를 씁니다. 앱에서 F1을 누르면 전체 표가 나옵니다.
+
+| 키 | 하는 일 |
 |---|---|
-| 조판 엔진 | Typst **0.15.1**을 앱에 내장(PC의 `typst` 명령과 같은 판). 같은 글꼴을 쓰므로 판형·쪽 나눔이 외부 빌드 PDF와 같다. |
-| 프로젝트 인식 | `main.typ`가 있는 폴더를 뿌리로 삼고, 조판 중에 실제로 읽힌 파일만 추적한다. 폴더 밖 파일을 불러오면 위 폴더로 한 단계씩 넓혀 다시 시도한다. |
-| 지면 ↔ 원고 대응 | ① Typst가 알려 주는 글자별 원본 위치를 쓰되, 원고 글과 **대조해 검증**한다. ② 템플릿의 `show regex(..)`(한글 0.84배 등) 때문에 위치가 사라진 글자는 **지면의 글과 원고의 글을 대조**해 되찾는다(앞뒤 문맥이 맞거나 개수가 꼭 같을 때만). ③ 그래도 못 찾는 글은 잠근다. |
-| 고칠 수 있는 글 | 본문 마크업 글자(예문·번역문·설명문 등)는 전부. `title: "듣다"`, `#sub("낱말 익히기")` 같은 **따옴표 문자열**은 글자만(굵게·밑줄·줄 나눔 불가). |
-| 잠기는 글 | 쪽 번호·차례·쪽 아래 반복 제목·`|audi|ence`처럼 가공되는 표제어·템플릿이 만드는 갈래 이름. 누르면 이유를 보여 준다. |
-| 굵게·기울임 | `*글*`, `_글_`. 영문 낱말 한가운데처럼 표식이 깨지는 자리는 `#strong[글]`, `#emph[글]`로 쓴다. |
-| 굵게 풀기 | Ctrl+B는 원고의 표식이 아니라 지면에 실제로 찍힌 굵기를 따른다. `*글*`은 표식을 걷어 내고, `#text(13pt, weight: "bold")[글]`은 `weight:` 인자만 지운다. 일부만 골랐거나 템플릿·`#show` 규칙이 굵게 만든 글자는 `#text(weight: "regular")[글]`로 감싸 풀고, 다시 누르면 그 감싼 것을 걷어 낸다. |
-| 밑줄·취소선 풀기 | Ctrl+U도 지면에 그어진 선을 따른다. `#underline[글]`은 그 꾸밈을 걷어 낸다. `#show emph: it => underline(..)`처럼 문서의 규칙이 `_글_`에 그은 밑줄이면 그 `_.._`를 벗기고(일부만 골랐으면 그 부분만), 굵기까지 함께 사라지면 `#text(weight: "bold")[글]`로 굵기는 남긴다. 인자가 있는 템플릿 함수나 따로 선 덩어리가 그은 선은 풀지 못하고 그렇다고 알려 준다. |
-| 밑줄·취소선 | 템플릿에 `#let u(` 가 있으면 `#u[글]`, 없으면 `#underline[글]`. 취소선은 `#strike[글]`. |
-| 문단 맞춤 | 문단을 `#align(center)[..]`(left·right)로 감싼다. 기본 맞춤으로 되돌리면 벗긴다. |
-| 지우기 | 글줄에 낀 꾸밈은 굵게든 템플릿 꾸밈(`#lk("a")[낱말]`)이든 그냥 넘어가며 지운다. 속이 빈 꾸밈은 걷어 내고, 속이 다 빈 요소(`#ex[][]`)는 한 번 더 지우면 통째로 사라진다(상태 줄에 알림). `#pos("명")`, `#gp`처럼 글이 없는 낱개 요소는 통째로 지운다. 글 상자의 가장자리에서는 커서를 지면의 옆 글로 옮겨, 누르고 있기만 해도 이어서 지워진다. 따로 선 덩어리(블록 요소·`#set`·`#let`)는 건너뛴다. `#stack(check[가], check[나])`처럼 함수의 인자로 늘어놓은 항목도 글을 다 지우고 한 번 더 지우면 항목째로 사라진다. 이미 비어 버린 항목(`check[]`)은 글자가 없어 커서를 놓을 수 없으니, 다음 항목의 맨 앞에서 Backspace를, 또는 앞 항목의 맨 끝에서 Delete를 누른다. 항목을 몇 개든 받는 자리(`stack`·`list`·`enum`, 배열, `..항목`을 받는 템플릿 함수)에서만 그렇고, 표·격자의 칸은 밀리므로 빼지 않는다. |
-| 선택 지우기 | 여러 글 상자에 걸친 선택은 상자마다 그 안의 글만 지우고 틀은 남긴다. 선택에 통째로 든 요소는 지우되 `#let`·`#set`·`#show`·`#import`와 주석은 남긴다. |
-| 선택 위 입력 | 선택한 글 위에 바로 입력하면 그 글의 꾸밈(굵게·템플릿 꾸밈)을 새 글이 물려받는다. |
-| Enter / Shift+Enter | 빈 줄(문단 나눔) / `\ `(강제 줄바꿈). 굵게·밑줄 안에서 Enter를 치면 꾸밈을 닫았다 다시 연다. |
-| Tab | Typst에는 탭 위치가 없어, 줄 왼쪽 끝에서 2em 간격의 다음 자리까지 `#h(..pt)`를 넣는다(넣을 때 한 번 계산하는 고정 너비). |
-| 내어쓰기 | 문단을 `#par(hanging-indent: 1em)[..]`로 감싼다. 1em씩 늘리고 줄이며 0이 되면 벗긴다. |
-| 안전장치 | 고칠 때마다 구문 구조가 뜻밖에 달라지면 거부하고, 조판 오류가 나면 자동으로 되돌린다. 저장 전까지 디스크에 쓰지 않는다. 저장 직전 원본을 자료 폴더의 `backup`에 복사하고(Windows `%LOCALAPPDATA%\EasyTypstEditor`, macOS `~/Library/Application Support/EasyTypstEditor`, Linux `~/.local/share/EasyTypstEditor`), 연 뒤에 다른 프로그램이 파일을 바꿨으면 저장하지 않는다. |
-| PDF로 저장 | 도구 모음의 `PDF로 저장`(Ctrl+P). 저장하지 않은 고침도 지금 보이는 그대로 들어가며, `typst compile`과 같은 엔진으로 만든다. 처음 권하는 자리는 main.typ 옆의 main.pdf. |
-| 소스 창 | 기본 화면에서 뺐다. `개발자용 보기`를 누르면 고치는 자리의 원고가 읽기 전용으로 보인다. |
+| 누르기 · 끌기 · Shift+방향키 | 커서 · 선택 |
+| Ctrl+B · Ctrl+I · Ctrl+U | 굵게 · 기울임 · 밑줄 |
+| Ctrl+Z · Ctrl+Y · Ctrl+S · Ctrl+P | 되돌리기 · 다시 · 저장 · PDF로 저장 |
+| Ctrl+F · Ctrl+H | 찾기 · 바꾸기 |
+| 수식 누르기 · Ctrl+M | 수식 고치기 · 새 수식 넣기 |
+| Ctrl+V · Ctrl+Shift+V | 붙여넣기(LaTeX → Typst) · 그대로 붙여넣기 |
+| 표 안에서 오른쪽 클릭 | 줄·칸 넣기와 지우기 |
+| Alt+클릭 | 덩어리째 고르기(옮기기·지우기) |
 
-## 쓰는 법
+</details>
 
-**macOS**에서는 표의 Ctrl 자리에 ⌘, Alt 자리에 ⌥를 쓴다. 커서 옮기기는 Mac의 관습을 따른다:
-⌥←/→ 낱말, ⌥↑/↓ 문단, ⌥+지우기 낱말 지우기, ⌘←/→ 줄의 처음·끝, ⌘↑/↓ 교재의 처음·끝. F1의 단축키 표는 쓰는 시스템에 맞게 나온다.
+<br>
 
-| 동작 | 결과 |
-|---|---|
-| 글자 사이 누르기 / 끌기 / Shift+누르기 / Shift+방향키 | 커서 / 선택 |
-| 두 번 누르기 / 세 번 누르기 / Ctrl+A | 낱말 / 문단 / 글 상자 전체 선택 |
-| 입력·붙여넣기(Ctrl+V) | 글자 고치기. 붙여넣기는 일반 글자와 줄바꿈(한 줄 바꿈 = 강제 줄바꿈, 빈 줄 = 새 문단) |
-| Backspace / Delete | 글자 지우기. 누르고 있으면 꾸밈과 글 상자를 넘어가며 이어서 지운다 |
-| Ctrl+Backspace / Ctrl+Delete | 낱말 지우기 |
-| Ctrl+← → / Ctrl+↑ ↓ | 낱말 단위 / 문단 단위로 옮기기(Shift와 함께: 선택) |
-| Home / End / Ctrl+Home / Ctrl+End | 줄의 처음 / 끝 / 교재의 처음 / 끝 |
-| Ctrl+X / Ctrl+C / Ctrl+V | 잘라내기 / 복사 / 붙여넣기(오른쪽 단추 메뉴에도 있다) |
-| Ctrl+B / Ctrl+I / Ctrl+U / Ctrl+Shift+X | 굵게 / 기울임 / 밑줄 / 취소선 켜고 끄기 |
-| Ctrl+] / Ctrl+[ | 글자 크게 / 작게 |
-| 상자·표의 손잡이 끌기 | 너비·높이, 칸 너비·줄 높이 바꾸기(Shift: 같은 템플릿 모두) |
-| 그림 누르기 | 그림 고르기(크기 바꾸기·파일 바꾸기) |
-| 표 안에서 오른쪽 누르기 | 줄·칸 넣기와 지우기 |
-| 수식 누르기 / Ctrl+M | 그 수식 고치기 / 커서 자리에 새 수식 넣기(Enter: 확인, Esc: 버리기) |
-| Ctrl+V / Ctrl+Shift+V | 붙여넣기(LaTeX 수식은 Typst 수식으로) / 바꾸지 않고 붙여넣기 |
-| Ctrl+L / Ctrl+E / Ctrl+R / Ctrl+J | 왼쪽 / 가운데 / 오른쪽 맞춤 / 기본 맞춤으로 |
-| Enter / Shift+Enter / Tab | 새 문단 / 줄바꿈 / 탭 간격 |
-| 내어쓰기 ◀ ▶ | 둘째 줄부터 들여 쓰기 |
-| Ctrl+F / Ctrl+H / F3 / Shift+F3 | 찾기 / 바꾸기 / 다음 / 앞의 찾은 곳 |
-| Ctrl+Z / Ctrl+Y / Ctrl+S / Ctrl+O / Ctrl+P | 실행 취소 / 다시 실행 / 저장 / 열기 / PDF로 저장. 이어서 입력하거나 지운 것은 한 번에 되돌린다 |
-| Ctrl+휠, Ctrl+ + / Ctrl+ −, Ctrl+0 | 확대 / 축소 / 너비 맞춤 |
-| Ctrl+G / Page Up / Page Down | 쪽 번호로 가기 / 화면 넘기기 |
-| F1 | 단축키 표 |
+## 🐞 오류·건의는 24시간 안에 고칩니다
 
-## 구조
+이상한 점이나 바라는 기능은 **[GitHub Issues](https://github.com/qnai-ai/Easy_Typst_Editor/issues/new/choose)** 로 알려 주세요. 24시간 안에 고치겠습니다.
+문제가 보이는 작은 `.typ` 파일이나 화면 캡처를 함께 주시면 훨씬 빨라집니다.
+도움이 되셨다면 ⭐ 하나가 다른 Typst 사용자들이 이 도구를 찾는 데 큰 힘이 됩니다.
 
-```
-src/world.rs    조판 세계: 파일을 메모리에 올리고 저장할 때만 디스크에 쓴다
-src/index.rs    지면 색인: 글자마다 지면 위치와 원본 위치(바뀐 쪽만 다시 계산)
-src/recover.rs  원본 위치 검증·복원(본문 대조)
-src/edit.rs     원고 고치기 연산(입력·지우기·꾸밈·문단·내어쓰기·맞춤·요소) + 단위 시험
-src/session.rs  편집 세션: 커서·선택·이동·찾기/바꾸기·실행 취소·저장
-src/main.rs     창(시스템 웹뷰: WebView2 / WKWebView / WebKitGTK)과 화면용 내부 서버(127.0.0.1)
-ui/index.html   화면
-```
+## 📘 더 알아보기
 
-개발용: `EasyTypstEditor --serve 47615 "main.typ"` 로 띄우면 창 없이 `http://127.0.0.1:47615/` 에서 같은 화면을 본다.
-특정 쪽에서 열기: `EasyTypstEditor --page 120 "main.typ"` (PDF에서 몇 번째 쪽인지, 1부터 센다).
-단위 시험: `cargo test --release`.
+- **[자세한 설명서](docs/manual.ko.md)** — 모든 기능, 단축키 전체, 설계 원칙, 구조, 빌드, 알려진 한계
+- 번역 기여: 화면 글은 모두 [`ui/i18n.json`](ui/i18n.json) 한 파일에 있습니다(한국어 · English · 日本語 · 简体中文 · Español).
 
-빌드 환경: Windows는 Rust(MSVC, 또는 GNU 툴체인 + MinGW/WinLibs)와 `build.ps1`. Linux는 Rust와 WebKitGTK·GTK 개발 꾸러미
-(Debian/Ubuntu: `sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev`), macOS는 Rust와 Xcode 명령줄 도구, 그리고 `sh build.sh`
-(macOS에서 `UNIVERSAL=1 sh build.sh`는 Apple Silicon·Intel 겸용 앱을 만든다).
-`.github/workflows/build.yml`이 푸시할 때마다 세 시스템에서 빌드·시험하고, `v*` 태그를 푸시하면 꾸러미를 그 릴리스에 붙인다.
-빌드 산출물 위치를 바꾸려면 `CARGO_TARGET_DIR`이나 `.cargo/config.toml`의 `target-dir`을 쓴다.
+## 라이선스
 
-## 화면 언어
-
-한국어·English·日本語·简体中文·Español을 지원한다. 처음엔 시스템의 표시 언어를 따르고, 도구 모음 오른쪽 끝의 🌐 메뉴에서 바꾸면 기억한다
-(자료 폴더의 `settings.json`). 환경 변수 `EASY_TYPST_LANG=ko|en|zh|ja|es`가 있으면 그것이 우선한다.
-번역문은 `ui/i18n.json` 한 파일에 있다(엔진 안내문과 화면 글 모두).
-
-## 알려진 한계
-
-- 빈 문단에는 글자가 없어, Enter 직후의 커서는 어림한 자리(앞 문단 아래로 한 줄)에 그린다.
-- 여러 문단을 담은 큰 상자나 인자가 여럿인 요소(`#ex[..][..]`)의 틀은 Backspace로 지워지지 않는다. 속을 다 비운 뒤 한 번 더 지우거나, Alt+누르기로 요소를 골라 지운다.
-- 찾기는 지면에 찍힌 글에서 찾는다. 「모두 바꾸기」는 원고에서도 글자 그대로인 곳만 바꾸고, 템플릿이 만든 글이나 꾸밈에 걸친 곳은 건너뛴 뒤 몇 곳인지 알린다.
-- 같은 글이 한 쪽에 여러 번 나오고 문맥으로도 가릴 수 없으면 잠근다(잘못 잇는 것보다 안전하게).
-- 손잡이는 원고의 어느 줄에서 나왔는지 알 수 있는 상자에만 나타난다: 표·격자, 채움이나 테두리가 있는 상자, 그림, 원고에 직접 쓴 상자. 템플릿 함수 안에서 만든 보이지 않는 상자는 찾지 못하고, 크기가 식(`if`, 함수 호출)으로 적힌 값은 고치지 않는다.
-- 표의 줄·칸 넣기와 지우기는 칸이 원고에 하나씩 적힌 표에서만 된다. 코드로 만든 표(`..rows.map(..)`), 합친 칸이나 `table.header(..)` 묶음이 있는 표는 안 된다.
-
-## .typ 더블클릭으로 열기
-
-- **Windows:** `register.ps1`을 실행하면 .typ 파일이 이 편집기로 열린다(현재 사용자만). 처음 한 번은 Windows의 '앱 선택' 창에서 EasyTypstEditor를 고르고 '항상'을 눌러야 한다. 되돌리기: `register.ps1 -Undo`.
-- **Linux:** `sh register.sh`가 앱 메뉴에 넣고 .typ를 이 편집기로 잇는다(현재 사용자만). 되돌리기: `sh register.sh -u`.
-- **macOS:** Finder에서 .typ 파일의 *정보 가져오기 → 다음으로 열기 → 모두 변경*으로 고른다.
-
-장별 원고(content/u01.typ 등)를 열어도 같은 폴더나 위 폴더의 main.typ를 찾아 교재 전체를 연다.
-
-
-## 요소를 통째로 지우기·옮기기
-
-글자가 아니라 덩어리(표제지의 통계 줄, 자리 잡힌 제목, `#pos("명")` 같은 템플릿 요소)는 **Alt를 누른 채 누르거나** 도구 모음의 「요소 고르기」로 고른다.
-
-- 지우기: Delete. 옮기기: 끌거나 방향키(1pt, Shift는 5pt). 「넓히기」로 그 요소를 품은 더 큰 요소를 고른다.
-- 옮기기는 원고에서 `place`·`move`의 `dx`/`dy` 값을 고치고, 그런 값이 없으면
-  `{ let it = 요소; place(dx: .., dy: .., it); hide(it) }` 로 바꾼다(제자리에 보이지 않는 사본을 두어 다른 글이 밀리지 않게 함).
-  글줄 안에 낀 요소는 `box(move(..))`로 감싼다.
-- 템플릿 함수 안의 요소는 그 함수가 쓰인 모든 곳이 함께 바뀐다(고를 때 몇 곳인지 알려 준다).
-
-## 상자·표의 크기 바꾸기
-
-상자나 표 안을 누르면 그 가장자리에 옅은 손잡이가 나타난다(요소를 고르지 않아도 된다). 워드프로세서처럼 끌어서 크기를 바꾼다. 손잡이를 끌지 않고 누르기만 하면 그 자리에 커서가 놓인다.
-
-- **상자**(`block`·`box`·`rect`): 오른쪽 가장자리는 너비(`width:`), 아래 가장자리는 높이(`height:`). 값이 없으면 `..mm`로 넣는다.
-- **표·격자**(`table`·`grid`): 칸 사이의 선은 `columns:`의 그 칸을 고친다. 워드프로세서의 표처럼 왼쪽 칸이 늘어난 만큼 오른쪽 칸이 줄어든다. 줄 사이의 선은 `rows:`의 그 줄만 고치고 아래 줄들은 그만큼 밀린다. `rows:`가 없던 표에는 줄마다 `auto`로 적고 끈 줄만 수로 적는다.
-- 원고에 적힌 단위를 지킨다(`60mm`는 mm로, `80%`는 %로). `1fr`끼리는 비율을 다시 나누고, `auto`나 `columns: 3`처럼 수가 없는 칸은 끈 칸만 mm로 바꿔 적는다. 남는 너비를 채우는 `fr` 칸은 건드리지 않아도 저절로 맞춰진다.
-- 값이 변수면 그 변수를 정한 곳을 고친다: 함수의 매개변수 기본값이나 `#let w = 60mm`.
-- **템플릿 함수가 그린 상자는 끈 그 하나만 바뀐다.** 함수에 매개변수를 만들고(`#let key(body, width: 100%) = block(width: width, ..)`) 부른 자리에 값을 준다(`#key(width: 80%)[..]`). 템플릿이 다른 파일에 있어도 두 파일을 함께 고치고, 되돌리기는 한 번에 된다. **Shift를 누른 채 끌면** 그 템플릿이 쓰인 모든 곳이 바뀐다. 이름 없는 함수(`.map(a => block(..))`) 안의 상자는 언제나 함께 바뀐다.
-- 끄는 동안 상태 줄에 새 크기가 mm로 보인다. 잘못 끌었으면 Ctrl+Z.
-
-## 글자 크기·색
-
-글자를 골라 도구 모음의 `가−` / 크기 칸 / `가+`를 쓰거나 Ctrl+[ · Ctrl+]를 누른다. 색은 `가` 단추의 팔레트에서 고른다(「자동」은 따로 준 색을 지운다).
-
-- 지금 크기와 색은 지면에 찍힌 값을 보여 준다(템플릿이 정한 글자도 맞게 나온다).
-- 고른 글이 `#text(..)[..]`의 내용 전체면 그 인자를 고친다(이름 붙은 인자든 자리로 준 값이든, `9pt`는 pt로 `0.9em`은 em으로). 아니면 `#text(size: ..)[..]` / `#text(fill: rgb(".."))[..]`로 감싼다.
-
-## 그림
-
-그림을 누르면 고른다(그림에는 누를 글자가 없다). 손잡이로 크기를 바꾸고(높이를 따로 적지 않은 그림은 비율을 지킨다), 「그림 바꾸기」로 다른 파일로 바꾼다.
-
-- 새 파일이 다른 폴더에 있으면 옛 그림과 같은 폴더로 복사하고(이름이 겹치면 `-2`를 붙인다), 원고의 경로를 고친다.
-- 템플릿 함수가 그린 그림(`image(path, ..)`)은 그 함수를 부른 자리를 찾아 그 자리의 경로와 크기만 고친다. 경로가 식으로 만들어지면 바꾸지 못하고 그렇다고 알려 준다.
-
-## 수식
-
-지면의 수식을 누르면 그 옆에 수식 원문(Typst 수식 문법)이 든 작은 창이 뜬다.
-
-- 고치는 대로 지면에 바로 조판된다. 문법이 틀리면 지면은 그대로 두고 창에 오류를 보여 준다.
-- 「블록 수식」 체크 상자로 글줄 안의 수식(`$x$`)과 따로 한 줄에 가운데로 놓이는 수식(`$ x $`)을 바꾼다. 블록 수식의 줄바꿈·들여쓰기는 그대로 둔다.
-- Enter는 확인, Shift+Enter는 수식 안 줄바꿈, Esc는 이 수식에서 고친 것을 모두 버린다. 한 수식을 고친 것은 되돌리기 한 걸음이다.
-- Ctrl+M(또는 ∑ 수식 단추)은 커서 자리에 새 수식을 넣는다. 낱말에 바로 붙으면 사이를 띄운다.
-- 창의 단추로 자주 쓰는 조각(`sum_(i=1)^n`, `sqrt()`, `alpha`, `<=` 등)을 넣는다. 선택한 글이 있으면 그 글을 감싼다.
-- 「지우기」는 수식을 통째로 지운다. 수식 뒤의 꼬리표(`<eq:1>`)와 번호 매기기 설정은 건드리지 않는다.
-- LaTeX 수식이 든 글(`$rac{a}{b}$`, `$$..$$`, `\(..\)`, `\[..\]` — ChatGPT·논문에서 복사한 글 등)을 붙여 넣으면 그 수식을 Typst 수식으로 바꿔 넣는다.
-  수식 창에 LaTeX를 붙여 넣어도 바꾼다. 바꾸지 않으려면 Ctrl+Shift+V. 변환기는 [tex2typst](https://github.com/qwinsi/tex2typst)(Apache-2.0)를
-  그대로 넣어 썼다(`ui/vendor/`, 라이선스 `ui/vendor/tex2typst.LICENSE.txt`). `$5 and $6`처럼 수식 기호가 없는 것은 글로 둔다.
-- 수식 안 글자는 원고의 `$..$` 하나로 묶인다. `dif`의 d처럼 표준 라이브러리가 만든 글자도 수식에 붙어 있으면 그 수식으로 본다.
-
-## 표의 줄·칸
-
-표 안에서 오른쪽 단추를 누르면 「위에/아래에 줄 넣기」, 「왼쪽에/오른쪽에 칸 넣기」, 「줄 지우기」, 「칸 지우기」가 나온다.
-
-- 새 칸은 빈 `[]`로 들어간다. 빈 칸에는 글자가 없지만 눌러서 커서를 놓고 입력할 수 있다.
-- 칸을 넣으면 `columns:`에도 항목을 더하고(기준 칸의 값을 그대로 쓴다), 지우면 뺀다. 줄 높이가 줄마다 적혀 있으면 `rows:`도 맞춘다.
+[MIT](LICENSE). 오픈 소스 [Typst](https://github.com/typst/typst) 컴파일러(Apache-2.0)와 [tex2typst](https://github.com/qwinsi/tex2typst)(Apache-2.0, 라이선스: [`ui/vendor/tex2typst.LICENSE.txt`](ui/vendor/tex2typst.LICENSE.txt))를 담고 있습니다.
+Typst GmbH 및 Adobe와는 관계가 없습니다.
