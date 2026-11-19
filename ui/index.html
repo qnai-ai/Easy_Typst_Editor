@@ -683,7 +683,8 @@ addEventListener('mouseup', e => {
 });
 scroller.addEventListener('scroll', () => { placeIme(); updatePageNo(); hideTip(); showEbar(); if (view && view.math) placeMath(view.math); });
 scroller.addEventListener('wheel', e => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)); } }, { passive: false });
-addEventListener('resize', () => { if (view && view.open && fitMode) { layoutPages(); drawOverlay(); } placeIme(); });
+// 창 크기가 바뀌어 너비 맞춤 배율이 달라져도 보던 쪽에 머문다
+addEventListener('resize', () => { if (view && view.open && fitMode) relayoutKeep(); else placeIme(); });
 document.addEventListener('mousedown', e => {
   if (!e.target.closest('#cmenu')) hideMenu();
   if (!e.target.closest('#pageno') && !e.target.closest('#devsrc')) { if (e.target.closest('#bar,#status,#start,#findbar button,#cmenu')) e.preventDefault(); }
@@ -1238,7 +1239,10 @@ async function loadRecent() {
 (async () => {
   const r = await fetch('/api/state'); const v = await r.json();
   if (location.hash.includes('dev')) { $('dev').classList.add('show'); $('bDev').classList.add('on'); }
-  apply(v, { op: 'open', restore: true });
+  // --page N 으로 띄웠으면 그 쪽(1부터)을 보여 준다. 고치던 자리로 돌아가는 것보다 먼저.
+  const askedPage = parseInt(new URLSearchParams(location.search).get('page'), 10);
+  apply(v, { op: 'open', restore: !(askedPage > 0) });
+  if (v.open && askedPage > 0) { gotoPage(askedPage - 1); history.replaceState(null, '', location.pathname + location.hash); }
   if (!v.open) loadRecent();
 })();
 </script>

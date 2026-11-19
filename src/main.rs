@@ -270,10 +270,13 @@ fn main() {
     let mut port = 0u16;
     let mut headless = false;
     let mut file: Option<PathBuf> = None;
+    // --page N: 연 문서의 N쪽(PDF의 쪽 순서, 1부터)을 보여 준다
+    let mut page: Option<usize> = None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--serve" => { headless = true; port = args.get(i + 1).and_then(|p| p.parse().ok()).unwrap_or(47615); i += 1; }
+            "--page" => { page = args.get(i + 1).and_then(|p| p.parse().ok()).filter(|&n| n > 0); i += 1; }
             a => file = Some(find_main(PathBuf::from(a))),
         }
         i += 1;
@@ -286,9 +289,11 @@ fn main() {
         std::thread::spawn(move || { app.fonts(); });
     }
     let url = format!("http://127.0.0.1:{port}/");
+    // 처음 열 때만 그 쪽으로 간다(다시 불러올 때는 평소처럼 고치던 자리로)
+    let first_url = match page { Some(n) => format!("{url}?page={n}"), None => url.clone() };
     if headless {
         if let Some(f) = &file { app.open(f); }
-        println!("{url}");
+        println!("{first_url}");
         serve(server, app);
         return;
     }
@@ -300,7 +305,7 @@ fn main() {
             serve(server, app)
         });
     }
-    run_window(&url, app);
+    run_window(&url, &first_url, app);
 }
 
 /// 창 밖에서 창의 스레드로 보내는 알림.
@@ -347,7 +352,7 @@ fn mac_menu(proxy: tao::event_loop::EventLoopProxy<Wake>) {
     std::mem::forget(menu);   // 앱이 끝날 때까지 둔다
 }
 
-fn run_window(url: &str, app: Arc<App>) {
+fn run_window(url: &str, first_url: &str, app: Arc<App>) {
     use tao::dpi::LogicalSize;
     use tao::event::{Event, WindowEvent};
     use tao::event_loop::{ControlFlow, EventLoopBuilder};
@@ -367,7 +372,7 @@ fn run_window(url: &str, app: Arc<App>) {
         .expect("창을 만들지 못했습니다");
     let data = data_dir().join("webview");
     let mut ctx = wry::WebContext::new(Some(data));
-    let builder = WebViewBuilder::new_with_web_context(&mut ctx).with_url(url);
+    let builder = WebViewBuilder::new_with_web_context(&mut ctx).with_url(first_url);
     // 브라우저의 가속키(Ctrl+F, F3, Ctrl+P, F5, Ctrl+R …)는 끈다: 같은 글쇠를 편집기의 단축키로 쓴다
     #[cfg(windows)]
     let builder = builder.with_browser_accelerator_keys(false);

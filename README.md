@@ -168,6 +168,7 @@ cargo test --release
 packages to the release when a `v*` tag is pushed.
 
 Headless mode for development: `EasyTypstEditor --serve 47615 main.typ`, then open `http://127.0.0.1:47615/`.
+To open a document at a given page: `EasyTypstEditor --page 120 main.typ` (the page's position in the PDF, counting from 1).
 
 Settings, the recent list and the backups made before each save live in `%LOCALAPPDATA%\EasyTypstEditor` (Windows),
 `~/Library/Application Support/EasyTypstEditor` (macOS) or `~/.local/share/EasyTypstEditor` (Linux).

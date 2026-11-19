@@ -95,6 +95,7 @@ ui/index.html   화면
 ```
 
 개발용: `EasyTypstEditor --serve 47615 "main.typ"` 로 띄우면 창 없이 `http://127.0.0.1:47615/` 에서 같은 화면을 본다.
+특정 쪽에서 열기: `EasyTypstEditor --page 120 "main.typ"` (PDF에서 몇 번째 쪽인지, 1부터 센다).
 단위 시험: `cargo test --release`.
 
 빌드 환경: Windows는 Rust(MSVC, 또는 GNU 툴체인 + MinGW/WinLibs)와 `build.ps1`. Linux는 Rust와 WebKitGTK·GTK 개발 꾸러미
