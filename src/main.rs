@@ -36,6 +36,8 @@ struct App {
     fonts: OnceLock<Arc<FontStore>>,
     /// 마지막으로 열지 못한 까닭. 명령줄(파일 더블클릭)로 열다 실패했을 때 첫 화면에 보여 준다.
     failed: Mutex<Option<Value>>,
+    /// 명령줄로 받은 문서를 조판하는 중이면 그 파일 이름. 그동안 화면은 '조판하는 중'을 보여 준다.
+    loading: Mutex<Option<String>>,
 }
 
 impl App {
@@ -101,7 +103,13 @@ fn serve(server: Server, app: Arc<App>) {
             }
             "/api/state" => {
                 let mut g = app.session.lock().unwrap();
-                let v = match g.as_mut() { Some(s) => s.view(), None => app.failed.lock().unwrap().clone().unwrap_or_else(|| json!({ "open": false })) };
+                let v = match g.as_mut() {
+                    Some(s) => s.view(),
+                    None => match app.loading.lock().unwrap().clone() {
+                        Some(name) => json!({ "open": false, "loading": true, "name": name }),
+                        None => app.failed.lock().unwrap().clone().unwrap_or_else(|| json!({ "open": false })),
+                    },
+                };
                 drop(g);
                 respond_json(req, &v);
             }
@@ -286,7 +294,7 @@ fn main() {
         }
         i += 1;
     }
-    let app = Arc::new(App { session: Mutex::new(None), fonts: OnceLock::new(), failed: Mutex::new(None) });
+    let app = Arc::new(App { session: Mutex::new(None), fonts: OnceLock::new(), failed: Mutex::new(None), loading: Mutex::new(None) });
     let server = Server::http(("127.0.0.1", port)).expect("포트를 열지 못했습니다");
     let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(port);
     {
@@ -303,12 +311,17 @@ fn main() {
         return;
     }
     {
+        // 큰 문서는 첫 조판에 몇 초가 걸린다. 화면을 먼저 띄우고(서버를 바로 열고) 조판은 따로 돌린다.
+        if let Some(f) = file.clone() {
+            *app.loading.lock().unwrap() = Some(f.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default());
+            let app = app.clone();
+            std::thread::spawn(move || {
+                app.open(&f);
+                *app.loading.lock().unwrap() = None;
+            });
+        }
         let app = app.clone();
-        let file = file.clone();
-        std::thread::spawn(move || {
-            if let Some(f) = &file { app.open(f); }
-            serve(server, app)
-        });
+        std::thread::spawn(move || serve(server, app));
     }
     run_window(&url, &first_url, app);
 }
