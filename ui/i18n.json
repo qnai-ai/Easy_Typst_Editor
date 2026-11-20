@@ -841,10 +841,10 @@
   "es": "Para pegar, pulsa Ctrl+V."
  },
  "고치기": {
-  "en": "Editing",
-  "zh": "编辑",
-  "ja": "編集",
-  "es": "Edición"
+  "en": "Edit",
+  "zh": "修改",
+  "ja": "直す",
+  "es": "Editar"
  },
  "꾸미기": {
   "en": "Formatting",
@@ -1608,131 +1608,11 @@
   "ja": "LaTeX の数式を Typst に変換して貼り付け / 変換せずに貼り付け",
   "es": "Pegar convirtiendo las ecuaciones LaTeX a Typst / Pegar sin convertir"
  },
- "AI로 다듬기 (Ctrl+J): 선택한 글을 Gemini가 고칩니다. 꾸밈·함수·수식은 그대로 둡니다.": {
-  "en": "Polish with AI (Ctrl+J): Gemini revises the selected text. Formatting, functions and math stay as they are.",
-  "zh": "AI 润色 (Ctrl+J)：由 Gemini 修改所选文字，格式、函数和公式保持不变。",
-  "ja": "AI で整える (Ctrl+J)：選択した文を Gemini が直します。書式・関数・数式はそのままです。",
-  "es": "Pulir con IA (Ctrl+J): Gemini revisa el texto seleccionado. El formato, las funciones y las fórmulas no cambian."
- },
- "지시 (비우면 맞춤법·문장 다듬기)": {
-  "en": "Instruction (empty: fix spelling and smooth the sentences)",
-  "zh": "指令（留空：纠正拼写并润色句子）",
-  "ja": "指示（空欄：誤字の修正と文の調整）",
-  "es": "Instrucción (vacía: corregir ortografía y pulir frases)"
- },
- "선택한 글을 다듬기 (Enter)": {
-  "en": "Polish the selected text (Enter)",
-  "zh": "润色所选文字 (Enter)",
-  "ja": "選択した文を整える (Enter)",
-  "es": "Pulir el texto seleccionado (Enter)"
- },
- "다듬기": {
-  "en": "Polish",
-  "zh": "润色",
-  "ja": "整える",
-  "es": "Pulir"
- },
- "AI 설정 (API 키·모델)": {
-  "en": "AI settings (API key, model)",
-  "zh": "AI 设置（API 密钥、模型）",
-  "ja": "AI 設定（API キー・モデル）",
-  "es": "Ajustes de IA (clave API, modelo)"
- },
- "Gemini API 키": {
-  "en": "Gemini API key",
-  "zh": "Gemini API 密钥",
-  "ja": "Gemini API キー",
-  "es": "Clave API de Gemini"
- },
- "모델 (기본: gemini-flash-latest)": {
-  "en": "Model (default: gemini-flash-latest)",
-  "zh": "模型（默认：gemini-flash-latest）",
-  "ja": "モデル（既定：gemini-flash-latest）",
-  "es": "Modelo (predeterminado: gemini-flash-latest)"
- },
- "키 지우기": {
-  "en": "Remove key",
-  "zh": "删除密钥",
-  "ja": "キーを削除",
-  "es": "Borrar clave"
- },
- "저장한 키를 이 PC에서 지웁니다": {
-  "en": "Removes the saved key from this computer",
-  "zh": "从本机删除已保存的密钥",
-  "ja": "保存したキーをこの PC から削除します",
-  "es": "Borra la clave guardada de este equipo"
- },
- "키는 이 PC의 운영체제 비밀 저장소(Windows 자격 증명 관리자, macOS 키체인)에만 저장되고 화면에는 다시 나오지 않습니다. 보내는 것은 선택한 글과 지시뿐입니다. 무료 등급 키는 Google이 보낸 글을 서비스 개선에 쓸 수 있으니, 원고에는 결제를 켠 키를 권합니다.": {
-  "en": "The key is kept only in this computer's system secret store (Windows Credential Manager, macOS Keychain) and is never shown again. Only the selected text and your instruction are sent. With a free-tier key Google may use what you send to improve its services, so for manuscripts a key with billing enabled is recommended.",
-  "zh": "密钥只保存在本机系统的密钥存储（Windows 凭据管理器、macOS 钥匙串）中，不会再显示。只发送所选文字和指令。免费层级的密钥，Google 可能将发送的内容用于改进服务，处理书稿时建议使用已开通计费的密钥。",
-  "ja": "キーはこの PC の OS の秘密保管庫（Windows 資格情報マネージャー、macOS キーチェーン）にのみ保存され、画面には再表示されません。送るのは選択した文と指示だけです。無料枠のキーでは Google が送信内容をサービス改善に使う場合があるため、原稿には課金を有効にしたキーをおすすめします。",
-  "es": "La clave se guarda solo en el almacén seguro del sistema (Administrador de credenciales de Windows, Llavero de macOS) y no vuelve a mostrarse. Solo se envían el texto seleccionado y tu instrucción. Con una clave gratuita Google puede usar lo enviado para mejorar sus servicios; para manuscritos se recomienda una clave con facturación activada."
- },
- "저장된 키: {0} · 모델: {1}": {
-  "en": "Saved key: {0} · Model: {1}",
-  "zh": "已保存的密钥：{0} · 模型：{1}",
-  "ja": "保存済みキー：{0} · モデル：{1}",
-  "es": "Clave guardada: {0} · Modelo: {1}"
- },
- "아직 키가 없습니다. Google AI Studio에서 만든 Gemini API 키를 넣어 주세요.": {
-  "en": "No key yet. Enter a Gemini API key created in Google AI Studio.",
-  "zh": "还没有密钥。请输入在 Google AI Studio 中创建的 Gemini API 密钥。",
-  "ja": "まだキーがありません。Google AI Studio で作成した Gemini API キーを入力してください。",
-  "es": "Aún no hay clave. Introduce una clave API de Gemini creada en Google AI Studio."
- },
- "저장한 키를 지웠습니다.": {
-  "en": "The saved key was removed.",
-  "zh": "已删除保存的密钥。",
-  "ja": "保存したキーを削除しました。",
-  "es": "Se borró la clave guardada."
- },
- "AI 설정을 저장했습니다.": {
-  "en": "AI settings saved.",
-  "zh": "AI 设置已保存。",
-  "ja": "AI 設定を保存しました。",
-  "es": "Ajustes de IA guardados."
- },
- "AI가 다듬는 중…": {
-  "en": "AI is polishing…",
-  "zh": "AI 正在润色…",
-  "ja": "AI が整えています…",
-  "es": "La IA está puliendo…"
- },
- "먼저 다듬을 글을 끌어서 선택해 주세요.": {
-  "en": "First drag to select the text to polish.",
-  "zh": "请先拖动选择要润色的文字。",
-  "ja": "まず整える文をドラッグして選択してください。",
-  "es": "Primero arrastra para seleccionar el texto que quieres pulir."
- },
  "원고를 읽지 못했습니다.": {
   "en": "Could not read the source.",
   "zh": "无法读取原稿。",
   "ja": "原稿を読み込めませんでした。",
   "es": "No se pudo leer el original."
- },
- "선택한 글이 너무 깁니다. 조금씩 나눠서 다듬어 주세요.": {
-  "en": "The selection is too long. Polish it in smaller parts.",
-  "zh": "所选文字太长，请分段润色。",
-  "ja": "選択が長すぎます。少しずつ分けて整えてください。",
-  "es": "La selección es demasiado larga. Púlela por partes."
- },
- "AI가 고치는 동안 원고가 바뀌어서 적용하지 않았습니다. 다시 해 주세요.": {
-  "en": "The text changed while the AI was working, so nothing was applied. Please try again.",
-  "zh": "AI 修改期间原稿已变化，未应用。请重试。",
-  "ja": "AI の作業中に原稿が変わったため適用しませんでした。もう一度お試しください。",
-  "es": "El texto cambió mientras la IA trabajaba, así que no se aplicó. Inténtalo de nuevo."
- },
- "AI가 고칠 곳을 찾지 못했습니다.": {
-  "en": "The AI found nothing to change.",
-  "zh": "AI 没有找到需要修改的地方。",
-  "ja": "AI は直すところを見つけませんでした。",
-  "es": "La IA no encontró nada que cambiar."
- },
- "AI가 다듬었습니다. 되돌리려면 Ctrl+Z를 누르세요.": {
-  "en": "Polished by AI. Press Ctrl+Z to undo.",
-  "zh": "AI 已润色。按 Ctrl+Z 撤销。",
-  "ja": "AI が整えました。元に戻すには Ctrl+Z を押してください。",
-  "es": "Pulido por la IA. Pulsa Ctrl+Z para deshacer."
  },
  "선택한 자리가 올바르지 않습니다.": {
   "en": "The selection is not valid.",
@@ -1740,100 +1620,274 @@
   "ja": "選択位置が正しくありません。",
   "es": "La selección no es válida."
  },
- "AI가 고친 글이 원고 문법에 맞지 않아 적용하지 않았습니다.": {
-  "en": "The AI's text is not valid Typst, so it was not applied.",
-  "zh": "AI 修改的文字不符合 Typst 语法，未应用。",
-  "ja": "AI が直した文が Typst の文法に合わないため適用しませんでした。",
-  "es": "El texto de la IA no es Typst válido, así que no se aplicó."
- },
- "AI가 글자 말고 꾸밈·함수·수식까지 바꾸려 해서 적용하지 않았습니다.": {
-  "en": "The AI tried to change formatting, functions or math, not just the words, so it was not applied.",
-  "zh": "AI 试图修改格式、函数或公式而不仅是文字，未应用。",
-  "ja": "AI が文字だけでなく書式・関数・数式まで変えようとしたため適用しませんでした。",
-  "es": "La IA intentó cambiar el formato, funciones o fórmulas, no solo el texto, así que no se aplicó."
- },
- "먼저 Gemini API 키를 넣어 주세요.": {
-  "en": "Enter a Gemini API key first.",
-  "zh": "请先输入 Gemini API 密钥。",
-  "ja": "まず Gemini API キーを入力してください。",
-  "es": "Introduce primero una clave API de Gemini."
- },
- "모델 이름이 올바르지 않습니다.": {
-  "en": "The model name is not valid.",
-  "zh": "模型名称无效。",
-  "ja": "モデル名が正しくありません。",
-  "es": "El nombre del modelo no es válido."
- },
- "API 키 모양이 올바르지 않습니다.": {
-  "en": "That does not look like an API key.",
-  "zh": "API 密钥格式不正确。",
-  "ja": "API キーの形式が正しくありません。",
-  "es": "Eso no parece una clave API."
- },
- "Gemini에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.": {
-  "en": "Could not reach Gemini. Check your internet connection.",
-  "zh": "无法连接 Gemini。请检查网络连接。",
-  "ja": "Gemini に接続できませんでした。インターネット接続を確認してください。",
-  "es": "No se pudo conectar con Gemini. Comprueba tu conexión a internet."
- },
- "API 키가 맞지 않습니다. 키를 다시 넣어 주세요.": {
-  "en": "The API key is not valid. Please enter it again.",
-  "zh": "API 密钥无效，请重新输入。",
-  "ja": "API キーが正しくありません。もう一度入力してください。",
-  "es": "La clave API no es válida. Vuelve a introducirla."
- },
- "Gemini 사용 한도에 걸렸습니다. 잠시 뒤에 다시 해 주세요.": {
-  "en": "Gemini usage limit reached. Try again shortly.",
-  "zh": "已达到 Gemini 使用上限，请稍后再试。",
-  "ja": "Gemini の利用上限に達しました。しばらくしてからお試しください。",
-  "es": "Se alcanzó el límite de uso de Gemini. Inténtalo en un momento."
- },
- "이 키로는 Gemini API를 쓸 수 없습니다. 키의 API 제한을 확인해 주세요.": {
-  "en": "This key cannot use the Gemini API. Check the key's API restrictions.",
-  "zh": "此密钥无法使用 Gemini API，请检查密钥的 API 限制。",
-  "ja": "このキーでは Gemini API を使えません。キーの API 制限を確認してください。",
-  "es": "Esta clave no puede usar la API de Gemini. Revisa sus restricciones de API."
- },
- "모델을 찾지 못했습니다. AI 설정에서 모델 이름을 확인해 주세요.": {
-  "en": "Model not found. Check the model name in AI settings.",
-  "zh": "找不到模型，请在 AI 设置中检查模型名称。",
-  "ja": "モデルが見つかりません。AI 設定でモデル名を確認してください。",
-  "es": "No se encontró el modelo. Revisa su nombre en los ajustes de IA."
- },
- "Gemini가 요청을 처리하지 못했습니다.": {
-  "en": "Gemini could not process the request.",
-  "zh": "Gemini 无法处理该请求。",
-  "ja": "Gemini がリクエストを処理できませんでした。",
-  "es": "Gemini no pudo procesar la solicitud."
- },
- "Gemini가 고친 글을 돌려주지 않았습니다.": {
-  "en": "Gemini returned no revised text.",
-  "zh": "Gemini 没有返回修改后的文字。",
-  "ja": "Gemini が直した文を返しませんでした。",
-  "es": "Gemini no devolvió texto revisado."
- },
- "비밀 저장소를 열지 못했습니다.": {
-  "en": "Could not open the system secret store.",
-  "zh": "无法打开系统密钥存储。",
-  "ja": "秘密保管庫を開けませんでした。",
-  "es": "No se pudo abrir el almacén seguro del sistema."
- },
- "키를 저장하지 못했습니다.": {
-  "en": "Could not save the key.",
-  "zh": "无法保存密钥。",
-  "ja": "キーを保存できませんでした。",
-  "es": "No se pudo guardar la clave."
- },
  "지시가 너무 깁니다. 짧게 줄여 주세요.": {
   "en": "The instruction is too long. Please shorten it.",
-  "zh": "指令太长，请缩短。",
+  "zh": "指示太长，请缩短。",
   "ja": "指示が長すぎます。短くしてください。",
   "es": "La instrucción es demasiado larga. Acórtala."
  },
- "AI로 다듬기(선택한 글)": {
-  "en": "Polish with AI (selected text)",
-  "zh": "AI 润色（所选文字）",
-  "ja": "AI で整える（選択した文）",
-  "es": "Pulir con IA (texto seleccionado)"
+ "지시 (글을 선택하면 그 글만, 아니면 지금 보는 쪽)": {
+  "en": "Instruction (selected text only, or the page in view)",
+  "zh": "指令（有选择时只改所选文字，否则改当前页）",
+  "ja": "指示（選択があればその文だけ、なければ表示中のページ）",
+  "es": "Instrucción (solo el texto seleccionado, o la página a la vista)"
+ },
+ "AI로 고치기(선택한 글, 없으면 지금 쪽)": {
+  "en": "Edit with AI (selection, or the page in view)",
+  "zh": "AI 修改（所选文字，否则当前页）",
+  "ja": "AI で直す（選択した文、なければ表示中のページ）",
+  "es": "Editar con IA (selección o página a la vista)"
+ },
+ "AI가 고친 것을 되돌렸습니다.": {
+  "en": "The AI's changes were undone.",
+  "zh": "已撤销 AI 的修改。",
+  "ja": "AIが直したものを元に戻しました。",
+  "es": "Se deshicieron los cambios de la IA."
+ },
+ "되돌리기": {
+  "en": "Undo",
+  "zh": "撤销",
+  "ja": "元に戻す",
+  "es": "Deshacer"
+ },
+ "고친 것을 그대로 둡니다": {
+  "en": "Keep the changes",
+  "zh": "保留修改",
+  "ja": "修正をそのままにする",
+  "es": "Conservar los cambios"
+ },
+ "그대로 두기": {
+  "en": "Keep",
+  "zh": "保留",
+  "ja": "そのまま",
+  "es": "Conservar"
+ },
+ "그 쪽을 찾지 못했습니다.": {
+  "en": "That page was not found.",
+  "zh": "找不到该页。",
+  "ja": "そのページが見つかりません。",
+  "es": "No se encontró esa página."
+ },
+ "고칠 자리가 올바르지 않습니다.": {
+  "en": "The place to edit is not valid.",
+  "zh": "要修改的位置无效。",
+  "ja": "直す位置が正しくありません。",
+  "es": "El lugar a editar no es válido."
+ },
+ "AI로 고치기 (Ctrl+K): 이 컴퓨터의 Claude Code가 지시대로 원고를 고칩니다.": {
+  "en": "Edit with AI (Ctrl+K): Claude Code on this computer edits the source as you instruct.",
+  "zh": "用 AI 修改 (Ctrl+K)：由本机的 Claude Code 按指示修改原稿。",
+  "ja": "AIで直す (Ctrl+K): このパソコンの Claude Code が指示どおりに原稿を直します。",
+  "es": "Editar con IA (Ctrl+K): Claude Code de este equipo edita el original según tu instrucción."
+ },
+ "지시 (예: 이 쪽 상자 안 양 끝을 두 칸씩 띄워 줘. 해설도 마찬가지로.)": {
+  "en": "Instruction (e.g. Put two spaces inside both ends of the boxes on this page. Same in the answer key.)",
+  "zh": "指示（例：把本页方框内两端各空两格，解析部分也一样。）",
+  "ja": "指示（例：このページの囲みの両端を2字ずつ空けて。解説も同様に。）",
+  "es": "Instrucción (p. ej.: deja dos espacios en ambos extremos de los recuadros de esta página. Igual en las soluciones.)"
+ },
+ "Claude Code에게 맡기기 (Enter)": {
+  "en": "Hand it to Claude Code (Enter)",
+  "zh": "交给 Claude Code (Enter)",
+  "ja": "Claude Code に任せる (Enter)",
+  "es": "Encargar a Claude Code (Enter)"
+ },
+ "처음 쓰기 전에 확인해 주세요. ① 이 컴퓨터의 Claude Code가 문서 폴더의 원고 파일을 직접 고칩니다(저장된 파일이 바뀝니다). ② 그 과정에서 원고 내용이 Anthropic으로 전송되고, 사용량은 내 Claude 계정에서 나갑니다. ③ AI는 틀릴 수 있고 원고가 망가질 수도 있습니다. 결과를 확인할 책임은 사용자에게 있으며, 만든 사람은 어떤 손해도 책임지지 않습니다. 중요한 원고는 먼저 백업해 두세요.": {
+  "en": "Please read before first use. (1) Claude Code on this computer edits the source files in the document folder directly (the saved files change). (2) In doing so, the content of your source is sent to Anthropic, and the usage is charged to your own Claude account. (3) AI can be wrong and may damage your source. Checking the result is your responsibility, and the author accepts no liability for any loss. Back up important work first.",
+  "zh": "首次使用前请确认。① 本机的 Claude Code 会直接修改文档文件夹中的原稿文件（已保存的文件会改变）。② 在此过程中，原稿内容会发送给 Anthropic，用量计入您自己的 Claude 账户。③ AI 可能出错，也可能损坏原稿。确认结果是用户的责任，作者不对任何损失负责。重要的原稿请先备份。",
+  "ja": "初めて使う前にご確認ください。① このパソコンの Claude Code が文書フォルダーの原稿ファイルを直接書き換えます（保存済みのファイルが変わります）。② その際、原稿の内容が Anthropic に送信され、使用量はご自身の Claude アカウントに計上されます。③ AI は誤ることがあり、原稿を壊すこともあります。結果を確認する責任は利用者にあり、作者はいかなる損害にも責任を負いません。大切な原稿は先にバックアップしてください。",
+  "es": "Léelo antes del primer uso. (1) Claude Code de este equipo edita directamente los archivos del original en la carpeta del documento (cambian los archivos guardados). (2) Al hacerlo, el contenido del original se envía a Anthropic y el consumo se carga a tu propia cuenta de Claude. (3) La IA puede equivocarse y puede dañar tu original. Comprobar el resultado es responsabilidad tuya y el autor no asume ninguna responsabilidad por pérdidas. Haz antes una copia de seguridad de lo importante."
+ },
+ "확인했습니다, 계속": {
+  "en": "Understood, continue",
+  "zh": "已确认，继续",
+  "ja": "確認しました、続ける",
+  "es": "Entendido, continuar"
+ },
+ "AI가 고친 것을 모두 되돌립니다(파일도 고치기 전으로)": {
+  "en": "Undo everything the AI changed (the files go back too)",
+  "zh": "撤销 AI 的全部修改（文件也恢复原状）",
+  "ja": "AIが直したものをすべて元に戻します（ファイルも元どおりに）",
+  "es": "Deshace todo lo que cambió la IA (también en los archivos)"
+ },
+ "이 컴퓨터의 Claude Code가 문서 폴더의 원고 파일을 직접 고칩니다. 원고 내용이 Anthropic으로 전송되고 사용량은 내 Claude 계정에서 나갑니다. AI는 틀릴 수 있으니 바뀐 곳과 지면을 꼭 확인하세요.": {
+  "en": "Claude Code on this computer edits the source files in the document folder directly. The content of your source is sent to Anthropic and the usage is charged to your Claude account. AI can be wrong: always check the list of changes and the page.",
+  "zh": "本机的 Claude Code 会直接修改文档文件夹中的原稿文件。原稿内容会发送给 Anthropic，用量计入您的 Claude 账户。AI 可能出错，请务必核对修改之处和版面。",
+  "ja": "このパソコンの Claude Code が文書フォルダーの原稿ファイルを直接書き換えます。原稿の内容は Anthropic に送信され、使用量はご自身の Claude アカウントに計上されます。AI は誤ることがあるので、変更箇所と紙面を必ず確認してください。",
+  "es": "Claude Code de este equipo edita directamente los archivos del original en la carpeta del documento. El contenido del original se envía a Anthropic y el consumo se carga a tu cuenta de Claude. La IA puede equivocarse: comprueba siempre la lista de cambios y la página."
+ },
+ "이 컴퓨터에서 Claude Code를 찾지 못했습니다. Claude Code를 설치하고 터미널에서 claude 를 한 번 실행해 로그인하면 이 기능을 쓸 수 있습니다. 편집기에는 키나 비밀번호를 넣지 않습니다.": {
+  "en": "Claude Code was not found on this computer. Install Claude Code and run claude once in a terminal to sign in, and this feature becomes available. You never enter a key or password into the editor.",
+  "zh": "在本机上未找到 Claude Code。安装 Claude Code 并在终端中运行一次 claude 完成登录后，即可使用此功能。编辑器不需要输入任何密钥或密码。",
+  "ja": "このパソコンに Claude Code が見つかりません。Claude Code をインストールし、ターミナルで claude を一度実行してログインすると、この機能が使えます。エディターにキーやパスワードを入力することはありません。",
+  "es": "No se encontró Claude Code en este equipo. Instala Claude Code y ejecuta claude una vez en una terminal para iniciar sesión; entonces podrás usar esta función. Nunca se introduce una clave ni contraseña en el editor."
+ },
+ "자료 파일이 바뀌었습니다: {0}": {
+  "en": "Data file changed: {0}",
+  "zh": "数据文件已更改：{0}",
+  "ja": "データファイルが変わりました: {0}",
+  "es": "Archivo de datos modificado: {0}"
+ },
+ "취소하는 중…": {
+  "en": "Cancelling…",
+  "zh": "正在取消…",
+  "ja": "キャンセル中…",
+  "es": "Cancelando…"
+ },
+ "AI로 고치기(Claude Code에게 지시)": {
+  "en": "Edit with AI (instruct Claude Code)",
+  "zh": "用 AI 修改（指示 Claude Code）",
+  "ja": "AIで直す（Claude Code に指示）",
+  "es": "Editar con IA (instruir a Claude Code)"
+ },
+ "Claude Code를 부르는 중…": {
+  "en": "Starting Claude Code…",
+  "zh": "正在启动 Claude Code…",
+  "ja": "Claude Code を呼び出し中…",
+  "es": "Iniciando Claude Code…"
+ },
+ "Claude가 생각하는 중…": {
+  "en": "Claude is thinking…",
+  "zh": "Claude 正在思考…",
+  "ja": "Claude が考えています…",
+  "es": "Claude está pensando…"
+ },
+ "Claude가 원고에서 찾는 중…": {
+  "en": "Claude is searching the source…",
+  "zh": "Claude 正在原稿中查找…",
+  "ja": "Claude が原稿を検索中…",
+  "es": "Claude está buscando en el original…"
+ },
+ "Claude가 읽는 중: {0}": {
+  "en": "Claude is reading: {0}",
+  "zh": "Claude 正在读取：{0}",
+  "ja": "Claude が読んでいます: {0}",
+  "es": "Claude está leyendo: {0}"
+ },
+ "Claude가 고치는 중: {0}": {
+  "en": "Claude is editing: {0}",
+  "zh": "Claude 正在修改：{0}",
+  "ja": "Claude が直しています: {0}",
+  "es": "Claude está editando: {0}"
+ },
+ "다시 조판하는 중…": {
+  "en": "Typesetting again…",
+  "zh": "正在重新排版…",
+  "ja": "組み直しています…",
+  "es": "Componiendo de nuevo…"
+ },
+ "조판 오류가 나서 Claude가 다시 고치는 중…": {
+  "en": "It did not typeset, so Claude is fixing it…",
+  "zh": "排版出错，Claude 正在重新修改…",
+  "ja": "組版エラーが出たため、Claude が直し直しています…",
+  "es": "No se pudo componer; Claude lo está corrigiendo…"
+ },
+ "AI가 이미 고치는 중입니다.": {
+  "en": "The AI is already working.",
+  "zh": "AI 已在修改中。",
+  "ja": "AIはすでに作業中です。",
+  "es": "La IA ya está trabajando."
+ },
+ "그 뒤에 원고가 바뀌어서 통째로 되돌리지 못했습니다. Ctrl+Z로 되돌린 뒤 저장해 주세요.": {
+  "en": "The source has changed since then, so it could not be undone as a whole. Undo with Ctrl+Z, then save.",
+  "zh": "此后原稿已更改，无法整体撤销。请用 Ctrl+Z 撤销后保存。",
+  "ja": "その後に原稿が変わったため、まとめて元に戻せませんでした。Ctrl+Z で戻してから保存してください。",
+  "es": "El original ha cambiado desde entonces, así que no se pudo deshacer en bloque. Deshaz con Ctrl+Z y guarda."
+ },
+ "AI가 고치는 동안에는 편집할 수 없습니다. 끝날 때까지 기다리거나 취소해 주세요.": {
+  "en": "You cannot edit while the AI is working. Wait until it finishes, or cancel it.",
+  "zh": "AI 修改期间无法编辑。请等待完成或取消。",
+  "ja": "AIの作業中は編集できません。終わるまで待つか、キャンセルしてください。",
+  "es": "No se puede editar mientras la IA trabaja. Espera a que termine o cancélala."
+ },
+ "무엇을 고칠지 지시를 적어 주세요.": {
+  "en": "Write what should be changed.",
+  "zh": "请写下要修改的内容。",
+  "ja": "何を直すか指示を書いてください。",
+  "es": "Escribe qué hay que cambiar."
+ },
+ "이 컴퓨터에서 Claude Code를 찾지 못했습니다. Claude Code를 설치하고 터미널에서 claude 를 한 번 실행해 로그인한 뒤 다시 해 주세요.": {
+  "en": "Claude Code was not found on this computer. Install Claude Code, run claude once in a terminal to sign in, then try again.",
+  "zh": "在本机上未找到 Claude Code。请安装 Claude Code，在终端中运行一次 claude 完成登录后再试。",
+  "ja": "このパソコンに Claude Code が見つかりません。Claude Code をインストールし、ターミナルで claude を一度実行してログインしてから、もう一度お試しください。",
+  "es": "No se encontró Claude Code en este equipo. Instala Claude Code, ejecuta claude una vez en una terminal para iniciar sesión y vuelve a intentarlo."
+ },
+ "저장하지 않은 변경이 있습니다. 먼저 저장(Ctrl+S)한 뒤 다시 해 주세요. (Claude Code는 저장된 파일을 고칩니다.)": {
+  "en": "There are unsaved changes. Save first (Ctrl+S), then try again. (Claude Code edits the saved files.)",
+  "zh": "有未保存的更改。请先保存 (Ctrl+S) 后再试。（Claude Code 修改的是已保存的文件。）",
+  "ja": "保存していない変更があります。先に保存 (Ctrl+S) してから、もう一度お試しください。（Claude Code は保存済みのファイルを書き換えます。）",
+  "es": "Hay cambios sin guardar. Guarda primero (Ctrl+S) y vuelve a intentarlo. (Claude Code edita los archivos guardados.)"
+ },
+ "{0} 고치던 것을 되돌리지 못했습니다: {1}": {
+  "en": "{0} The partial changes could not be undone: {1}",
+  "zh": "{0} 未能撤销已做的修改：{1}",
+  "ja": "{0} 途中の変更を元に戻せませんでした: {1}",
+  "es": "{0} No se pudieron deshacer los cambios parciales: {1}"
+ },
+ "고치던 것은 모두 되돌렸습니다.": {
+  "en": "Everything it had changed was undone.",
+  "zh": "已撤销其全部修改。",
+  "ja": "途中の変更はすべて元に戻しました。",
+  "es": "Se deshizo todo lo que había cambiado."
+ },
+ "Claude가 원고를 고치지 않았습니다.": {
+  "en": "Claude did not change the source.",
+  "zh": "Claude 没有修改原稿。",
+  "ja": "Claude は原稿を変更しませんでした。",
+  "es": "Claude no cambió el original."
+ },
+ "Claude가 {0}곳을 고쳤습니다. 지면을 확인해 주세요.": {
+  "en": "Claude changed {0} place(s). Please check the page.",
+  "zh": "Claude 修改了 {0} 处。请核对版面。",
+  "ja": "Claude が {0} か所を直しました。紙面を確認してください。",
+  "es": "Claude cambió {0} lugar(es). Comprueba la página."
+ },
+ "Claude가 고친 결과가 조판되지 않았습니다. ({0})": {
+  "en": "Claude's result did not typeset. ({0})",
+  "zh": "Claude 的修改结果无法排版。（{0}）",
+  "ja": "Claude の結果は組版できませんでした。（{0}）",
+  "es": "El resultado de Claude no se pudo componer. ({0})"
+ },
+ "Claude Code가 일을 마치지 못했습니다.": {
+  "en": "Claude Code could not finish the job.",
+  "zh": "Claude Code 未能完成任务。",
+  "ja": "Claude Code は作業を完了できませんでした。",
+  "es": "Claude Code no pudo terminar el trabajo."
+ },
+ "Claude Code를 실행하지 못했습니다. ({0})": {
+  "en": "Could not start Claude Code. ({0})",
+  "zh": "无法启动 Claude Code。（{0}）",
+  "ja": "Claude Code を起動できませんでした。（{0}）",
+  "es": "No se pudo iniciar Claude Code. ({0})"
+ },
+ "취소했습니다.": {
+  "en": "Cancelled.",
+  "zh": "已取消。",
+  "ja": "キャンセルしました。",
+  "es": "Cancelado."
+ },
+ "Claude Code가 너무 오래 걸려서 멈췄습니다.": {
+  "en": "Claude Code took too long and was stopped.",
+  "zh": "Claude Code 耗时过长，已停止。",
+  "ja": "Claude Code に時間がかかりすぎたため停止しました。",
+  "es": "Claude Code tardó demasiado y se detuvo."
+ },
+ "Claude Code가 답 없이 끝났습니다. 터미널에서 claude 를 한 번 실행해 로그인되어 있는지 확인해 주세요.": {
+  "en": "Claude Code ended without an answer. Run claude once in a terminal and check that you are signed in.",
+  "zh": "Claude Code 未给出答复就结束了。请在终端中运行一次 claude，确认是否已登录。",
+  "ja": "Claude Code が応答なしで終了しました。ターミナルで claude を一度実行し、ログインしているか確認してください。",
+  "es": "Claude Code terminó sin responder. Ejecuta claude una vez en una terminal y comprueba que has iniciado sesión."
+ },
+ "Claude Code에 로그인되어 있지 않습니다. 터미널에서 claude 를 실행해 로그인한 뒤 다시 해 주세요.": {
+  "en": "You are not signed in to Claude Code. Run claude in a terminal to sign in, then try again.",
+  "zh": "尚未登录 Claude Code。请在终端中运行 claude 登录后再试。",
+  "ja": "Claude Code にログインしていません。ターミナルで claude を実行してログインしてから、もう一度お試しください。",
+  "es": "No has iniciado sesión en Claude Code. Ejecuta claude en una terminal para iniciar sesión y vuelve a intentarlo."
+ },
+ "Claude 사용 한도에 걸렸거나 서버가 바쁩니다. 잠시 뒤에 다시 해 주세요.": {
+  "en": "You hit your Claude usage limit, or the server is busy. Try again in a while.",
+  "zh": "已达到 Claude 使用限额，或服务器繁忙。请稍后再试。",
+  "ja": "Claude の使用上限に達したか、サーバーが混み合っています。しばらくしてからお試しください。",
+  "es": "Has alcanzado el límite de uso de Claude o el servidor está ocupado. Inténtalo más tarde."
  }
 }

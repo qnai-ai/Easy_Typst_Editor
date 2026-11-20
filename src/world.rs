@@ -29,6 +29,14 @@ pub struct Entry {
     pub in_project: bool,
 }
 
+/// 밖에서 바뀐 프로젝트 파일의 '바뀌기 전' 모습(되돌릴 때 쓴다).
+pub struct Before {
+    pub id: FileId,
+    /// 원고(.typ)로 읽힌 파일이면 그 본문
+    pub text: Option<String>,
+    pub bytes: Bytes,
+}
+
 pub struct ProjectWorld {
     pub root: PathBuf,
     pub main: FileId,
@@ -250,6 +258,48 @@ impl ProjectWorld {
             }
         }
         Ok(names)
+    }
+
+    /// 밖에서(Claude Code가) 고친 프로젝트 파일을 다시 읽어 들인다. 돌려주는 값은 바뀐 파일들의 바뀌기 전 모습.
+    pub fn sync_disk(&self) -> Vec<Before> {
+        const BOM: &str = "\u{feff}";
+        let mut files = self.files.lock().unwrap();
+        let mut out = vec![];
+        for (id, e) in files.iter_mut() {
+            let Ok(e) = e else { continue };
+            if !e.in_project { continue; }
+            // 그림처럼 큰 자료 파일은 크기가 같으면 다시 읽지 않는다
+            if e.source.is_none() && e.bytes.len() > 4_000_000
+                && std::fs::metadata(&e.path).is_ok_and(|m| m.len() == e.bytes.len() as u64) { continue; }
+            let Ok(data) = std::fs::read(&e.path) else { continue };
+            if data.as_slice() == &e.bytes[..] { continue; }
+            let before = Before { id: *id, text: e.source.as_ref().map(|s| s.text().to_string()), bytes: e.bytes.clone() };
+            if let Some(src) = e.source.as_mut() {
+                let t = String::from_utf8_lossy(&data).to_string();
+                let t = t.strip_prefix(BOM).unwrap_or(&t).to_string();
+                src.replace(&t);
+                e.disk_text = Some(t);
+                e.bom = data.starts_with(BOM.as_bytes());
+            }
+            e.bytes = Bytes::new(data);
+            out.push(before);
+        }
+        out
+    }
+
+    /// 파일을 `b`의 모습으로 되돌린다(디스크와 메모리 모두).
+    pub fn restore(&self, b: &Before) -> Result<(), String> {
+        const BOM: &str = "\u{feff}";
+        let mut files = self.files.lock().unwrap();
+        let Some(Ok(e)) = files.get_mut(&b.id) else { return Ok(()) };
+        std::fs::write(&e.path, &b.bytes[..]).map_err(|err| crate::lang::f("{0} 파일에 쓰지 못했습니다: {1}", &[&e.path.display(), &err]))?;
+        e.bytes = b.bytes.clone();
+        if let (Some(src), Some(t)) = (e.source.as_mut(), &b.text) {
+            src.replace(t);
+            e.disk_text = Some(t.clone());
+            e.bom = b.bytes.starts_with(BOM.as_bytes());
+        }
+        Ok(())
     }
 
     pub fn path_of(&self, id: FileId) -> Option<PathBuf> {

@@ -72,42 +72,6 @@ fn sig_of(node: &SyntaxNode) -> Sig {
     let mut s = Sig::new(); add_sig(node, &mut s, 1); s.retain(|_, v| *v != 0); s
 }
 
-/// 원고의 '짜임': 글자(Text·띄어쓰기·문단 나눔·이스케이프 등)를 뺀 모든 잎 노드의 (종류, 글자) 차례.
-/// 문자열("…")은 종류만, 수식($…$) 안은 글자까지 본다.
-fn shape(node: &SyntaxNode, in_math: bool, out: &mut Vec<(SyntaxKind, String)>) {
-    let k = node.kind();
-    let in_math = in_math || matches!(k, SyntaxKind::Equation | SyntaxKind::Math);
-    if node.children().len() == 0 {
-        if in_math { out.push((k, node.full_text().to_string())); }
-        else if k == SyntaxKind::Str { out.push((k, String::new())); }
-        else if !SIG_SKIP.contains(&k) { out.push((k, node.full_text().to_string())); }
-        return;
-    }
-    for c in node.children() { shape(c, in_math, out); }
-}
-
-/// AI가 고친 글로 구간 `r`을 바꾼다. 글자만 바뀌고 짜임(함수·꾸밈·수식·라벨·참조 등)은
-/// 하나도 바뀌지 않았을 때만 받는다. 그래서 AI가 새 코드(#…)를 넣거나 꾸밈을 지울 수 없다.
-pub fn ai_replace(w: &mut Work, r: Range<usize>, with: &str) -> R<()> {
-    if r.end > w.text.len() || !w.text.is_char_boundary(r.start) || !w.text.is_char_boundary(r.end) {
-        return Err("선택한 자리가 올바르지 않습니다.".into());
-    }
-    let old = tree(&w.text);
-    let mut t = w.text.clone();
-    t.replace_range(r.clone(), with);
-    let new = tree(&t);
-    if bad(&new) { return Err("AI가 고친 글이 원고 문법에 맞지 않아 적용하지 않았습니다.".into()); }
-    let (mut a, mut b) = (vec![], vec![]);
-    shape(&old, false, &mut a);
-    shape(&new, false, &mut b);
-    if a != b { return Err("AI가 글자 말고 꾸밈·함수·수식까지 바꾸려 해서 적용하지 않았습니다.".into()); }
-    let end = r.start + with.len();
-    w.text = t;
-    w.anchor = r.start;
-    w.caret = end;
-    Ok(())
-}
-
 fn is_markup_text(n: &LinkedNode) -> bool {
     n.kind() == SyntaxKind::Text && n.parent_kind() == Some(SyntaxKind::Markup)
 }
@@ -2810,33 +2774,6 @@ pub fn math_insert_opt(w: &mut Work, src: &str, space: bool) -> R<Range<usize>> 
 mod tests {
     use super::*;
 
-    #[test]
-    fn ai_replace_keeps_shape() {
-        let src = "= 제목
-
-가나 *다라* 마바 $x + 1$ 끝 #box[\"상자\"] @ref <lab>
-";
-        let r = |from: &str, to: &str| {
-            let mut w = Work::new(src.to_string(), src.len(), 0);
-            let new = src.replacen(from, to, 1);
-            ai_replace(&mut w, 0..src.len(), &new).map(|_| w.text)
-        };
-        // 글자만 바뀌면 받는다(꾸밈 안의 글자도)
-        assert!(r("가나", "가나다").is_ok());
-        assert!(r("*다라*", "*다라라*").is_ok());
-        assert!(r("마바", r"마바\#사").is_ok());
-        // 새 코드·꾸밈 제거·수식 변경·라벨 변경은 막는다
-        assert!(r("끝", "끝 #read(\"x\")").is_err());
-        assert!(r("*다라*", "다라").is_err());
-        assert!(r("$x + 1$", "$x - 1$").is_err());
-        assert!(r("<lab>", "<lob>").is_err());
-        assert!(r("@ref", "@rof").is_err());
-        assert!(r("마바", "마바 _기울임_").is_err());
-        // 결과는 선택된 채로 남는다
-        let mut w = Work::new("가나다".into(), 6, 0);
-        ai_replace(&mut w, 0..6, "가나다라").unwrap();
-        assert_eq!((w.anchor, w.caret), (0, 12));
-    }
     fn w(text: &str) -> Work {
         // `|` 커서, `<`..`>` 대신 `{`,`}` 로 선택
         if let (Some(a), Some(b)) = (text.find('{'), text.find('}')) {

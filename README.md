@@ -147,6 +147,8 @@ editable text is editable, and template-generated text is safely locked.
 
 ## ⬇️ Download & run
 
+> ⚠️ **Read the [Disclaimer](#disclaimer) before use.** This program is provided "AS IS" without warranty, and the author is not liable for any loss arising from its use, including damaged or lost manuscripts and anything an AI produces. Always keep backups of your work.
+
 Grab the package for your system from **[Releases](https://github.com/qnai-ai/Easy_Typst_Editor/releases/latest)**, unzip, run, and pick a `main.typ`.
 First time? Try [`examples/hello/main.typ`](examples/hello/main.typ).
 
@@ -191,23 +193,25 @@ Ctrl+Z undoes as far back as you like.
 
 Not by default. The Typst engine (0.15.1) is built into the app, so everything happens on your PC. The window talks to the engine only on 127.0.0.1,
 and that channel is locked with a token created anew on every launch, so other websites and programs cannot cut in.
-The single exception is the optional **✨ AI** feature that you switch on yourself — see the next question.
+The editor itself never connects to the internet. If you use **✨ AI**, however, Claude Code on your computer sends the contents of your source to Anthropic — see the next question.
 </details>
 
-<details><summary><b>Is “✨ Polish with AI” safe? What leaves my computer?</b></summary>
+<details><summary><b>Is editing with “✨ AI” safe? What leaves my computer?</b></summary>
 
-The AI feature works **only after you enter your own Gemini API key**. Without a key the app sends nothing to the internet.
+**✨ AI** is an optional feature that calls **[Claude Code](https://claude.com/claude-code), already installed and signed in on your own computer**, and lets it edit your source.
+Without Claude Code the feature is off and the editor sends nothing to the internet.
 
-- **What is sent:** only the **selected text and your instruction**, at the moment you press “Polish”, to Google (Gemini API). Never the whole document, file names or other pages.
-- **Where the key lives:** only in the operating system's secret store (Windows Credential Manager · macOS Keychain · Linux keyring).
-  It is not written to settings files, your sources or backups, and once saved the window shows only its last four characters. Remove it any time with ⚙ → “Remove key”.
-- **Your source stays intact:** the AI may change words only. If a function (`#…`), formatting, math or a label differs in any way, nothing is applied — and one Ctrl+Z undoes an edit.
-- **Please do this:** ① create a key just for this app in [Google AI Studio](https://aistudio.google.com/apikey);
-  ② in the Google Cloud console restrict that key to the **Generative Language API** and set a quota limit;
-  ③ for sensitive text such as an unpublished manuscript use a key **with billing enabled (paid tier)** — on the free tier Google may use what you send to improve its services;
-  ④ if you suspect the key has leaked, delete it in AI Studio right away and create a new one.
+- **You never enter a key into the editor.** It does not accept, store or transmit any API key or password. Claude Code signs in its own way.
+- **How to use it:** press **✨ AI** (Ctrl+K) and write, say, “put two spaces inside both ends of the (A) and (B) boxes on this page; same in the answer key”. Claude Code reads the template and the source and edits the files it needs to.
+  The editor tells it where the page in view and your selection are in the source, then typesets again and lists what changed.
+- **What is sent:** your instruction and **the contents of the files in the document folder** that Claude Code reads while it works go to Anthropic. Claude decides which files to read, so assume **the whole document folder may be sent**. Usage is charged to your own Claude account.
+- **What Claude Code is allowed to do:** it is always started in restricted mode. Inside the document folder it can only **read, search and edit** files; it cannot run commands, reach the web, create files or delete files. Your Claude Code settings, hooks and MCP servers are not loaded.
+- **Protecting your source:** Claude Code edits **the saved files directly**. The editor keeps a copy of the files as they were in its backup folder; if the result does not typeset it asks Claude to fix it up to twice, and if it still fails everything is put back.
+  Every change is listed and one **Undo** (or Ctrl+Z) reverts it. Still, **“it typesets” does not mean “it is right”** — always check the result yourself.
+- **Please do this:** ① back up important work first, or keep it in git. ② Do not use the AI feature on documents from sources you do not trust (text inside a document can trick an AI).
+  ③ Do not keep passwords or personal data files in the document folder. ④ Do not use it on material that must not leave your organisation (exam papers, contractually confidential work, …).
 
-More in the [manual, “Polish with AI”](docs/manual.md#polish-with-ai-gemini).
+More in the [manual, “Edit with AI”](docs/manual.md#edit-with-ai-claude-code) and the [Disclaimer](#disclaimer) below.
 </details>
 
 <details><summary><b>Does it look exactly like `typst compile`?</b></summary>
@@ -231,7 +235,7 @@ On macOS use ⌘ for Ctrl and ⌥ for Alt. Press F1 in the app for the full list
 | Ctrl+B · Ctrl+I · Ctrl+U | Bold · italic · underline |
 | Ctrl+Z · Ctrl+Y · Ctrl+S · Ctrl+P | Undo · redo · save · save as PDF |
 | Ctrl+F · Ctrl+H | Find · replace |
-| Ctrl+J | Polish the selection with AI (once you have entered your Gemini key) |
+| Ctrl+K | Edit with AI: instruct Claude Code on your computer (when Claude Code is installed) |
 | Click an equation · Ctrl+M | Edit equation · insert equation |
 | Ctrl+V · Ctrl+Shift+V | Paste (LaTeX → Typst) · paste as plain text |
 | Right-click in a table | Insert / delete rows and columns |
@@ -251,6 +255,28 @@ If it helps you, a ⭐ helps other Typst users find it.
 
 - **[Full manual](docs/manual.md)** — every feature, all shortcuts, how it works, building from source, known limitations
 - Translations welcome: all UI text lives in one file, [`ui/i18n.json`](ui/i18n.json) (한국어 · English · 日本語 · 简体中文 · Español).
+
+<a id="disclaimer"></a>
+
+## ⚠️ Disclaimer
+
+**By downloading or running this program you agree to the following. If you do not agree, do not use it.**
+
+1. **No warranty.** This is open-source software made by an individual and published free of charge. It is provided **“AS IS”**, **without warranty of any kind**, express or implied, including merchantability, fitness for a particular purpose, freedom from errors, accuracy of results and non-infringement.
+2. **No liability.** To the fullest extent permitted by law, the author and contributors are **not liable** for **any direct, indirect, incidental, special or consequential damages** arising from the use of, or inability to use, this program — including damaged or lost manuscripts, wrong typesetting and printing accidents, reprint costs, missed deadlines, business interruption, lost revenue or profit, data disclosure, AI service charges and third-party claims.
+3. **Backups are your job.** The backups and undo that the program provides are conveniences, not guarantees. Keep your own backups, or keep your sources under version control such as git.
+4. **Checking the result is your job.** Before sending anything to a printer, distributing or publishing it, read the final PDF from beginning to end yourself. Decisions made on the strength of the page shown by this program, or of a “Saved” message, are your own responsibility.
+5. **This applies all the more to the AI feature.**
+   - **✨ AI** runs, at your instruction, a third-party program that you installed and signed in to yourself (Anthropic's Claude Code). **Claude Code edits the source files on your computer directly.**
+   - What an AI produces **can be wrong, can damage your source and can change things you did not ask for.** The editor's safeguards (restricted mode, typesetting check, list of changes, undo, backup) reduce these risks; they do not remove them.
+   - Using the AI feature **sends the contents of your source to Anthropic.** Deciding whether that material may be sent to an outside service (confidentiality, personal data, exam papers, other people's copyrighted work, your organisation's rules, contractual duties) and obtaining any permission needed is **entirely your responsibility**.
+   - How what you send is handled, what it costs, usage limits, and changes to or discontinuation of the service are governed by Anthropic's terms and privacy policy. The author has no control over them and accepts no responsibility for them.
+   - Attacks in which text hidden in a document changes what an AI does (prompt injection) cannot be fully prevented. **Do not use the AI feature on documents whose source you do not trust.**
+6. **No security warranty.** Several protective measures are in place, but the program is not warranted to be free of vulnerabilities, and the author is not liable for security incidents connected with its use.
+7. **No support obligation.** “Bugs fixed within 24 hours” is a goal the author works towards, not a promise or a guarantee. There is no obligation to fix, maintain or keep compatibility, and features may change or disappear without notice.
+8. **No affiliation.** This program is not affiliated with, sponsored by or endorsed by Typst GmbH, Anthropic or Adobe. Typst, Claude and Claude Code are trademarks of their respective owners.
+
+The legally operative terms are in [LICENSE](LICENSE) (MIT); where they differ from the text above, LICENSE prevails.
 
 ## License
 

@@ -148,13 +148,31 @@ body.pick .page{cursor:crosshair}
 #findbar.show ~ #aibar{top:96px}
 #dev.show ~ #aibar{right:446px}
 #aibar .row{display:flex;align-items:center;gap:4px}
-#aibar input{flex:1;min-width:0;height:28px;border:1px solid var(--line);border-radius:6px;padding:0 8px;font:inherit;outline:none;user-select:text}
-#aibar input:focus{border-color:var(--acc)}
+#aibar .row.top{align-items:flex-start}
+#aibar textarea{flex:1;min-width:0;height:52px;resize:vertical;max-height:200px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;line-height:1.45;outline:none;user-select:text}
+#aibar textarea:focus{border-color:var(--acc)}
 #aibar .tb{height:28px;min-width:28px;padding:0 8px}
 #aibar .note{font-size:12px;color:var(--muted);line-height:1.5}
 #aibar .note a{color:var(--acc)}
-#aiset{display:none;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:6px}
-#aibar.set #aiset{display:flex}
+#aimsg{display:none;align-items:center;gap:7px;font-size:12.5px;line-height:1.45;color:var(--muted);padding:1px 2px}
+#aimsg.show{display:flex}
+#aimsg.info{color:var(--acc)} #aimsg.ok{color:#15803d} #aimsg.warn{color:var(--warn)} #aimsg.error{color:var(--err)}
+.spin{flex:none;width:13px;height:13px;border:2px solid var(--acc-soft);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite}
+#aiGo .spin{border-color:rgba(255,255,255,.35);border-top-color:#fff;display:inline-block;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+#aidiff{display:none;flex-direction:column;gap:5px;border-top:1px solid var(--line);padding-top:6px}
+#aidiff.show{display:flex}
+#aidiff .list{display:flex;flex-direction:column;gap:4px;max-height:210px;overflow:auto}
+#aidiff .d{font:12px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-all;background:#f6f7f9;border-radius:5px;padding:4px 6px;user-select:text}
+#aidiff del{color:var(--err);background:#fde8e8;text-decoration:line-through}
+#aidiff ins{color:#15803d;background:#e3f6e8;text-decoration:none}
+#aidiff .row{justify-content:flex-end}
+#aidiff .f{font-size:11.5px;color:var(--muted);margin-top:2px}
+#aisaid{display:none;font-size:12.5px;line-height:1.5;white-space:pre-wrap;user-select:text}
+#aisaid.show{display:block}
+#aiagree{display:none;flex-direction:column;gap:6px;border:1px solid var(--warn);border-radius:6px;padding:7px 8px;font-size:12.5px;line-height:1.55}
+#aiagree.show{display:flex}
+#aiagree .row{justify-content:flex-end}
 #findbar #frep{display:none}
 #findbar.rep #frep{display:flex}
 /* 오른쪽 단추 메뉴 */
@@ -264,7 +282,7 @@ kbd{font:11.5px Consolas,"D2Coding",monospace;background:#f1f3f7;border:1px soli
     </div>
     <span class="sp"></span>
     <div class="grp">
-      <button class="tb" id="bAi" title="AI로 다듬기 (Ctrl+J): 선택한 글을 Gemini가 고칩니다. 꾸밈·함수·수식은 그대로 둡니다.">✨ AI</button>
+      <button class="tb" id="bAi" title="AI로 고치기 (Ctrl+K): 이 컴퓨터의 Claude Code가 지시대로 원고를 고칩니다.">✨ AI</button>
       <button class="tb" id="bFind" title="찾기·바꾸기 (Ctrl+F, Ctrl+H)">찾기</button>
       <button class="tb" id="bElem" title="요소 고르기: 글자가 아니라 덩어리(표제어 줄, 통계 줄, 자리 잡힌 글 등)를 통째로 골라 지우거나 옮깁니다. Alt를 누른 채 지면을 눌러도 됩니다.">요소 고르기</button>
       <button class="tb" id="bDev" title="개발자용 보기: 고치는 자리의 원본을 보여 줍니다">개발자용 보기</button>
@@ -314,19 +332,22 @@ kbd{font:11.5px Consolas,"D2Coding",monospace;background:#f1f3f7;border:1px soli
     </div>
   </div>
   <div id="aibar">
-    <div class="row">
-      <input id="aiq" placeholder="지시 (비우면 맞춤법·문장 다듬기)" autocomplete="off" spellcheck="false">
-      <button class="tb primary" id="aiGo" title="선택한 글을 다듬기 (Enter)">다듬기</button>
-      <button class="tb" id="aiSetBtn" title="AI 설정 (API 키·모델)">⚙</button>
+    <div class="row top">
+      <textarea id="aiq" placeholder="지시 (예: 이 쪽 상자 안 양 끝을 두 칸씩 띄워 줘. 해설도 마찬가지로.)" autocomplete="off" spellcheck="false"></textarea>
+      <button class="tb primary" id="aiGo" title="Claude Code에게 맡기기 (Enter)">고치기</button>
       <button class="tb" id="aiClose" title="닫기 (Esc)">✕</button>
     </div>
-    <div id="aiset">
-      <div class="row"><input id="aikey" type="password" placeholder="Gemini API 키" autocomplete="off" spellcheck="false"></div>
-      <div class="row"><input id="aimodel" placeholder="모델 (기본: gemini-flash-latest)" autocomplete="off" spellcheck="false">
-        <button class="tb primary" id="aiSave">저장</button><button class="tb" id="aiForget" title="저장한 키를 이 PC에서 지웁니다">키 지우기</button></div>
-      <div class="note" id="aistate"></div>
-      <div class="note">키는 이 PC의 운영체제 비밀 저장소(Windows 자격 증명 관리자, macOS 키체인)에만 저장되고 화면에는 다시 나오지 않습니다. 보내는 것은 선택한 글과 지시뿐입니다. 무료 등급 키는 Google이 보낸 글을 서비스 개선에 쓸 수 있으니, 원고에는 결제를 켠 키를 권합니다.</div>
+    <div id="aiagree">
+      <div id="aiagreetext">처음 쓰기 전에 확인해 주세요. ① 이 컴퓨터의 Claude Code가 문서 폴더의 원고 파일을 직접 고칩니다(저장된 파일이 바뀝니다). ② 그 과정에서 원고 내용이 Anthropic으로 전송되고, 사용량은 내 Claude 계정에서 나갑니다. ③ AI는 틀릴 수 있고 원고가 망가질 수도 있습니다. 결과를 확인할 책임은 사용자에게 있으며, 만든 사람은 어떤 손해도 책임지지 않습니다. 중요한 원고는 먼저 백업해 두세요.</div>
+      <div class="row"><button class="tb primary" id="aiAgree">확인했습니다, 계속</button></div>
     </div>
+    <div id="aimsg" role="status" aria-live="polite"></div>
+    <div id="aisaid"></div>
+    <div id="aidiff">
+      <div class="list" id="aidifflist"></div>
+      <div class="row"><button class="tb" id="aiUndo" title="AI가 고친 것을 모두 되돌립니다(파일도 고치기 전으로)">되돌리기</button><button class="tb primary" id="aiKeep" title="고친 것을 그대로 둡니다">그대로 두기</button></div>
+    </div>
+    <div class="note" id="ainote"></div>
   </div>
 </div>
 <div id="status"><span id="msg">문서를 열어 주세요.</span><span id="dirty"></span></div>
@@ -466,6 +487,7 @@ async function openBook(path) {
 /* ---------- 화면 갱신 ---------- */
 function setMsg(t, kind) { const m = $('msg'); m.textContent = K(t || ''); m.className = kind || ''; }
 function apply(v, req) {
+  if (ai.diff && !['ai', 'click', 'move', 'pick', 'elemClear', 'findSel'].includes(req && req.op)) { aiDiff(null); if (!ai.busy) aiMsg(''); }
   const first = !view || !view.open;
   view = v;
   showProblems(v.problems);
@@ -779,6 +801,7 @@ ime.addEventListener('keydown', e => {
     else if (l === 'e') act('align', { how: 'center' });
     else if (l === 'r') act('align', { how: 'right' });
     else if (l === 'j') act('align', { how: null });
+    else if (l === 'k') openAi();
     else if (l === 'c' || l === 'x' || k === 'Insert') copySel(l === 'x');
     else if (k === 'Backspace') act('wordBack', { n: 1 });
     else if (k === 'Delete') act('wordDel', { n: 1 });
@@ -834,7 +857,7 @@ addEventListener('keydown', e => {
   if (e.key === 'F3') { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); return; }
   if (c && l === 'f') { e.preventDefault(); openFind(false); return; }
   if (c && l === 'h') { e.preventDefault(); openFind(true); return; }
-  if (c && l === 'j') { e.preventDefault(); openAi(); return; }
+  if (c && l === 'k') { e.preventDefault(); openAi(); return; }
   if (c && l === 'o') { e.preventDefault(); openBook(); return; }
   if (c && l === 's') { e.preventDefault(); act('save'); return; }
   if (c && l === 'p') { e.preventDefault(); savePdf(); return; }
@@ -843,58 +866,119 @@ addEventListener('keydown', e => {
   if (view && view.open) ime.focus();
 });
 
-/* ---------- AI로 다듬기 (Gemini) ---------- */
-const ai = { busy: false, st: null };
+/* ---------- AI로 고치기 (이 컴퓨터의 Claude Code) ---------- */
+const ai = { busy: false, st: null, diff: false };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function aiAgreed() { try { return localStorage.getItem('ete.aiAgreed') === '1'; } catch (e) { return !!ai.agreed; } }
 async function aiStatus() {
   try { ai.st = await (await fetch('/api/ai/status')).json(); } catch (e) { ai.st = null; }
   const st = ai.st || {};
-  $('aistate').textContent = st.hasKey ? T('저장된 키: {0} · 모델: {1}', st.hint, st.model) : T('아직 키가 없습니다. Google AI Studio에서 만든 Gemini API 키를 넣어 주세요.');
-  $('aimodel').value = st.model || '';
+  $('ainote').textContent = st.available
+    ? T('이 컴퓨터의 Claude Code가 문서 폴더의 원고 파일을 직접 고칩니다. 원고 내용이 Anthropic으로 전송되고 사용량은 내 Claude 계정에서 나갑니다. AI는 틀릴 수 있으니 바뀐 곳과 지면을 꼭 확인하세요.')
+    : T('이 컴퓨터에서 Claude Code를 찾지 못했습니다. Claude Code를 설치하고 터미널에서 claude 를 한 번 실행해 로그인하면 이 기능을 쓸 수 있습니다. 편집기에는 키나 비밀번호를 넣지 않습니다.');
+  if (!ai.busy) $('aiGo').disabled = !st.available;
   return st;
 }
 async function openAi() {
   if (!view || !view.open) return;
-  const bar = $('aibar'); bar.classList.add('show');
+  $('aibar').classList.add('show'); $('aiq').focus();
   const st = await aiStatus();
-  bar.classList.toggle('set', !st.hasKey);
-  (st.hasKey ? $('aiq') : $('aikey')).focus();
+  if (st.running && !ai.busy) aiWatch(); // 패널을 닫았다 다시 연 경우
 }
-function closeAi() { $('aibar').classList.remove('show'); $('aikey').value = ''; ime.focus(); }
-async function aiSave(forget) {
-  const body = forget ? '{}' : JSON.stringify({ key: $('aikey').value, model: $('aimodel').value });
+function closeAi() { $('aiagree').classList.remove('show'); $('aibar').classList.remove('show'); ime.focus(); }
+// 패널 안의 진행·결과 표시. busy면 도는 표시를 붙인다.
+function aiMsg(text, kind, busy) {
+  const m = $('aimsg'); m.textContent = '';
+  if (!text) { m.className = ''; return; }
+  if (busy) { const sp = document.createElement('span'); sp.className = 'spin'; m.appendChild(sp); }
+  const t = document.createElement('span'); t.textContent = K(text); m.appendChild(t);
+  m.className = 'show ' + (kind || '');
+}
+// Claude가 마지막에 한 말
+function aiSaid(text) { const e = $('aisaid'); e.textContent = text || ''; e.classList.toggle('show', !!text); }
+// 바뀐 곳들(파일 · 옛 글 → 새 글)을 패널에 보여 준다
+function aiDiff(edits) {
+  const list = $('aidifflist'); list.textContent = '';
+  const cut = t => t.length > 300 ? t.slice(0, 300) + '…' : t;
+  let file = null;
+  for (const e of edits || []) {
+    if (e.file !== file) { file = e.file; const f = document.createElement('div'); f.className = 'f'; f.textContent = e.data ? T('자료 파일이 바뀌었습니다: {0}', e.file) : e.file; list.appendChild(f); }
+    if (e.data) continue;
+    const d = document.createElement('div'); d.className = 'd';
+    const o = document.createElement('del'); o.textContent = cut(e.old || '');
+    const n = document.createElement('ins'); n.textContent = cut(e.new || '');
+    d.append(o, document.createTextNode(' → '), n); list.appendChild(d);
+  }
+  ai.diff = !!(edits && edits.length);
+  $('aidiff').classList.toggle('show', ai.diff);
+}
+function aiBusy(on) {
+  ai.busy = on;
+  $('aiGo').textContent = on ? T('취소') : T('고치기');
+  $('aiGo').disabled = false;
+  $('aiq').readOnly = on;
+}
+function aiDone(v) {
+  aiBusy(false);
+  if (!v) { aiMsg(''); return; }
+  const msg = v.msg || '';
+  const kind = v.ok && v.msgKind === 'info' ? 'ok' : (v.msgKind || 'warn');
+  if (v.open) apply(v, { op: 'ai' }); else if (msg) setMsg(msg, v.msgKind);
+  aiMsg(msg, kind); aiSaid(v.aiSaid); aiDiff(v.aiEdits);
+  if (v.ok) $('aiq').select();
+}
+// 엔진에 진행을 물어 가며 끝날 때까지 기다린다
+async function aiWatch() {
+  aiBusy(true);
   try {
-    const v = await (await fetch(forget ? '/api/ai/forget' : '/api/ai/key', { method: 'POST', body })).json();
-    $('aikey').value = '';
-    if (!v.ok) { setMsg(v.msg, 'warn'); return; }
-    const st = await aiStatus();
-    setMsg(forget ? T('저장한 키를 지웠습니다.') : T('AI 설정을 저장했습니다.'), 'info');
-    if (st.hasKey && !forget) { $('aibar').classList.remove('set'); $('aiq').focus(); }
-  } catch (e) { setMsg(T('앱 엔진과 연결이 끊겼습니다. 앱을 다시 실행해 주세요.'), 'error'); }
+    for (;;) {
+      const j = await (await fetch('/api/ai/job')).json();
+      if (!j.running) { aiDone(j.result); return; }
+      const t = j.step + ' · ' + T('{0}초', j.secs);
+      aiMsg(t, 'info', true); setMsg(t, 'info');
+      await sleep(700);
+    }
+  } catch (e) { aiBusy(false); const m = T('앱 엔진과 연결이 끊겼습니다. 앱을 다시 실행해 주세요.'); aiMsg(m, 'error'); setMsg(m, 'error'); }
 }
 async function aiRun() {
-  if (ai.busy || !view || !view.open) return;
-  if (ai.st && !ai.st.hasKey) { $('aibar').classList.add('set'); $('aikey').focus(); return; }
-  ai.busy = true; $('aiGo').disabled = true; $('bAi').disabled = true;
-  while (running || queue.length) await new Promise(r => setTimeout(r, 30)); // 앞선 고침이 조판될 때까지
-  setMsg(T('AI가 다듬는 중…'), 'info');
+  if (!view || !view.open) return;
+  if (ai.busy) { // 도는 중에 누르면 취소
+    $('aiGo').disabled = true; aiMsg(T('취소하는 중…'), 'info', true);
+    try { await fetch('/api/ai/cancel', { method: 'POST', body: '{}' }); } catch (e) {}
+    return;
+  }
+  if (ai.st && !ai.st.available) return;
+  if (!$('aiq').value.trim()) { const t = T('무엇을 고칠지 지시를 적어 주세요.'); aiMsg(t, 'warn'); $('aiq').focus(); return; }
+  if (!aiAgreed()) { $('aiagree').classList.add('show'); $('aiAgree').focus(); return; }
+  aiBusy(true); aiDiff(null); aiSaid('');
+  aiMsg(T('Claude Code를 부르는 중…'), 'info', true);
+  while (running || queue.length) await sleep(30); // 앞선 고침이 조판될 때까지
   try {
-    const v = await (await fetch('/api/ai/edit', { method: 'POST', body: JSON.stringify({ instruction: $('aiq').value }) })).json();
-    if (v.open) apply(v, { op: 'ai' }); else if (v.msg) setMsg(v.msg, v.msgKind);
-  } catch (e) { setMsg(T('앱 엔진과 연결이 끊겼습니다. 앱을 다시 실행해 주세요.'), 'error'); }
-  ai.busy = false; $('aiGo').disabled = false; $('bAi').disabled = false;
+    const v = await (await fetch('/api/ai/run', { method: 'POST', body: JSON.stringify({ instruction: $('aiq').value, page: curPage() }) })).json();
+    if (!v.ok) { aiDone(v); return; }
+  } catch (e) { aiBusy(false); const m = T('앱 엔진과 연결이 끊겼습니다. 앱을 다시 실행해 주세요.'); aiMsg(m, 'error'); setMsg(m, 'error'); return; }
+  aiWatch();
 }
+$('aiAgree').addEventListener('click', () => {
+  ai.agreed = true; try { localStorage.setItem('ete.aiAgreed', '1'); } catch (e) {}
+  $('aiagree').classList.remove('show'); aiRun();
+});
+$('aiUndo').addEventListener('click', async () => {
+  aiDiff(null); aiSaid('');
+  try {
+    const v = await (await fetch('/api/ai/revert', { method: 'POST', body: '{}' })).json();
+    if (v.open) apply(v, { op: 'ai' });
+    aiMsg(v.msg || '', v.ok ? 'info' : (v.msgKind || 'warn'));
+  } catch (e) { aiMsg(T('앱 엔진과 연결이 끊겼습니다. 앱을 다시 실행해 주세요.'), 'error'); }
+});
+$('aiKeep').addEventListener('click', () => { aiDiff(null); aiSaid(''); aiMsg(''); });
 $('bAi').addEventListener('click', () => { if ($('aibar').classList.contains('show')) closeAi(); else openAi(); });
 $('aiGo').addEventListener('click', aiRun);
 $('aiClose').addEventListener('click', closeAi);
-$('aiSetBtn').addEventListener('click', () => { $('aibar').classList.toggle('set'); aiStatus(); });
-$('aiSave').addEventListener('click', () => aiSave(false));
-$('aiForget').addEventListener('click', () => aiSave(true));
 $('aibar').addEventListener('keydown', e => {
   if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeAi(); return; }
-  if (e.key === 'Enter' && !e.isComposing) {
-    e.preventDefault();
-    if (e.target === $('aiq')) aiRun(); else aiSave(false);
-  }
+  // Enter로 맡기고, Shift+Enter로 줄을 바꾼다
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.target === $('aiq')) { e.preventDefault(); if (!ai.busy) aiRun(); }
 });
 // 패널을 눌러도 지면의 선택이 풀리지 않게
 $('aibar').addEventListener('mousedown', e => e.stopPropagation());
@@ -1189,7 +1273,7 @@ const KEYS = [
   ['찾기와 보기', [
     ['Ctrl+F / Ctrl+H', '찾기 / 바꾸기'],
     ['F3 / Shift+F3', '다음 찾은 곳 / 앞의 찾은 곳'],
-    ['Ctrl+J', 'AI로 다듬기(선택한 글)'],
+    ['Ctrl+K', 'AI로 고치기(Claude Code에게 지시)'],
     ['Ctrl+G', '쪽 번호로 가기'],
     ['Page Up / Page Down', '화면 넘기기'],
     ['Ctrl+<휠>, Ctrl+ + / Ctrl+ −', '확대 / 축소'],

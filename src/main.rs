@@ -10,7 +10,9 @@ mod session;
 mod world;
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Instant;
 
 use serde_json::{json, Value};
 use tiny_http::{Header, Method, Response, Server};
@@ -32,7 +34,22 @@ pub fn data_dir() -> PathBuf {
     d
 }
 
+/// AI(Claude Code)에게 맡긴 일 하나의 상태.
+#[derive(Default)]
+struct AiJob {
+    running: bool,
+    /// 지금 하고 있는 일(화면의 진행 표시)
+    step: String,
+    started: Option<Instant>,
+    cancel: Arc<AtomicBool>,
+    /// 끝난 일의 결과. 화면이 한 번 가져간다.
+    result: Option<Value>,
+    /// 마지막으로 받아들인 고침: 고치기 전 모습과 실행 취소 걸음 수(통째로 되돌릴 때 쓴다)
+    last: Option<(Vec<world::Before>, usize)>,
+}
+
 struct App {
+    ai: Mutex<AiJob>,
     session: Mutex<Option<Session>>,
     fonts: OnceLock<Arc<FontStore>>,
     /// 마지막으로 열지 못한 까닭. 명령줄(파일 더블클릭)로 열다 실패했을 때 첫 화면에 보여 준다.
@@ -79,6 +96,13 @@ fn add_recent(title: &str, path: &std::path::Path) {
 }
 
 fn header(k: &str, v: &str) -> Header { Header::from_bytes(k.as_bytes(), v.as_bytes()).unwrap() }
+
+/// 안내문을 옮기지 않고 그대로 보낸다(이미 옮겼거나, 원고 글이 들어 있는 응답).
+fn respond_raw(req: tiny_http::Request, v: &Value) {
+    let _ = req.respond(Response::from_string(v.to_string())
+        .with_header(header("Content-Type", "application/json; charset=utf-8"))
+        .with_header(header("Cache-Control", "no-store")));
+}
 
 fn respond_json(req: tiny_http::Request, v: &Value) {
     let mut v = v.clone();
@@ -145,19 +169,54 @@ fn serve(server: Server, app: Arc<App>, token: String) {
                     .with_header(header("X-Frame-Options", "DENY"))
                     .with_header(header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")));
             }
-            "/api/ai/status" => respond_json(req, &ai::status()),
-            "/api/ai/key" => {
-                let v = ai::set_key(jb["key"].as_str().unwrap_or(""), jb["model"].as_str());
-                respond_json(req, &v);
-            }
-            "/api/ai/forget" => respond_json(req, &ai::forget()),
-            "/api/ai/edit" => {
-                // AI 응답을 기다리는 몇 초 동안 다른 요청(화면 갱신)이 막히지 않게 따로 돌린다
-                let app = app.clone();
+            "/api/ai/status" => respond_json(req, &json!({ "available": ai::find_cli().is_some(), "running": app.ai.lock().unwrap().running })),
+            "/api/ai/run" => {
+                // Claude Code는 몇십 초에서 몇 분이 걸린다. 따로 돌리고, 화면은 /api/ai/job 으로 진행을 묻는다.
+                let mut job = app.ai.lock().unwrap();
+                if job.running { drop(job); respond_json(req, &json!({ "ok": false, "msg": "AI가 이미 고치는 중입니다.", "msgKind": "info" })); continue; }
+                *job = AiJob { running: true, step: lang::tr("Claude Code를 부르는 중…"), started: Some(Instant::now()), ..Default::default() };
+                let cancel = job.cancel.clone();
+                drop(job);
+                let app2 = app.clone();
+                let instruction = jb["instruction"].as_str().unwrap_or("").to_string();
+                let page = jb["page"].as_u64().map(|p| p as usize);
                 std::thread::spawn(move || {
-                    let v = ai_edit(&app, jb["instruction"].as_str().unwrap_or(""));
-                    respond_json(req, &v);
+                    let mut v = ai_work(&app2, &instruction, page, &cancel);
+                    // 안내문만 화면 언어로 옮긴다. Claude의 말과 바뀐 원고 글은 그대로 둔다.
+                    let keep: Vec<(&str, Value)> = ["aiSaid", "aiEdits"].iter().filter_map(|k| v.as_object_mut()?.remove(*k).map(|x| (*k, x))).collect();
+                    lang::translate(&mut v);
+                    for (k, x) in keep { v[k] = x; }
+                    let mut job = app2.ai.lock().unwrap();
+                    job.running = false;
+                    job.result = Some(v);
                 });
+                respond_json(req, &json!({ "ok": true }));
+            }
+            "/api/ai/job" => {
+                let mut job = app.ai.lock().unwrap();
+                let v = if job.running {
+                    json!({ "running": true, "step": job.step, "secs": job.started.map(|t| t.elapsed().as_secs()).unwrap_or(0) })
+                } else { json!({ "running": false, "result": job.result.take() }) };
+                drop(job);
+                respond_raw(req, &v);
+            }
+            "/api/ai/cancel" => {
+                app.ai.lock().unwrap().cancel.store(true, Ordering::Relaxed);
+                respond_json(req, &json!({ "ok": true }));
+            }
+            "/api/ai/revert" => {
+                let last = app.ai.lock().unwrap().last.take();
+                let mut g = app.session.lock().unwrap();
+                let v = match (g.as_mut(), last) {
+                    (Some(s), Some((orig, steps))) if s.ai_untouched(steps) => match s.ai_discard(&orig, steps) {
+                        Ok(()) => { let mut v = s.view(); v["ok"] = json!(true); v["msg"] = json!("AI가 고친 것을 되돌렸습니다."); v["msgKind"] = json!("info"); v }
+                        Err(e) => { let mut v = s.view(); v["ok"] = json!(false); v["msg"] = json!(e); v["msgKind"] = json!("error"); v }
+                    },
+                    (Some(s), _) => { let mut v = s.view(); v["ok"] = json!(false); v["msg"] = json!("그 뒤에 원고가 바뀌어서 통째로 되돌리지 못했습니다. Ctrl+Z로 되돌린 뒤 저장해 주세요."); v["msgKind"] = json!("warn"); v }
+                    _ => json!({ "open": false }),
+                };
+                drop(g);
+                respond_json(req, &v);
             }
             "/api/state" => {
                 let mut g = app.session.lock().unwrap();
@@ -191,6 +250,7 @@ fn serve(server: Server, app: Arc<App>, token: String) {
                     None => rfd::FileDialog::new().set_title(lang::tr("문서의 main.typ 고르기")).add_filter(lang::tr("Typst 원고"), &["typ"]).pick_file(),
                 };
                 let v = match chosen {
+                    Some(_) if app.ai.lock().unwrap().running => json!({ "cancelled": true }),
                     Some(p) => {
                         let dirty = app.session.lock().unwrap().as_ref().is_some_and(|s| s.is_dirty());
                         if dirty && !confirm_discard(&app) { json!({ "cancelled": true }) } else { app.open(&p) }
@@ -234,7 +294,13 @@ fn serve(server: Server, app: Arc<App>, token: String) {
             }
             "/api/act" => {
                 let mut g = app.session.lock().unwrap();
-                let v = match g.as_mut() { Some(s) => { s.act(&jb); s.view() } None => json!({ "open": false }) };
+                // AI가 디스크의 원고를 고치는 동안에는 편집을 받지 않는다(두 고침이 엇갈리지 않게)
+                let busy = app.ai.lock().unwrap().running;
+                let v = match g.as_mut() {
+                    Some(s) if busy => { let mut v = s.view(); v["msg"] = json!("AI가 고치는 동안에는 편집할 수 없습니다. 끝날 때까지 기다리거나 취소해 주세요."); v["msgKind"] = json!("info"); v }
+                    Some(s) => { s.act(&jb); s.view() }
+                    None => json!({ "open": false }),
+                };
                 drop(g);
                 respond_json(req, &v);
             }
@@ -267,26 +333,83 @@ fn serve(server: Server, app: Arc<App>, token: String) {
     }
 }
 
-/// 선택한 글을 AI로 다듬는다. 원고를 잠근 채로 AI를 기다리지 않는다(그동안에도 화면은 움직인다).
-fn ai_edit(app: &App, instruction: &str) -> Value {
-    let target = app.session.lock().unwrap().as_ref().map(|s| s.ai_target());
-    let (file, s, e, before) = match target {
-        None => return json!({ "open": false }),
-        Some(Err(m)) => return json!({ "ok": false, "msg": m, "msgKind": "info" }),
-        Some(Ok(t)) => t,
+/// Claude Code에게 지시를 맡긴다. Claude Code가 문서 폴더의 원고를 직접 고치면, 그것을 읽어 들여 다시 조판한다.
+/// 조판이 깨지면 오류를 알려 두 번까지 다시 고치게 하고, 그래도 안 되면 모두 되돌린다.
+fn ai_work(app: &App, instruction: &str, page: Option<usize>, cancel: &AtomicBool) -> Value {
+    let fail = |m: &str, kind: &str| json!({ "ok": false, "msg": m, "msgKind": kind });
+    let instruction = instruction.trim();
+    if instruction.is_empty() { return fail("무엇을 고칠지 지시를 적어 주세요.", "info"); }
+    if instruction.chars().count() > ai::MAX_INSTRUCTION { return fail("지시가 너무 깁니다. 짧게 줄여 주세요.", "warn"); }
+    let Some(cli) = ai::find_cli() else {
+        return fail("이 컴퓨터에서 Claude Code를 찾지 못했습니다. Claude Code를 설치하고 터미널에서 claude 를 한 번 실행해 로그인한 뒤 다시 해 주세요.", "warn");
     };
-    let result = ai::revise(instruction, &before[s..e]);
-    let mut g = app.session.lock().unwrap();
-    let Some(sess) = g.as_mut() else { return json!({ "open": false }) };
-    match result {
-        Ok(new) => {
-            sess.ai_apply(file, s, e, &before, &new);
-            let mut v = sess.view();
-            v["ok"] = json!(true);
+    let (context, root) = match app.session.lock().unwrap().as_ref() {
+        None => return json!({ "open": false }),
+        Some(s) if s.is_dirty() => return fail("저장하지 않은 변경이 있습니다. 먼저 저장(Ctrl+S)한 뒤 다시 해 주세요. (Claude Code는 저장된 파일을 고칩니다.)", "warn"),
+        Some(s) => (s.ai_context(page), s.world.root.clone()),
+    };
+    let set_step = |t: String| app.ai.lock().unwrap().step = t;
+    let mut orig: Vec<world::Before> = vec![];
+    let mut prompt = ai::first_prompt(&context, instruction);
+    for attempt in 0..3 {
+        let said = ai::call(&cli, &root, &prompt, cancel, |st| set_step(match st {
+            ai::Step::Think => lang::tr("Claude가 생각하는 중…"),
+            ai::Step::Search => lang::tr("Claude가 원고에서 찾는 중…"),
+            ai::Step::Read(f) => lang::f("Claude가 읽는 중: {0}", &[&f]),
+            ai::Step::Edit(f) => lang::f("Claude가 고치는 중: {0}", &[&f]),
+        }));
+        set_step(lang::tr("다시 조판하는 중…"));
+        let mut g = app.session.lock().unwrap();
+        let Some(s) = g.as_mut() else { return json!({ "open": false }) };
+        let synced = s.ai_sync(&mut orig);
+        let give_up = |s: &mut Session, orig: &[world::Before], msg: String, kind: &str| {
+            let undone = !orig.is_empty();
+            let back = s.ai_discard(orig, 0);
+            let mut v = s.view();
+            v["ok"] = json!(false);
+            v["msgKind"] = json!(kind);
+            v["msg"] = json!(match back {
+                Err(e) => lang::f("{0} 고치던 것을 되돌리지 못했습니다: {1}", &[&msg, &e]),
+                Ok(()) if undone => format!("{msg} {}", lang::tr("고치던 것은 모두 되돌렸습니다.")),
+                Ok(()) => msg,
+            });
             v
+        };
+        let said = match said {
+            Ok(t) => t,
+            Err(m) => return give_up(s, &orig, lang::tr(&m), "warn"),
+        };
+        match synced {
+            Ok(false) => {
+                let mut v = s.view();
+                v["ok"] = json!(false);
+                v["msg"] = json!("Claude가 원고를 고치지 않았습니다.");
+                v["msgKind"] = json!("info");
+                v["aiSaid"] = json!(said);
+                return v;
+            }
+            Ok(true) => {
+                s.ai_backup(&orig);
+                let (list, steps) = s.ai_accept(&orig);
+                let n = list.len();
+                app.ai.lock().unwrap().last = Some((orig, steps));
+                let mut v = s.view();
+                v["ok"] = json!(true);
+                v["msg"] = json!(lang::f("Claude가 {0}곳을 고쳤습니다. 지면을 확인해 주세요.", &[&n]));
+                v["msgKind"] = json!("info");
+                v["aiSaid"] = json!(said);
+                v["aiEdits"] = json!(list);
+                return v;
+            }
+            Err(e) if attempt == 2 => return give_up(s, &orig, lang::f("Claude가 고친 결과가 조판되지 않았습니다. ({0})", &[&e]), "warn"),
+            Err(e) => {
+                drop(g);
+                set_step(lang::tr("조판 오류가 나서 Claude가 다시 고치는 중…"));
+                prompt = ai::retry_prompt(&context, instruction, &e);
+            }
         }
-        Err(m) => json!({ "ok": false, "msg": m, "msgKind": "warn" }),
     }
+    fail("Claude Code가 일을 마치지 못했습니다.", "warn")
 }
 
 /// 저장 안 한 변경이 있을 때: 저장(예) / 버림(아니오) / 취소. 계속해도 되면 true.
@@ -374,7 +497,7 @@ fn main() {
         }
         i += 1;
     }
-    let app = Arc::new(App { session: Mutex::new(None), fonts: OnceLock::new(), failed: Mutex::new(None), loading: Mutex::new(None) });
+    let app = Arc::new(App { ai: Mutex::new(AiJob::default()), session: Mutex::new(None), fonts: OnceLock::new(), failed: Mutex::new(None), loading: Mutex::new(None) });
     let server = Server::http(("127.0.0.1", port)).expect("포트를 열지 못했습니다");
     let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(port);
     {

@@ -71,35 +71,54 @@ macOS and Linux support is new — if something behaves differently there, pleas
 - **Developer view.** Optionally shows the source line you are editing.
 - **5 UI languages:** English, 한국어, 日本語, 简体中文, Español (🌐 menu, top-right).
 
-## Polish with AI (Gemini)
+## Edit with AI (Claude Code)
 
-Drag to select some text, press **✨ AI** (Ctrl+J), type an instruction and press Enter. With an empty instruction it fixes spelling
-and smooths the sentences. The revised text is typeset on the page at once, stays selected, and one Ctrl+Z undoes it.
-The feature works **only after you enter your own Gemini API key**.
+Press **✨ AI** (Ctrl+K), type an instruction and press Enter (Shift+Enter for a new line). **Claude Code**, installed and signed in on your own computer, edits the source as instructed.
+You never enter a key or password into the editor. Without Claude Code the feature is off.
 
-### Once: enter a key
+- **Write the instruction as you would to Claude Code.** “On this page, put two spaces inside both ends of the (A) and (B) boxes of question 94. Same in the answer key. Also line up the hanging indent of the choices.”
+  Claude Code reads the template's function definitions and the source, and follows the instruction to other pages and other files.
+- **What the editor tells it.** The main file, the page in view (which page it is, and the source file and lines its text comes from), and the selected text or the cursor position. So you can write “this page”, “here” or “the selection”.
+- **Progress.** The panel shows what is happening (“Claude is reading: tpl.typ”) and the elapsed time. It usually takes tens of seconds to a few minutes. While it runs the button becomes **Cancel**; cancelling puts back everything changed so far.
+- **Result.** The editor typesets again and shows Claude's explanation and the list of changes (file · old → new). Look at the page, then press **Keep** or **Undo**.
+  If the result does not typeset, Claude is given the error and asked to fix it, up to twice; if it still fails, everything is put back.
 
-1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey). Make a **key just for this app** rather than sharing one with other services.
-2. **✨ AI** → ⚙ → paste the key → **Save**. Leave the model empty to use `gemini-flash-latest` (the current Flash model).
-3. In the Google Cloud console (APIs & Services → Credentials) restrict the key's **API restrictions to the Generative Language API only**, and set a quota (requests per day) or a budget alert.
+Good to know:
+
+- Claude Code edits **the saved files directly**. That is why you are asked to save (Ctrl+S) first if you have unsaved edits. What the AI changed is already in the files; it needs no separate save.
+- **Undo** in the panel also puts the files back. If you undo with Ctrl+Z instead, save with Ctrl+S so that the files go back too.
+- The files as they were are kept in the data folder under `backup/<document>/<date-time>-ai`.
+- You cannot edit while the AI is working (so that the two sets of edits do not collide).
+- Text in data files that the template reads (yaml and the like) can be edited too. Such files do not go back with Ctrl+Z, only with **Undo** in the panel.
+- It cannot be asked to create or delete files, or to run commands.
+
+### Once: get Claude Code ready
+
+1. Install [Claude Code](https://claude.com/claude-code).
+2. Run `claude` once in a terminal and sign in (a subscription account or an API billing account).
+3. Press **✨ AI** in the editor. A notice asks you to confirm the first time.
+
+The editor looks for Claude Code in its standard install locations (`~/.local/bin` and so on) and on PATH.
 
 ### Safety notes
 
 | Question | Answer |
 |---|---|
-| What leaves my computer? | Only the **selected text (at most 12,000 bytes) and your instruction**, at the moment you press “Polish”, to Google (`generativelanguage.googleapis.com`). Never the whole document, file names, paths or other pages. Without a key the app sends nothing to the internet. |
-| Where is the key stored? | Only in the operating system's secret store: Windows Credential Manager (`gemini-api-key.EasyTypstEditor`), macOS Keychain, Linux Secret Service (GNOME Keyring, KWallet). It is not written to settings files (`ai.json` holds the model name only), your sources or backups. On a Linux system without a secret store, saving is refused rather than falling back to plain text. |
-| Is the key shown on screen? | It is masked while you type, and afterwards only its last four characters are shown. The engine never sends the key back to the window (web view). |
-| How is the key transmitted? | The engine (Rust) calls Google directly over HTTPS. The key travels in the `x-goog-api-key` header, not in the URL (`?key=`); redirects are not followed; and the key is masked if it ever appears in an error message. |
-| Can another website use my key behind my back? | No. The channel between window and engine (127.0.0.1) is locked with a token created anew on every launch, and the engine refuses requests from any other origin (Origin / Host checks) as well as being embedded in another site's frame. |
-| Can the AI damage my source? | It may change words only. If a function (`#…`), markup (`*`, `_`), math, a label or a reference differs in any way, the whole result is discarded. So even if the selected text hides a sentence like “ignore your instructions and …”, no code can be planted in your source. A result that fails to typeset is not applied either. |
-| What does Google do with the text? | Google's Gemini API terms apply. On the **free tier** what you send may be used to improve Google's services and may be reviewed by people. For unpublished manuscripts, exam questions or personal data, use a key **with billing enabled (paid tier)**, and check your organisation's rules first if it has any. |
-| How do I remove the key? | ⚙ → **Remove key** deletes it from this computer's secret store. To revoke the key itself, delete it in AI Studio. |
-| I think my key leaked | Delete it in AI Studio right away and create a new one. Check usage in the Google Cloud console. |
+| Do I enter a key into the editor? | No. The editor does not accept, store or transmit any API key or password. Claude Code handles authentication. The editor itself never connects to the internet. |
+| What leaves my computer? | Your instruction, the location details the editor adds (file names, line numbers, the selected text), and **the contents of the files in the document folder** that Claude Code reads while working go to Anthropic. Claude decides which files to read, so assume the whole document folder may be sent. If you do not use the AI feature, nothing is sent. |
+| What is the document folder? | The folder that holds `main.typ` (or a parent folder, if typesetting needs files outside it) and everything below it. Do not keep passwords or personal data files there. |
+| What can Claude Code do? | The editor always starts Claude Code in **restricted mode** (`--restricted`). Its only tools are reading, searching and editing (`Read`, `Glob`, `Grep`, `Edit`): no command execution, no web access, no creating or deleting files. The file tools are confined to the document folder. Your Claude Code settings, hooks and MCP servers are not loaded, and no conversation history is kept. |
+| How is the instruction passed? | Through Claude Code's standard input, without a shell. Nothing you type in the instruction is executed as a command. |
+| Can the AI damage my source? | Yes. So the editor ① keeps a copy of the files as they were in the backup folder, ② typesets again and puts everything back if that fails, ③ lists every change, and ④ offers **Undo** and Ctrl+Z. But “it typesets” does not mean “it is right”. Back up important work separately or keep it in git, and always check the result. |
+| Can text inside a document trick the AI? | Claude is told that text in the files is data, not instructions, but this cannot be fully prevented. Since there is no command execution and no web access, the worst case is that files inside the document folder are edited wrongly. Even so, **do not use the AI feature on documents whose source you do not trust.** |
+| Can another website trigger this behind my back? | No. The channel between window and engine (127.0.0.1) is locked with a token created anew on every launch, and the engine refuses requests from any other origin (Origin / Host checks) as well as being embedded in another site's frame. |
+| What does it cost? | It is charged to your own Claude account (subscription limits or API billing, depending on how Claude Code is signed in). Asking for wide-ranging edits in a large document uses a lot. |
+| What does Anthropic do with the text? | The terms and privacy policy that apply to your Anthropic account, and your account's settings, govern that. Do not use the feature on material that must not leave your organisation. |
 
-Good to know: **other programs running under your own account** on the same computer can read the operating system's secret store
-(that is the extent of the system's protection). This is why it matters to avoid untrusted software and to use a dedicated, restricted key.
-On a shared computer press **Remove key** when you are done.
+If you entered a Gemini API key in 0.7.0: that method is gone and this version does not read the stored key. On Windows delete `gemini-api-key.EasyTypstEditor` in Credential Manager,
+on macOS delete the `EasyTypstEditor` item in Keychain Access, and if you no longer need the key, delete it in Google AI Studio as well.
+
+The author accepts no responsibility for what the AI produces or for any resulting loss. Please read the [Disclaimer](../README.md#disclaimer).
 
 ## Keyboard
 
@@ -121,7 +140,7 @@ F1 shows the keys for the system you are on.
 | Ctrl+L · Ctrl+E · Ctrl+R · Ctrl+J | Align left · center · right · back to the template's alignment |
 | Enter · Shift+Enter · Tab | New paragraph · line break · tab |
 | Ctrl+F · Ctrl+H · F3 · Shift+F3 | Find · replace · next · previous match |
-| Ctrl+J | Polish the selection with AI (see [Polish with AI](#polish-with-ai-gemini)) |
+| Ctrl+K | Edit with AI: instruct Claude Code on your computer (see [Edit with AI](#edit-with-ai-claude-code)) |
 | Ctrl+Z · Ctrl+Y | Undo · redo (consecutive typing or deleting is one step) |
 | Ctrl+S · Ctrl+O · Ctrl+P | Save · open · export PDF |
 | Alt+click | Pick a whole element (then drag, arrow keys, or Delete) |
@@ -149,7 +168,7 @@ src/edit.rs     source edits (insert, delete, formatting, paragraphs, indent, al
 src/session.rs  editing session: caret, selection, movement, find/replace, undo, save
 src/lang.rs     UI language (strings in ui/i18n.json)
 src/main.rs     window (the system web view: WebView2 / WKWebView / WebKitGTK) + local UI server on 127.0.0.1 (locked with a per-launch token)
-src/ai.rs       Polish with AI: key in the OS secret store, Gemini called by the engine itself
+src/ai.rs       Edit with AI: calls Claude Code on this computer in restricted mode (the editor handles no keys)
 ui/index.html   the UI
 ```
 

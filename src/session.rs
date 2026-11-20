@@ -14,7 +14,7 @@ use typst_layout::PagedDocument;
 
 use crate::edit::{self, Style, Work};
 use crate::index::{Index, Reuse, G, K_ATOM, K_LOCK, K_MATH, K_NONE, K_STR, K_TEXT};
-use crate::world::ProjectWorld;
+use crate::world::{Before, ProjectWorld};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Pos { pub file: FileId, pub off: usize }
@@ -970,36 +970,116 @@ impl Session {
         self.msg = Some((m, if done == 0 && skipped > 0 { "warn" } else { "info" }));
     }
 
-    /// AI로 다듬을 선택 글: (파일, 시작, 끝, 그 파일의 지금 본문).
-    pub fn ai_target(&self) -> Result<(FileId, usize, usize, String), String> {
-        let (s, e) = self.sel_range().ok_or("먼저 다듬을 글을 끌어서 선택해 주세요.")?;
-        let file = self.caret.ok_or("먼저 다듬을 글을 끌어서 선택해 주세요.")?.pos.file;
-        let text = self.world.text_of(file).ok_or("원고를 읽지 못했습니다.")?;
-        if e - s > crate::ai::MAX_SOURCE { return Err("선택한 글이 너무 깁니다. 조금씩 나눠서 다듬어 주세요.".into()); }
-        Ok((file, s, e, text))
+    /// Claude에게 알려 줄 '지금 보는 자리': 주 파일, 보고 있는 쪽의 글이 나온 원고 자리, 선택한 글·커서.
+    pub fn ai_context(&self, page: Option<usize>) -> String {
+        let rel = |f: FileId| f.vpath().get_without_slash().to_string();
+        let line = |f: FileId, off: usize| self.world.source_of(f).and_then(|s| s.lines().byte_to_line(off.min(s.text().len()))).unwrap_or(0) + 1;
+        let mut out = format!("- Main file: `{}`\n", rel(self.world.main));
+        if let Some(p) = page {
+            out.push_str(&format!("- The page in view is page {} of {} of the typeset document (counted from the first sheet, not the printed page number).\n", p + 1, self.ix.page_ranges.len()));
+            if let Some((f, s, e)) = self.ai_page_span(p) {
+                out.push_str(&format!("- Most of the text on that page comes from `{}`, around lines {}-{}.\n", rel(f), line(f, s), line(f, e)));
+            }
+        }
+        if let (Some((s, e)), Some(c)) = (self.sel_range(), self.caret) {
+            let f = c.pos.file;
+            if let Some(text) = self.world.text_of(f) {
+                let mut sel: String = text[s..e.min(text.len())].chars().take(1500).collect();
+                if sel.len() < e - s { sel.push('…'); }
+                out.push_str(&format!("- The user selected this text in `{}` (lines {}-{}); the instruction is most likely about it:\n<<<SELECTED\n{}\nSELECTED>>>\n", rel(f), line(f, s), line(f, e), sel));
+            }
+        } else if let Some(c) = self.caret {
+            out.push_str(&format!("- The text cursor is in `{}` at line {}.\n", rel(c.pos.file), line(c.pos.file, c.pos.off)));
+        }
+        out
     }
 
-    /// AI가 고친 글을 적용한다. 그동안 원고가 바뀌었거나, 짜임이 달라졌거나, 조판이 깨지면 적용하지 않는다.
-    /// 한 번의 실행 취소(Ctrl+Z)로 되돌릴 수 있고, 고친 글은 선택된 채로 남는다.
-    pub fn ai_apply(&mut self, file: FileId, s: usize, e: usize, before: &str, new: &str) {
-        self.msg = None;
-        if self.world.text_of(file).as_deref() != Some(before) {
-            self.msg = Some(("AI가 고치는 동안 원고가 바뀌어서 적용하지 않았습니다. 다시 해 주세요.".into(), "warn"));
-            return;
+    /// 그 쪽에 찍힌 글자들이 가장 많이 나온 원고 자리: (파일, 시작, 끝). 머리글처럼 멀리 떨어진 자리는 뺀다.
+    fn ai_page_span(&self, page: usize) -> Option<(FileId, usize, usize)> {
+        let &(a, b) = self.ix.page_ranges.get(page)?;
+        let mut by_file: Vec<(FileId, Vec<(usize, usize)>)> = vec![];
+        for g in &self.ix.glyphs[a..b] {
+            let Some(f) = g.file else { continue };
+            if !editable(g) || !self.world.in_project(f) { continue; }
+            match by_file.iter_mut().find(|x| x.0 == f) { Some(x) => x.1.push((g.s as usize, g.e as usize)), None => by_file.push((f, vec![(g.s as usize, g.e as usize)])) }
         }
-        if &before[s..e] == new {
-            self.msg = Some(("AI가 고칠 곳을 찾지 못했습니다.".into(), "info"));
-            return;
+        let (file, mut spans) = by_file.into_iter().max_by_key(|x| x.1.len())?;
+        spans.sort();
+        // 2,000바이트 넘게 떨어진 자리에서 끊어, 글자가 가장 많은 덩어리를 고른다
+        let mut best = (0usize, 0usize, 0usize);
+        let mut cur = (spans[0].0, spans[0].1, 0usize);
+        for &(s, e) in &spans {
+            if s > cur.1 + 2000 { if cur.2 > best.2 { best = cur; } cur = (s, e, 0); }
+            cur.1 = cur.1.max(e); cur.2 += 1;
         }
-        let caret_before = self.caret.map(|c| c.pos);
-        let mut w = Work::new(before.to_string(), e, s);
-        if let Err(m) = edit::ai_replace(&mut w, s..e, new) { self.msg = Some((m, "warn")); return; }
-        if !self.commit(file, before, &w) { return; }
-        let hint = self.hint();
-        self.caret = Some(self.locate(Pos { file, off: w.caret }, true, hint));
-        self.anchor = if w.anchor != w.caret { Some(Pos { file, off: w.anchor }) } else { None };
-        self.push_undo(Step { file, before: before.to_string(), after: w.text, caret_before, caret_after: self.caret.map(|c| c.pos), kind: 0, time: Instant::now() });
-        self.msg = Some(("AI가 다듬었습니다. 되돌리려면 Ctrl+Z를 누르세요.".into(), "info"));
+        if cur.2 > best.2 { best = cur; }
+        Some((file, best.0, best.1))
+    }
+
+    /// Claude Code가 디스크에서 고친 파일을 읽어 들이고 다시 조판한다. 바뀐 파일의 고치기 전 모습은 `orig`에 모은다.
+    /// 조판이 되면 Ok(바뀐 것이 있는지), 안 되면 Err(조판 오류).
+    pub fn ai_sync(&mut self, orig: &mut Vec<Before>) -> Result<bool, String> {
+        self.flush_comp();
+        for b in self.world.sync_disk() {
+            if let Some(t) = &b.text {
+                if !self.ix_src.iter().any(|(f, _)| *f == b.id) { self.ix_src.push((b.id, t.clone())); }
+            }
+            if !orig.iter().any(|o| o.id == b.id) { orig.push(b); }
+        }
+        if orig.is_empty() { return Ok(false); }
+        self.world.forget_failed();
+        if self.compile().is_ok() { return Ok(true); }
+        // 오류를 자리와 함께 적는다(Claude가 이것을 보고 고친다)
+        let errs = typst::compile::<PagedDocument>(&self.world).output.err().unwrap_or_default();
+        let list: Vec<String> = errs.iter().take(3).map(|d| translate(&self.world, d).detail).collect();
+        Err(list.join("\n"))
+    }
+
+    /// 고친 것을 받아들인다: 실행 취소 한 번으로 되돌릴 수 있게 남기고, 바뀐 곳 목록과 남긴 걸음 수를 돌려준다.
+    pub fn ai_accept(&mut self, orig: &[Before]) -> (Vec<Value>, usize) {
+        self.caret = None; self.anchor = None; self.lock = None; self.elem = None;
+        let (mut list, mut steps) = (vec![], 0);
+        for b in orig {
+            let name = b.id.vpath().get_without_slash().to_string();
+            let Some(old) = &b.text else { list.push(json!({ "file": name, "data": true })); continue };
+            let new = self.world.text_of(b.id).unwrap_or_default();
+            if *old == new { continue; }
+            for (a, c) in crate::ai::hunks(old, &new) { list.push(json!({ "file": name, "old": a, "new": c })); }
+            self.push_undo(Step { file: b.id, before: old.clone(), after: new, caret_before: None, caret_after: None, kind: if steps == 0 { 0 } else { LINKED }, time: Instant::now() });
+            steps += 1;
+        }
+        (list, steps)
+    }
+
+    /// AI가 고치기 전의 파일들을 자료 폴더의 backup 에 남긴다(저장할 때의 백업과 같은 자리, 이름 끝에 -ai).
+    pub fn ai_backup(&self, orig: &[Before]) {
+        let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+        let name: String = self.title.chars().map(|c| if r#"\/:*?"<>|"#.contains(c) { '_' } else { c }).collect();
+        let dir = crate::data_dir().join("backup").join(name).join(format!("{stamp}-ai"));
+        for b in orig {
+            let path = dir.join(b.id.vpath().get_without_slash());
+            if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
+            let _ = std::fs::write(&path, &b.bytes[..]);
+        }
+    }
+
+    /// 고친 것을 모두 버린다: 디스크와 메모리를 고치기 전으로 돌리고 다시 조판한다.
+    pub fn ai_discard(&mut self, orig: &[Before], steps: usize) -> Result<(), String> {
+        for b in orig {
+            if b.text.is_some() && !self.ix_src.iter().any(|(f, _)| *f == b.id) {
+                if let Some(now) = self.world.text_of(b.id) { self.ix_src.push((b.id, now)); }
+            }
+            self.world.restore(b)?;
+        }
+        for _ in 0..steps { self.undo.pop(); }
+        self.caret = None; self.anchor = None; self.lock = None; self.elem = None;
+        self.compile()
+    }
+
+    /// 고친 직후 그대로인지(그 뒤로 원고에 손대지 않았는지). 그럴 때만 통째로 되돌린다.
+    pub fn ai_untouched(&self, steps: usize) -> bool {
+        !self.is_dirty() && self.redo.is_empty() && self.undo.len() >= steps
+            && self.undo[self.undo.len() - steps..].iter().enumerate().all(|(i, st)| st.kind == if i == 0 { 0 } else { LINKED })
     }
 
     fn sel_range(&self) -> Option<(usize, usize)> {
@@ -2369,6 +2449,46 @@ mod pdf_tests {
         let pdf = s.export_pdf().expect("pdf");
         assert!(pdf.starts_with(b"%PDF-"));
         assert!(pdf.len() > 10_000);
+    }
+
+    #[test]
+    fn ai_sync_accept_discard() {
+        let dir = std::env::temp_dir().join(format!("ete-ai-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let main = dir.join("main.typ");
+        std::fs::write(&main, "= 제목\r\n\r\n#include \"ch.typ\"\r\n").unwrap();
+        std::fs::write(dir.join("ch.typ"), "첫 문단입니다.\n\n둘째 문단입니다.\n").unwrap();
+        let fonts = Arc::new(crate::world::load_fonts());
+        let mut s = Session::open(&main, fonts).unwrap_or_else(|_| panic!("open failed"));
+        let ctx = s.ai_context(Some(0));
+        assert!(ctx.contains("Main file: `main.typ`") && ctx.contains("`ch.typ`"), "{ctx}");
+        // 밖에서 두 파일을 고친다 → 읽어 들이고, 바뀐 곳 목록과 실행 취소 걸음이 생긴다
+        std::fs::write(&main, "= 새 제목\r\n\r\n#include \"ch.typ\"\r\n").unwrap();
+        std::fs::write(dir.join("ch.typ"), "첫 문단입니다.\n\n둘째 문단을 고쳤습니다.\n").unwrap();
+        let mut orig = vec![];
+        assert_eq!(s.ai_sync(&mut orig), Ok(true));
+        let (list, steps) = s.ai_accept(&orig);
+        assert_eq!((list.len(), steps), (2, 2));
+        assert!(!s.is_dirty() && s.ai_untouched(steps));
+        // Ctrl+Z 한 번이면 두 파일 모두 돌아온다(저장 전이라 '바뀜'으로 남는다)
+        s.act(&json!({ "op": "undo" }));
+        assert!(s.world.text_of(s.world.main).unwrap().starts_with("= 제목"));
+        assert!(s.world.text_of(orig.iter().find(|b| b.id != s.world.main).unwrap().id).unwrap().contains("둘째 문단입니다."));
+        assert!(s.is_dirty() && !s.ai_untouched(steps));
+        s.act(&json!({ "op": "redo" }));
+        // 통째로 버리면 디스크도 돌아온다
+        s.ai_discard(&orig, steps).unwrap();
+        assert_eq!(std::fs::read_to_string(&main).unwrap(), "= 제목\r\n\r\n#include \"ch.typ\"\r\n");
+        assert_eq!(std::fs::read_to_string(dir.join("ch.typ")).unwrap(), "첫 문단입니다.\n\n둘째 문단입니다.\n");
+        assert!(!s.is_dirty());
+        // 조판을 깨는 수정은 오류로 알리고, 버리면 다시 조판된다
+        std::fs::write(dir.join("ch.typ"), "첫 문단입니다. #nosuchfn()\n").unwrap();
+        let mut orig = vec![];
+        let err = s.ai_sync(&mut orig).unwrap_err();
+        assert!(err.contains("ch.typ"), "{err}");
+        s.ai_discard(&orig, 0).unwrap();
+        assert_eq!(s.ai_sync(&mut vec![]), Ok(false));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
