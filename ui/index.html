@@ -143,6 +143,18 @@ body.pick .page{cursor:crosshair}
 #findbar input:focus{border-color:var(--acc)}
 #findbar .tb{height:28px;min-width:28px;padding:0 7px}
 #fcount{min-width:58px;text-align:center;color:var(--muted);font-size:12px}
+#aibar{position:absolute;right:26px;top:8px;z-index:23;display:none;flex-direction:column;gap:6px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;box-shadow:0 4px 14px rgba(0,0,0,.12);width:420px;max-width:calc(100% - 52px)}
+#aibar.show{display:flex}
+#findbar.show ~ #aibar{top:96px}
+#dev.show ~ #aibar{right:446px}
+#aibar .row{display:flex;align-items:center;gap:4px}
+#aibar input{flex:1;min-width:0;height:28px;border:1px solid var(--line);border-radius:6px;padding:0 8px;font:inherit;outline:none;user-select:text}
+#aibar input:focus{border-color:var(--acc)}
+#aibar .tb{height:28px;min-width:28px;padding:0 8px}
+#aibar .note{font-size:12px;color:var(--muted);line-height:1.5}
+#aibar .note a{color:var(--acc)}
+#aiset{display:none;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:6px}
+#aibar.set #aiset{display:flex}
 #findbar #frep{display:none}
 #findbar.rep #frep{display:flex}
 /* 오른쪽 단추 메뉴 */
@@ -252,6 +264,7 @@ kbd{font:11.5px Consolas,"D2Coding",monospace;background:#f1f3f7;border:1px soli
     </div>
     <span class="sp"></span>
     <div class="grp">
+      <button class="tb" id="bAi" title="AI로 다듬기 (Ctrl+J): 선택한 글을 Gemini가 고칩니다. 꾸밈·함수·수식은 그대로 둡니다.">✨ AI</button>
       <button class="tb" id="bFind" title="찾기·바꾸기 (Ctrl+F, Ctrl+H)">찾기</button>
       <button class="tb" id="bElem" title="요소 고르기: 글자가 아니라 덩어리(표제어 줄, 통계 줄, 자리 잡힌 글 등)를 통째로 골라 지우거나 옮깁니다. Alt를 누른 채 지면을 눌러도 됩니다.">요소 고르기</button>
       <button class="tb" id="bDev" title="개발자용 보기: 고치는 자리의 원본을 보여 줍니다">개발자용 보기</button>
@@ -300,6 +313,21 @@ kbd{font:11.5px Consolas,"D2Coding",monospace;background:#f1f3f7;border:1px soli
       <button class="tb" id="fRepAll" title="찾은 곳을 모두 바꿉니다">모두 바꾸기</button>
     </div>
   </div>
+  <div id="aibar">
+    <div class="row">
+      <input id="aiq" placeholder="지시 (비우면 맞춤법·문장 다듬기)" autocomplete="off" spellcheck="false">
+      <button class="tb primary" id="aiGo" title="선택한 글을 다듬기 (Enter)">다듬기</button>
+      <button class="tb" id="aiSetBtn" title="AI 설정 (API 키·모델)">⚙</button>
+      <button class="tb" id="aiClose" title="닫기 (Esc)">✕</button>
+    </div>
+    <div id="aiset">
+      <div class="row"><input id="aikey" type="password" placeholder="Gemini API 키" autocomplete="off" spellcheck="false"></div>
+      <div class="row"><input id="aimodel" placeholder="모델 (기본: gemini-flash-latest)" autocomplete="off" spellcheck="false">
+        <button class="tb primary" id="aiSave">저장</button><button class="tb" id="aiForget" title="저장한 키를 이 PC에서 지웁니다">키 지우기</button></div>
+      <div class="note" id="aistate"></div>
+      <div class="note">키는 이 PC의 운영체제 비밀 저장소(Windows 자격 증명 관리자, macOS 키체인)에만 저장되고 화면에는 다시 나오지 않습니다. 보내는 것은 선택한 글과 지시뿐입니다. 무료 등급 키는 Google이 보낸 글을 서비스 개선에 쓸 수 있으니, 원고에는 결제를 켠 키를 권합니다.</div>
+    </div>
+  </div>
 </div>
 <div id="status"><span id="msg">문서를 열어 주세요.</span><span id="dirty"></span></div>
 <textarea id="ime" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
@@ -319,6 +347,9 @@ kbd{font:11.5px Consolas,"D2Coding",monospace;background:#f1f3f7;border:1px soli
 <div id="ebar"><span id="einfo"></span><button class="tb" id="eGrow" title="이 요소를 품은 더 큰 요소 고르기">넓히기</button><button class="tb" id="eRepl" title="이 그림을 다른 파일로 바꾸기">그림 바꾸기</button><button class="tb danger" id="eDel" title="요소 지우기 (Delete)">지우기</button><button class="tb" id="eClose" title="고르기 끝내기 (Esc)">닫기</button></div>
 
 <script>
+/* ---------- 엔진과의 약속: 이번 실행의 토큰을 모든 요청에 붙인다(다른 웹사이트의 몰래 요청을 막는다) ---------- */
+const TOKEN = /*TOKEN*/'';
+{ const f = window.fetch.bind(window); window.fetch = (u, o = {}) => f(u, { ...o, headers: { ...(o.headers || {}), 'X-ETE-Token': TOKEN } }); }
 const PT = 96 / 72;
 const $ = id => document.getElementById(id);
 /* ---------- 화면 언어: 엔진이 <html lang>과 I18N(ui/i18n.json)을 채워 보낸다 ---------- */
@@ -803,13 +834,70 @@ addEventListener('keydown', e => {
   if (e.key === 'F3') { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); return; }
   if (c && l === 'f') { e.preventDefault(); openFind(false); return; }
   if (c && l === 'h') { e.preventDefault(); openFind(true); return; }
+  if (c && l === 'j') { e.preventDefault(); openAi(); return; }
   if (c && l === 'o') { e.preventDefault(); openBook(); return; }
   if (c && l === 's') { e.preventDefault(); act('save'); return; }
   if (c && l === 'p') { e.preventDefault(); savePdf(); return; }
   if (c && l === 'r') { e.preventDefault(); return; }
-  if (e.target === $('pageno') || e.target.closest('#findbar') || e.target.closest('#devsrc') || e.target.closest('#mathbox')) return;
+  if (e.target === $('pageno') || e.target.closest('#findbar') || e.target.closest('#aibar') || e.target.closest('#devsrc') || e.target.closest('#mathbox')) return;
   if (view && view.open) ime.focus();
 });
+
+/* ---------- AI로 다듬기 (Gemini) ---------- */
+const ai = { busy: false, st: null };
+async function aiStatus() {
+  try { ai.st = await (await fetch('/api/ai/status')).json(); } catch (e) { ai.st = null; }
+  const st = ai.st || {};
+  $('aistate').textContent = st.hasKey ? T('저장된 키: {0} · 모델: {1}', st.hint, st.model) : T('아직 키가 없습니다. Google AI Studio에서 만든 Gemini API 키를 넣어 주세요.');
+  $('aimodel').value = st.model || '';
+  return st;
+}
+async function openAi() {
+  if (!view || !view.open) return;
+  const bar = $('aibar'); bar.classList.add('show');
+  const st = await aiStatus();
+  bar.classList.toggle('set', !st.hasKey);
+  (st.hasKey ? $('aiq') : $('aikey')).focus();
+}
+function closeAi() { $('aibar').classList.remove('show'); $('aikey').value = ''; ime.focus(); }
+async function aiSave(forget) {
+  const body = forget ? '{}' : JSON.stringify({ key: $('aikey').value, model: $('aimodel').value });
+  try {
+    const v = await (await fetch(forget ? '/api/ai/forget' : '/api/ai/key', { method: 'POST', body })).json();
+    $('aikey').value = '';
+    if (!v.ok) { setMsg(v.msg, 'warn'); return; }
+    const st = await aiStatus();
+    setMsg(forget ? T('저장한 키를 지웠습니다.') : T('AI 설정을 저장했습니다.'), 'info');
+    if (st.hasKey && !forget) { $('aibar').classList.remove('set'); $('aiq').focus(); }
+  } catch (e) { setMsg(T('앱 엔진과 연결이 끊겼습니다. 앱을 다시 실행해 주세요.'), 'error'); }
+}
+async function aiRun() {
+  if (ai.busy || !view || !view.open) return;
+  if (ai.st && !ai.st.hasKey) { $('aibar').classList.add('set'); $('aikey').focus(); return; }
+  ai.busy = true; $('aiGo').disabled = true; $('bAi').disabled = true;
+  while (running || queue.length) await new Promise(r => setTimeout(r, 30)); // 앞선 고침이 조판될 때까지
+  setMsg(T('AI가 다듬는 중…'), 'info');
+  try {
+    const v = await (await fetch('/api/ai/edit', { method: 'POST', body: JSON.stringify({ instruction: $('aiq').value }) })).json();
+    if (v.open) apply(v, { op: 'ai' }); else if (v.msg) setMsg(v.msg, v.msgKind);
+  } catch (e) { setMsg(T('앱 엔진과 연결이 끊겼습니다. 앱을 다시 실행해 주세요.'), 'error'); }
+  ai.busy = false; $('aiGo').disabled = false; $('bAi').disabled = false;
+}
+$('bAi').addEventListener('click', () => { if ($('aibar').classList.contains('show')) closeAi(); else openAi(); });
+$('aiGo').addEventListener('click', aiRun);
+$('aiClose').addEventListener('click', closeAi);
+$('aiSetBtn').addEventListener('click', () => { $('aibar').classList.toggle('set'); aiStatus(); });
+$('aiSave').addEventListener('click', () => aiSave(false));
+$('aiForget').addEventListener('click', () => aiSave(true));
+$('aibar').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeAi(); return; }
+  if (e.key === 'Enter' && !e.isComposing) {
+    e.preventDefault();
+    if (e.target === $('aiq')) aiRun(); else aiSave(false);
+  }
+});
+// 패널을 눌러도 지면의 선택이 풀리지 않게
+$('aibar').addEventListener('mousedown', e => e.stopPropagation());
 
 /* ---------- 찾기·바꾸기 ---------- */
 function openFind(replace) {
@@ -1101,6 +1189,7 @@ const KEYS = [
   ['찾기와 보기', [
     ['Ctrl+F / Ctrl+H', '찾기 / 바꾸기'],
     ['F3 / Shift+F3', '다음 찾은 곳 / 앞의 찾은 곳'],
+    ['Ctrl+J', 'AI로 다듬기(선택한 글)'],
     ['Ctrl+G', '쪽 번호로 가기'],
     ['Page Up / Page Down', '화면 넘기기'],
     ['Ctrl+<휠>, Ctrl+ + / Ctrl+ −', '확대 / 축소'],

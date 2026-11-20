@@ -71,6 +71,36 @@ macOS and Linux support is new — if something behaves differently there, pleas
 - **Developer view.** Optionally shows the source line you are editing.
 - **5 UI languages:** English, 한국어, 日本語, 简体中文, Español (🌐 menu, top-right).
 
+## Polish with AI (Gemini)
+
+Drag to select some text, press **✨ AI** (Ctrl+J), type an instruction and press Enter. With an empty instruction it fixes spelling
+and smooths the sentences. The revised text is typeset on the page at once, stays selected, and one Ctrl+Z undoes it.
+The feature works **only after you enter your own Gemini API key**.
+
+### Once: enter a key
+
+1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey). Make a **key just for this app** rather than sharing one with other services.
+2. **✨ AI** → ⚙ → paste the key → **Save**. Leave the model empty to use `gemini-flash-latest` (the current Flash model).
+3. In the Google Cloud console (APIs & Services → Credentials) restrict the key's **API restrictions to the Generative Language API only**, and set a quota (requests per day) or a budget alert.
+
+### Safety notes
+
+| Question | Answer |
+|---|---|
+| What leaves my computer? | Only the **selected text (at most 12,000 bytes) and your instruction**, at the moment you press “Polish”, to Google (`generativelanguage.googleapis.com`). Never the whole document, file names, paths or other pages. Without a key the app sends nothing to the internet. |
+| Where is the key stored? | Only in the operating system's secret store: Windows Credential Manager (`gemini-api-key.EasyTypstEditor`), macOS Keychain, Linux Secret Service (GNOME Keyring, KWallet). It is not written to settings files (`ai.json` holds the model name only), your sources or backups. On a Linux system without a secret store, saving is refused rather than falling back to plain text. |
+| Is the key shown on screen? | It is masked while you type, and afterwards only its last four characters are shown. The engine never sends the key back to the window (web view). |
+| How is the key transmitted? | The engine (Rust) calls Google directly over HTTPS. The key travels in the `x-goog-api-key` header, not in the URL (`?key=`); redirects are not followed; and the key is masked if it ever appears in an error message. |
+| Can another website use my key behind my back? | No. The channel between window and engine (127.0.0.1) is locked with a token created anew on every launch, and the engine refuses requests from any other origin (Origin / Host checks) as well as being embedded in another site's frame. |
+| Can the AI damage my source? | It may change words only. If a function (`#…`), markup (`*`, `_`), math, a label or a reference differs in any way, the whole result is discarded. So even if the selected text hides a sentence like “ignore your instructions and …”, no code can be planted in your source. A result that fails to typeset is not applied either. |
+| What does Google do with the text? | Google's Gemini API terms apply. On the **free tier** what you send may be used to improve Google's services and may be reviewed by people. For unpublished manuscripts, exam questions or personal data, use a key **with billing enabled (paid tier)**, and check your organisation's rules first if it has any. |
+| How do I remove the key? | ⚙ → **Remove key** deletes it from this computer's secret store. To revoke the key itself, delete it in AI Studio. |
+| I think my key leaked | Delete it in AI Studio right away and create a new one. Check usage in the Google Cloud console. |
+
+Good to know: **other programs running under your own account** on the same computer can read the operating system's secret store
+(that is the extent of the system's protection). This is why it matters to avoid untrusted software and to use a dedicated, restricted key.
+On a shared computer press **Remove key** when you are done.
+
 ## Keyboard
 
 On **macOS** use ⌘ where the table says Ctrl and ⌥ where it says Alt. Caret movement follows the Mac habit:
@@ -91,6 +121,7 @@ F1 shows the keys for the system you are on.
 | Ctrl+L · Ctrl+E · Ctrl+R · Ctrl+J | Align left · center · right · back to the template's alignment |
 | Enter · Shift+Enter · Tab | New paragraph · line break · tab |
 | Ctrl+F · Ctrl+H · F3 · Shift+F3 | Find · replace · next · previous match |
+| Ctrl+J | Polish the selection with AI (see [Polish with AI](#polish-with-ai-gemini)) |
 | Ctrl+Z · Ctrl+Y | Undo · redo (consecutive typing or deleting is one step) |
 | Ctrl+S · Ctrl+O · Ctrl+P | Save · open · export PDF |
 | Alt+click | Pick a whole element (then drag, arrow keys, or Delete) |
@@ -117,7 +148,8 @@ src/recover.rs  verifying / recovering source positions
 src/edit.rs     source edits (insert, delete, formatting, paragraphs, indent, alignment, elements) + unit tests
 src/session.rs  editing session: caret, selection, movement, find/replace, undo, save
 src/lang.rs     UI language (strings in ui/i18n.json)
-src/main.rs     window (the system web view: WebView2 / WKWebView / WebKitGTK) + local UI server on 127.0.0.1
+src/main.rs     window (the system web view: WebView2 / WKWebView / WebKitGTK) + local UI server on 127.0.0.1 (locked with a per-launch token)
+src/ai.rs       Polish with AI: key in the OS secret store, Gemini called by the engine itself
 ui/index.html   the UI
 ```
 
@@ -130,7 +162,7 @@ cargo test --release
 ```
 
 ```sh
-# Linux — Rust, plus on Debian/Ubuntu: sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev
+# Linux — Rust, plus on Debian/Ubuntu: sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev pkg-config
 # macOS — Rust and the Xcode command line tools
 sh build.sh              # → dist/EasyTypstEditor   or   dist/Easy Typst Editor.app
 UNIVERSAL=1 sh build.sh  # macOS: one app for Apple Silicon and Intel

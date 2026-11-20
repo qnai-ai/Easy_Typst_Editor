@@ -970,6 +970,38 @@ impl Session {
         self.msg = Some((m, if done == 0 && skipped > 0 { "warn" } else { "info" }));
     }
 
+    /// AI로 다듬을 선택 글: (파일, 시작, 끝, 그 파일의 지금 본문).
+    pub fn ai_target(&self) -> Result<(FileId, usize, usize, String), String> {
+        let (s, e) = self.sel_range().ok_or("먼저 다듬을 글을 끌어서 선택해 주세요.")?;
+        let file = self.caret.ok_or("먼저 다듬을 글을 끌어서 선택해 주세요.")?.pos.file;
+        let text = self.world.text_of(file).ok_or("원고를 읽지 못했습니다.")?;
+        if e - s > crate::ai::MAX_SOURCE { return Err("선택한 글이 너무 깁니다. 조금씩 나눠서 다듬어 주세요.".into()); }
+        Ok((file, s, e, text))
+    }
+
+    /// AI가 고친 글을 적용한다. 그동안 원고가 바뀌었거나, 짜임이 달라졌거나, 조판이 깨지면 적용하지 않는다.
+    /// 한 번의 실행 취소(Ctrl+Z)로 되돌릴 수 있고, 고친 글은 선택된 채로 남는다.
+    pub fn ai_apply(&mut self, file: FileId, s: usize, e: usize, before: &str, new: &str) {
+        self.msg = None;
+        if self.world.text_of(file).as_deref() != Some(before) {
+            self.msg = Some(("AI가 고치는 동안 원고가 바뀌어서 적용하지 않았습니다. 다시 해 주세요.".into(), "warn"));
+            return;
+        }
+        if &before[s..e] == new {
+            self.msg = Some(("AI가 고칠 곳을 찾지 못했습니다.".into(), "info"));
+            return;
+        }
+        let caret_before = self.caret.map(|c| c.pos);
+        let mut w = Work::new(before.to_string(), e, s);
+        if let Err(m) = edit::ai_replace(&mut w, s..e, new) { self.msg = Some((m, "warn")); return; }
+        if !self.commit(file, before, &w) { return; }
+        let hint = self.hint();
+        self.caret = Some(self.locate(Pos { file, off: w.caret }, true, hint));
+        self.anchor = if w.anchor != w.caret { Some(Pos { file, off: w.anchor }) } else { None };
+        self.push_undo(Step { file, before: before.to_string(), after: w.text, caret_before, caret_after: self.caret.map(|c| c.pos), kind: 0, time: Instant::now() });
+        self.msg = Some(("AI가 다듬었습니다. 되돌리려면 Ctrl+Z를 누르세요.".into(), "info"));
+    }
+
     fn sel_range(&self) -> Option<(usize, usize)> {
         let c = self.caret?; let a = self.anchor?;
         if a.file != c.pos.file || a.off == c.pos.off { return None; }

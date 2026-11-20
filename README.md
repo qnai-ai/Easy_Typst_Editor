@@ -189,7 +189,25 @@ Ctrl+Z undoes as far back as you like.
 
 <details><summary><b>Does my document leave my computer?</b></summary>
 
-No. The Typst engine (0.15.1) is built into the app, so everything happens on your PC. The window talks to the engine only on 127.0.0.1.
+Not by default. The Typst engine (0.15.1) is built into the app, so everything happens on your PC. The window talks to the engine only on 127.0.0.1,
+and that channel is locked with a token created anew on every launch, so other websites and programs cannot cut in.
+The single exception is the optional **✨ AI** feature that you switch on yourself — see the next question.
+</details>
+
+<details><summary><b>Is “✨ Polish with AI” safe? What leaves my computer?</b></summary>
+
+The AI feature works **only after you enter your own Gemini API key**. Without a key the app sends nothing to the internet.
+
+- **What is sent:** only the **selected text and your instruction**, at the moment you press “Polish”, to Google (Gemini API). Never the whole document, file names or other pages.
+- **Where the key lives:** only in the operating system's secret store (Windows Credential Manager · macOS Keychain · Linux keyring).
+  It is not written to settings files, your sources or backups, and once saved the window shows only its last four characters. Remove it any time with ⚙ → “Remove key”.
+- **Your source stays intact:** the AI may change words only. If a function (`#…`), formatting, math or a label differs in any way, nothing is applied — and one Ctrl+Z undoes an edit.
+- **Please do this:** ① create a key just for this app in [Google AI Studio](https://aistudio.google.com/apikey);
+  ② in the Google Cloud console restrict that key to the **Generative Language API** and set a quota limit;
+  ③ for sensitive text such as an unpublished manuscript use a key **with billing enabled (paid tier)** — on the free tier Google may use what you send to improve its services;
+  ④ if you suspect the key has leaked, delete it in AI Studio right away and create a new one.
+
+More in the [manual, “Polish with AI”](docs/manual.md#polish-with-ai-gemini).
 </details>
 
 <details><summary><b>Does it look exactly like `typst compile`?</b></summary>
@@ -213,6 +231,7 @@ On macOS use ⌘ for Ctrl and ⌥ for Alt. Press F1 in the app for the full list
 | Ctrl+B · Ctrl+I · Ctrl+U | Bold · italic · underline |
 | Ctrl+Z · Ctrl+Y · Ctrl+S · Ctrl+P | Undo · redo · save · save as PDF |
 | Ctrl+F · Ctrl+H | Find · replace |
+| Ctrl+J | Polish the selection with AI (once you have entered your Gemini key) |
 | Click an equation · Ctrl+M | Edit equation · insert equation |
 | Ctrl+V · Ctrl+Shift+V | Paste (LaTeX → Typst) · paste as plain text |
 | Right-click in a table | Insert / delete rows and columns |

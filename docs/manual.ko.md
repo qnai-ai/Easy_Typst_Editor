@@ -68,6 +68,7 @@
 | Enter / Shift+Enter / Tab | 새 문단 / 줄바꿈 / 탭 간격 |
 | 내어쓰기 ◀ ▶ | 둘째 줄부터 들여 쓰기 |
 | Ctrl+F / Ctrl+H / F3 / Shift+F3 | 찾기 / 바꾸기 / 다음 / 앞의 찾은 곳 |
+| Ctrl+J | 선택한 글을 AI로 다듬기([AI로 다듬기](#ai로-다듬기-gemini)) |
 | Ctrl+Z / Ctrl+Y / Ctrl+S / Ctrl+O / Ctrl+P | 실행 취소 / 다시 실행 / 저장 / 열기 / PDF로 저장. 이어서 입력하거나 지운 것은 한 번에 되돌린다 |
 | Ctrl+휠, Ctrl+ + / Ctrl+ −, Ctrl+0 | 확대 / 축소 / 너비 맞춤 |
 | Ctrl+G / Page Up / Page Down | 쪽 번호로 가기 / 화면 넘기기 |
@@ -81,7 +82,8 @@ src/index.rs    지면 색인: 글자마다 지면 위치와 원본 위치(바�
 src/recover.rs  원본 위치 검증·복원(본문 대조)
 src/edit.rs     원고 고치기 연산(입력·지우기·꾸밈·문단·내어쓰기·맞춤·요소) + 단위 시험
 src/session.rs  편집 세션: 커서·선택·이동·찾기/바꾸기·실행 취소·저장
-src/main.rs     창(시스템 웹뷰: WebView2 / WKWebView / WebKitGTK)과 화면용 내부 서버(127.0.0.1)
+src/main.rs     창(시스템 웹뷰: WebView2 / WKWebView / WebKitGTK)과 화면용 내부 서버(127.0.0.1, 실행마다 새 토큰으로 잠금)
+src/ai.rs       AI로 다듬기: 키는 운영체제의 비밀 저장소에, Gemini 호출은 엔진이 직접
 ui/index.html   화면
 ```
 
@@ -90,7 +92,7 @@ ui/index.html   화면
 단위 시험: `cargo test --release`.
 
 빌드 환경: Windows는 Rust(MSVC, 또는 GNU 툴체인 + MinGW/WinLibs)와 `build.ps1`. Linux는 Rust와 WebKitGTK·GTK 개발 꾸러미
-(Debian/Ubuntu: `sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev`), macOS는 Rust와 Xcode 명령줄 도구, 그리고 `sh build.sh`
+(Debian/Ubuntu: `sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev pkg-config`), macOS는 Rust와 Xcode 명령줄 도구, 그리고 `sh build.sh`
 (macOS에서 `UNIVERSAL=1 sh build.sh`는 Apple Silicon·Intel 겸용 앱을 만든다).
 `.github/workflows/build.yml`이 푸시할 때마다 세 시스템에서 빌드·시험하고, `v*` 태그를 푸시하면 꾸러미를 그 릴리스에 붙인다.
 빌드 산출물 위치를 바꾸려면 `CARGO_TARGET_DIR`이나 `.cargo/config.toml`의 `target-dir`을 쓴다.
@@ -168,6 +170,34 @@ ui/index.html   화면
   수식 창에 LaTeX를 붙여 넣어도 바꾼다. 바꾸지 않으려면 Ctrl+Shift+V. 변환기는 [tex2typst](https://github.com/qwinsi/tex2typst)(Apache-2.0)를
   그대로 넣어 썼다(`ui/vendor/`, 라이선스 `ui/vendor/tex2typst.LICENSE.txt`). `$5 and $6`처럼 수식 기호가 없는 것은 글로 둔다.
 - 수식 안 글자는 원고의 `$..$` 하나로 묶인다. `dif`의 d처럼 표준 라이브러리가 만든 글자도 수식에 붙어 있으면 그 수식으로 본다.
+
+## AI로 다듬기 (Gemini)
+
+글을 끌어서 선택하고 「✨ AI」(Ctrl+J)를 누른 뒤 지시를 적고 Enter. 지시를 비우면 맞춤법·띄어쓰기를 바로잡고 문장을 다듬는다.
+고친 글은 선택된 채로 지면에 바로 조판되고, Ctrl+Z 한 번으로 되돌린다. 이 기능은 **내 Gemini API 키를 넣었을 때만** 움직인다.
+
+### 처음 한 번: 키 넣기
+
+1. [Google AI Studio](https://aistudio.google.com/apikey)에서 API 키를 만든다. 다른 서비스와 같이 쓰지 말고 **이 앱 전용 키**를 따로 만든다.
+2. 「✨ AI」 → ⚙ → 키를 붙여 넣고 「저장」. 모델은 비워 두면 `gemini-flash-latest`(그때의 최신 Flash)를 쓴다.
+3. Google Cloud 콘솔(API 및 서비스 → 사용자 인증 정보)에서 그 키의 **API 제한을 Generative Language API 하나로** 좁히고, 할당량(하루 요청 수)이나 예산 알림을 걸어 둔다.
+
+### 안전 안내
+
+| 궁금한 것 | 답 |
+|---|---|
+| 무엇이 밖으로 나가나 | 「다듬기」를 누른 순간의 **선택한 글(최대 12,000바이트)과 지시문**만 Google(`generativelanguage.googleapis.com`)으로 간다. 문서 전체·파일 이름·경로·다른 쪽은 보내지 않는다. 키를 넣지 않으면 앱은 인터넷에 아무것도 보내지 않는다. |
+| 키는 어디에 저장되나 | 운영체제의 비밀 저장소에만: Windows 자격 증명 관리자(`gemini-api-key.EasyTypstEditor`), macOS 키체인, Linux Secret Service(GNOME 키링·KWallet). 설정 파일(`ai.json`에는 모델 이름만)·원고·백업에는 적지 않는다. 비밀 저장소가 없는 Linux에서는 저장을 거절한다(평문으로 떨어뜨려 두지 않는다). |
+| 키가 화면에 보이나 | 넣을 때는 가려지고, 저장한 뒤에는 끝 네 글자만 보인다. 엔진은 키를 화면(웹뷰)으로 다시 보내지 않는다. |
+| 키는 어떻게 전달되나 | 엔진(Rust)이 HTTPS로 Google에 직접 보낸다. 키는 주소(`?key=`)가 아니라 `x-goog-api-key` 헤더에 싣고, 다른 주소로 넘기는 응답(리디렉트)은 따라가지 않는다. 오류 안내에 키가 섞이면 가린다. |
+| 다른 웹사이트가 내 키를 몰래 쓸 수 있나 | 없다. 화면과 엔진 사이(127.0.0.1)는 실행할 때마다 새로 만드는 토큰으로 잠겨 있고, 엔진은 다른 출처(Origin·Host)의 요청과 다른 사이트의 틀에 끼워 넣기를 모두 거절한다. |
+| AI가 원고를 망가뜨릴 수 있나 | 글자만 바꿀 수 있다. 고친 결과에서 함수(`#…`)·꾸밈(`*`, `_`)·수식·라벨·참조가 하나라도 달라지면 통째로 버린다. 그래서 선택한 글 속에 "이 지시를 무시하고 …" 같은 문장이 숨어 있어도 원고에 코드를 심을 수 없다. 조판이 깨지는 결과도 적용하지 않는다. |
+| Google은 보낸 글을 어떻게 쓰나 | Google의 Gemini API 약관을 따른다. **무료 등급**에서는 보낸 글이 서비스 개선에 쓰일 수 있고 사람이 검토할 수 있다. 출판 전 원고·시험 문제·개인 정보가 든 글에는 **결제를 켠(유료 등급) 키**를 쓰고, 조직의 규정이 있으면 그것을 먼저 확인한다. |
+| 키를 지우려면 | ⚙ → 「키 지우기」. 이 PC의 비밀 저장소에서 지운다. Google 쪽 키 자체를 없애려면 AI Studio에서 지운다. |
+| 키가 새었다고 느껴지면 | AI Studio에서 그 키를 바로 지우고 새 키를 만든다. 사용량은 Google Cloud 콘솔에서 확인한다. |
+
+알아 둘 점: 같은 PC에서 **내 계정으로 실행되는 다른 프로그램**은 운영체제의 비밀 저장소를 읽을 수 있다(운영체제의 보호 범위가 그렇다).
+믿을 수 없는 프로그램을 깔지 않는 것, 그리고 키를 전용으로 만들어 제한을 걸어 두는 것이 그래서 중요하다. 공용 PC에서는 쓰고 난 뒤 「키 지우기」를 누른다.
 
 ## 표의 줄·칸
 

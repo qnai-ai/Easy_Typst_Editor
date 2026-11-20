@@ -1,6 +1,6 @@
 [package]
 name = "easy-typst-editor"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2021"
 description = "Edit Typst documents directly on the rendered page (Windows, macOS, Linux)"
 license = "MIT"
@@ -27,6 +27,12 @@ rfd = "0.18"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 unicode-segmentation = "1"
 dirs = "6"
+# AI로 다듬기: Gemini 호출(rustls), 키는 운영체제의 비밀 저장소에
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+getrandom = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
 
 # macOS · Linux: the system's preferred UI language
 [target.'cfg(not(windows))'.dependencies]
@@ -35,10 +41,12 @@ sys-locale = "0.3"
 # Linux: the "unsaved changes" dialog is shown with the GTK that the window already uses
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 
 # macOS: the menu bar (without an Edit menu, ⌘V / ⌘C do not reach the web view)
 [target.'cfg(target_os = "macos")'.dependencies]
 muda = { version = "0.21", default-features = false }
+keyring = { version = "3", features = ["apple-native"] }
 
 [profile.dev]
 opt-level = 1

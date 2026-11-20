@@ -1607,5 +1607,233 @@
   "zh": "粘贴并将 LaTeX 公式转换为 Typst / 按原文粘贴",
   "ja": "LaTeX の数式を Typst に変換して貼り付け / 変換せずに貼り付け",
   "es": "Pegar convirtiendo las ecuaciones LaTeX a Typst / Pegar sin convertir"
+ },
+ "AI로 다듬기 (Ctrl+J): 선택한 글을 Gemini가 고칩니다. 꾸밈·함수·수식은 그대로 둡니다.": {
+  "en": "Polish with AI (Ctrl+J): Gemini revises the selected text. Formatting, functions and math stay as they are.",
+  "zh": "AI 润色 (Ctrl+J)：由 Gemini 修改所选文字，格式、函数和公式保持不变。",
+  "ja": "AI で整える (Ctrl+J)：選択した文を Gemini が直します。書式・関数・数式はそのままです。",
+  "es": "Pulir con IA (Ctrl+J): Gemini revisa el texto seleccionado. El formato, las funciones y las fórmulas no cambian."
+ },
+ "지시 (비우면 맞춤법·문장 다듬기)": {
+  "en": "Instruction (empty: fix spelling and smooth the sentences)",
+  "zh": "指令（留空：纠正拼写并润色句子）",
+  "ja": "指示（空欄：誤字の修正と文の調整）",
+  "es": "Instrucción (vacía: corregir ortografía y pulir frases)"
+ },
+ "선택한 글을 다듬기 (Enter)": {
+  "en": "Polish the selected text (Enter)",
+  "zh": "润色所选文字 (Enter)",
+  "ja": "選択した文を整える (Enter)",
+  "es": "Pulir el texto seleccionado (Enter)"
+ },
+ "다듬기": {
+  "en": "Polish",
+  "zh": "润色",
+  "ja": "整える",
+  "es": "Pulir"
+ },
+ "AI 설정 (API 키·모델)": {
+  "en": "AI settings (API key, model)",
+  "zh": "AI 设置（API 密钥、模型）",
+  "ja": "AI 設定（API キー・モデル）",
+  "es": "Ajustes de IA (clave API, modelo)"
+ },
+ "Gemini API 키": {
+  "en": "Gemini API key",
+  "zh": "Gemini API 密钥",
+  "ja": "Gemini API キー",
+  "es": "Clave API de Gemini"
+ },
+ "모델 (기본: gemini-flash-latest)": {
+  "en": "Model (default: gemini-flash-latest)",
+  "zh": "模型（默认：gemini-flash-latest）",
+  "ja": "モデル（既定：gemini-flash-latest）",
+  "es": "Modelo (predeterminado: gemini-flash-latest)"
+ },
+ "키 지우기": {
+  "en": "Remove key",
+  "zh": "删除密钥",
+  "ja": "キーを削除",
+  "es": "Borrar clave"
+ },
+ "저장한 키를 이 PC에서 지웁니다": {
+  "en": "Removes the saved key from this computer",
+  "zh": "从本机删除已保存的密钥",
+  "ja": "保存したキーをこの PC から削除します",
+  "es": "Borra la clave guardada de este equipo"
+ },
+ "키는 이 PC의 운영체제 비밀 저장소(Windows 자격 증명 관리자, macOS 키체인)에만 저장되고 화면에는 다시 나오지 않습니다. 보내는 것은 선택한 글과 지시뿐입니다. 무료 등급 키는 Google이 보낸 글을 서비스 개선에 쓸 수 있으니, 원고에는 결제를 켠 키를 권합니다.": {
+  "en": "The key is kept only in this computer's system secret store (Windows Credential Manager, macOS Keychain) and is never shown again. Only the selected text and your instruction are sent. With a free-tier key Google may use what you send to improve its services, so for manuscripts a key with billing enabled is recommended.",
+  "zh": "密钥只保存在本机系统的密钥存储（Windows 凭据管理器、macOS 钥匙串）中，不会再显示。只发送所选文字和指令。免费层级的密钥，Google 可能将发送的内容用于改进服务，处理书稿时建议使用已开通计费的密钥。",
+  "ja": "キーはこの PC の OS の秘密保管庫（Windows 資格情報マネージャー、macOS キーチェーン）にのみ保存され、画面には再表示されません。送るのは選択した文と指示だけです。無料枠のキーでは Google が送信内容をサービス改善に使う場合があるため、原稿には課金を有効にしたキーをおすすめします。",
+  "es": "La clave se guarda solo en el almacén seguro del sistema (Administrador de credenciales de Windows, Llavero de macOS) y no vuelve a mostrarse. Solo se envían el texto seleccionado y tu instrucción. Con una clave gratuita Google puede usar lo enviado para mejorar sus servicios; para manuscritos se recomienda una clave con facturación activada."
+ },
+ "저장된 키: {0} · 모델: {1}": {
+  "en": "Saved key: {0} · Model: {1}",
+  "zh": "已保存的密钥：{0} · 模型：{1}",
+  "ja": "保存済みキー：{0} · モデル：{1}",
+  "es": "Clave guardada: {0} · Modelo: {1}"
+ },
+ "아직 키가 없습니다. Google AI Studio에서 만든 Gemini API 키를 넣어 주세요.": {
+  "en": "No key yet. Enter a Gemini API key created in Google AI Studio.",
+  "zh": "还没有密钥。请输入在 Google AI Studio 中创建的 Gemini API 密钥。",
+  "ja": "まだキーがありません。Google AI Studio で作成した Gemini API キーを入力してください。",
+  "es": "Aún no hay clave. Introduce una clave API de Gemini creada en Google AI Studio."
+ },
+ "저장한 키를 지웠습니다.": {
+  "en": "The saved key was removed.",
+  "zh": "已删除保存的密钥。",
+  "ja": "保存したキーを削除しました。",
+  "es": "Se borró la clave guardada."
+ },
+ "AI 설정을 저장했습니다.": {
+  "en": "AI settings saved.",
+  "zh": "AI 设置已保存。",
+  "ja": "AI 設定を保存しました。",
+  "es": "Ajustes de IA guardados."
+ },
+ "AI가 다듬는 중…": {
+  "en": "AI is polishing…",
+  "zh": "AI 正在润色…",
+  "ja": "AI が整えています…",
+  "es": "La IA está puliendo…"
+ },
+ "먼저 다듬을 글을 끌어서 선택해 주세요.": {
+  "en": "First drag to select the text to polish.",
+  "zh": "请先拖动选择要润色的文字。",
+  "ja": "まず整える文をドラッグして選択してください。",
+  "es": "Primero arrastra para seleccionar el texto que quieres pulir."
+ },
+ "원고를 읽지 못했습니다.": {
+  "en": "Could not read the source.",
+  "zh": "无法读取原稿。",
+  "ja": "原稿を読み込めませんでした。",
+  "es": "No se pudo leer el original."
+ },
+ "선택한 글이 너무 깁니다. 조금씩 나눠서 다듬어 주세요.": {
+  "en": "The selection is too long. Polish it in smaller parts.",
+  "zh": "所选文字太长，请分段润色。",
+  "ja": "選択が長すぎます。少しずつ分けて整えてください。",
+  "es": "La selección es demasiado larga. Púlela por partes."
+ },
+ "AI가 고치는 동안 원고가 바뀌어서 적용하지 않았습니다. 다시 해 주세요.": {
+  "en": "The text changed while the AI was working, so nothing was applied. Please try again.",
+  "zh": "AI 修改期间原稿已变化，未应用。请重试。",
+  "ja": "AI の作業中に原稿が変わったため適用しませんでした。もう一度お試しください。",
+  "es": "El texto cambió mientras la IA trabajaba, así que no se aplicó. Inténtalo de nuevo."
+ },
+ "AI가 고칠 곳을 찾지 못했습니다.": {
+  "en": "The AI found nothing to change.",
+  "zh": "AI 没有找到需要修改的地方。",
+  "ja": "AI は直すところを見つけませんでした。",
+  "es": "La IA no encontró nada que cambiar."
+ },
+ "AI가 다듬었습니다. 되돌리려면 Ctrl+Z를 누르세요.": {
+  "en": "Polished by AI. Press Ctrl+Z to undo.",
+  "zh": "AI 已润色。按 Ctrl+Z 撤销。",
+  "ja": "AI が整えました。元に戻すには Ctrl+Z を押してください。",
+  "es": "Pulido por la IA. Pulsa Ctrl+Z para deshacer."
+ },
+ "선택한 자리가 올바르지 않습니다.": {
+  "en": "The selection is not valid.",
+  "zh": "所选位置无效。",
+  "ja": "選択位置が正しくありません。",
+  "es": "La selección no es válida."
+ },
+ "AI가 고친 글이 원고 문법에 맞지 않아 적용하지 않았습니다.": {
+  "en": "The AI's text is not valid Typst, so it was not applied.",
+  "zh": "AI 修改的文字不符合 Typst 语法，未应用。",
+  "ja": "AI が直した文が Typst の文法に合わないため適用しませんでした。",
+  "es": "El texto de la IA no es Typst válido, así que no se aplicó."
+ },
+ "AI가 글자 말고 꾸밈·함수·수식까지 바꾸려 해서 적용하지 않았습니다.": {
+  "en": "The AI tried to change formatting, functions or math, not just the words, so it was not applied.",
+  "zh": "AI 试图修改格式、函数或公式而不仅是文字，未应用。",
+  "ja": "AI が文字だけでなく書式・関数・数式まで変えようとしたため適用しませんでした。",
+  "es": "La IA intentó cambiar el formato, funciones o fórmulas, no solo el texto, así que no se aplicó."
+ },
+ "먼저 Gemini API 키를 넣어 주세요.": {
+  "en": "Enter a Gemini API key first.",
+  "zh": "请先输入 Gemini API 密钥。",
+  "ja": "まず Gemini API キーを入力してください。",
+  "es": "Introduce primero una clave API de Gemini."
+ },
+ "모델 이름이 올바르지 않습니다.": {
+  "en": "The model name is not valid.",
+  "zh": "模型名称无效。",
+  "ja": "モデル名が正しくありません。",
+  "es": "El nombre del modelo no es válido."
+ },
+ "API 키 모양이 올바르지 않습니다.": {
+  "en": "That does not look like an API key.",
+  "zh": "API 密钥格式不正确。",
+  "ja": "API キーの形式が正しくありません。",
+  "es": "Eso no parece una clave API."
+ },
+ "Gemini에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.": {
+  "en": "Could not reach Gemini. Check your internet connection.",
+  "zh": "无法连接 Gemini。请检查网络连接。",
+  "ja": "Gemini に接続できませんでした。インターネット接続を確認してください。",
+  "es": "No se pudo conectar con Gemini. Comprueba tu conexión a internet."
+ },
+ "API 키가 맞지 않습니다. 키를 다시 넣어 주세요.": {
+  "en": "The API key is not valid. Please enter it again.",
+  "zh": "API 密钥无效，请重新输入。",
+  "ja": "API キーが正しくありません。もう一度入力してください。",
+  "es": "La clave API no es válida. Vuelve a introducirla."
+ },
+ "Gemini 사용 한도에 걸렸습니다. 잠시 뒤에 다시 해 주세요.": {
+  "en": "Gemini usage limit reached. Try again shortly.",
+  "zh": "已达到 Gemini 使用上限，请稍后再试。",
+  "ja": "Gemini の利用上限に達しました。しばらくしてからお試しください。",
+  "es": "Se alcanzó el límite de uso de Gemini. Inténtalo en un momento."
+ },
+ "이 키로는 Gemini API를 쓸 수 없습니다. 키의 API 제한을 확인해 주세요.": {
+  "en": "This key cannot use the Gemini API. Check the key's API restrictions.",
+  "zh": "此密钥无法使用 Gemini API，请检查密钥的 API 限制。",
+  "ja": "このキーでは Gemini API を使えません。キーの API 制限を確認してください。",
+  "es": "Esta clave no puede usar la API de Gemini. Revisa sus restricciones de API."
+ },
+ "모델을 찾지 못했습니다. AI 설정에서 모델 이름을 확인해 주세요.": {
+  "en": "Model not found. Check the model name in AI settings.",
+  "zh": "找不到模型，请在 AI 设置中检查模型名称。",
+  "ja": "モデルが見つかりません。AI 設定でモデル名を確認してください。",
+  "es": "No se encontró el modelo. Revisa su nombre en los ajustes de IA."
+ },
+ "Gemini가 요청을 처리하지 못했습니다.": {
+  "en": "Gemini could not process the request.",
+  "zh": "Gemini 无法处理该请求。",
+  "ja": "Gemini がリクエストを処理できませんでした。",
+  "es": "Gemini no pudo procesar la solicitud."
+ },
+ "Gemini가 고친 글을 돌려주지 않았습니다.": {
+  "en": "Gemini returned no revised text.",
+  "zh": "Gemini 没有返回修改后的文字。",
+  "ja": "Gemini が直した文を返しませんでした。",
+  "es": "Gemini no devolvió texto revisado."
+ },
+ "비밀 저장소를 열지 못했습니다.": {
+  "en": "Could not open the system secret store.",
+  "zh": "无法打开系统密钥存储。",
+  "ja": "秘密保管庫を開けませんでした。",
+  "es": "No se pudo abrir el almacén seguro del sistema."
+ },
+ "키를 저장하지 못했습니다.": {
+  "en": "Could not save the key.",
+  "zh": "无法保存密钥。",
+  "ja": "キーを保存できませんでした。",
+  "es": "No se pudo guardar la clave."
+ },
+ "지시가 너무 깁니다. 짧게 줄여 주세요.": {
+  "en": "The instruction is too long. Please shorten it.",
+  "zh": "指令太长，请缩短。",
+  "ja": "指示が長すぎます。短くしてください。",
+  "es": "La instrucción es demasiado larga. Acórtala."
+ },
+ "AI로 다듬기(선택한 글)": {
+  "en": "Polish with AI (selected text)",
+  "zh": "AI 润色（所选文字）",
+  "ja": "AI で整える（選択した文）",
+  "es": "Pulir con IA (texto seleccionado)"
  }
 }

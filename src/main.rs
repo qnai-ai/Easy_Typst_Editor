@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 //! 쉬운 지면 편집기 — Typst 교재를 지면에서 바로 고치는 앱 (Windows · macOS · Linux).
 
+mod ai;
 mod edit;
 mod index;
 mod lang;
@@ -87,19 +88,76 @@ fn respond_json(req: tiny_http::Request, v: &Value) {
         .with_header(header("Cache-Control", "no-store")));
 }
 
-fn serve(server: Server, app: Arc<App>) {
+/// 이번 실행에서만 쓰는 임의 토큰(32바이트, 16진수). 화면(index.html)에 심어 보내고,
+/// `/api/*` 요청은 이 토큰을 `X-ETE-Token` 헤더로 들고 와야 받는다.
+/// 같은 PC의 브라우저에서 다른 웹사이트가 127.0.0.1로 몰래 보내는 요청(CSRF)을 막는다.
+fn new_token() -> String {
+    let mut b = [0u8; 32];
+    getrandom::fill(&mut b).expect("난수를 얻지 못했습니다");
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// 길이가 같을 때 걸리는 시간이 내용과 무관한 비교.
+fn same(a: &str, b: &str) -> bool {
+    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+fn header_of<'a>(req: &'a tiny_http::Request, name: &str) -> Option<&'a str> {
+    req.headers().iter().find(|h| h.field.as_str().as_str().eq_ignore_ascii_case(name)).map(|h| h.value.as_str())
+}
+
+/// 이 편집기 화면이 보낸 요청인지. Host 검사로 DNS 리바인딩을, 토큰 검사로 CSRF를 막는다.
+fn trusted(req: &tiny_http::Request, port: u16, token: &str, path: &str) -> bool {
+    let host_ok = header_of(req, "Host").is_some_and(|h| h == format!("127.0.0.1:{port}") || h == format!("localhost:{port}"));
+    if !host_ok { return false; }
+    // 브라우저가 알려 주는 요청의 출처: 다른 사이트가 낸 요청(틀에 끼워 넣기, 그림으로 불러 보기 등)은 받지 않는다
+    if header_of(req, "Sec-Fetch-Site").is_some_and(|v| v != "same-origin" && v != "none") { return false; }
+    if !path.starts_with("/api/") { return true; }
+    // 다른 사이트(Origin이 다른 곳)에서 온 요청은 토큰이 맞아도 받지 않는다
+    if let Some(o) = header_of(req, "Origin") {
+        if o != format!("http://127.0.0.1:{port}") && o != format!("http://localhost:{port}") { return false; }
+    }
+    header_of(req, "X-ETE-Token").is_some_and(|t| same(t, token))
+}
+
+fn serve(server: Server, app: Arc<App>, token: String) {
+    let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(0);
     for mut req in server.incoming_requests() {
         let url = req.url().to_string();
         let path = url.split('?').next().unwrap_or("").to_string();
+        if !trusted(&req, port, &token, &path) {
+            let _ = req.respond(Response::from_string("forbidden").with_status_code(403));
+            continue;
+        }
         let mut body = String::new();
         if *req.method() == Method::Post { let _ = req.as_reader().read_to_string(&mut body); }
         let jb: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
         match path.as_str() {
             "/" | "/index.html" => {
-                let html = INDEX_HTML.replacen("<html lang=\"ko\">", &format!("<html lang=\"{}\">", lang::code()), 1).replacen("/*I18N*/{}", lang::I18N_JSON, 1);
+                let html = INDEX_HTML.replacen("<html lang=\"ko\">", &format!("<html lang=\"{}\">", lang::code()), 1).replacen("/*I18N*/{}", lang::I18N_JSON, 1)
+                    .replacen("/*TOKEN*/''", &format!("'{token}'"), 1);
                 let _ = req.respond(Response::from_string(html)
                     .with_header(header("Content-Type", "text/html; charset=utf-8"))
-                    .with_header(header("Cache-Control", "no-store")));
+                    .with_header(header("Cache-Control", "no-store"))
+                    .with_header(header("Referrer-Policy", "no-referrer"))
+                    .with_header(header("X-Content-Type-Options", "nosniff"))
+                    // 다른 사이트의 틀 안에 끼워 넣지 못하게 하고, 화면이 엔진 말고 다른 곳과는 통신하지 못하게 한다
+                    .with_header(header("X-Frame-Options", "DENY"))
+                    .with_header(header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")));
+            }
+            "/api/ai/status" => respond_json(req, &ai::status()),
+            "/api/ai/key" => {
+                let v = ai::set_key(jb["key"].as_str().unwrap_or(""), jb["model"].as_str());
+                respond_json(req, &v);
+            }
+            "/api/ai/forget" => respond_json(req, &ai::forget()),
+            "/api/ai/edit" => {
+                // AI 응답을 기다리는 몇 초 동안 다른 요청(화면 갱신)이 막히지 않게 따로 돌린다
+                let app = app.clone();
+                std::thread::spawn(move || {
+                    let v = ai_edit(&app, jb["instruction"].as_str().unwrap_or(""));
+                    respond_json(req, &v);
+                });
             }
             "/api/state" => {
                 let mut g = app.session.lock().unwrap();
@@ -209,6 +267,28 @@ fn serve(server: Server, app: Arc<App>) {
     }
 }
 
+/// 선택한 글을 AI로 다듬는다. 원고를 잠근 채로 AI를 기다리지 않는다(그동안에도 화면은 움직인다).
+fn ai_edit(app: &App, instruction: &str) -> Value {
+    let target = app.session.lock().unwrap().as_ref().map(|s| s.ai_target());
+    let (file, s, e, before) = match target {
+        None => return json!({ "open": false }),
+        Some(Err(m)) => return json!({ "ok": false, "msg": m, "msgKind": "info" }),
+        Some(Ok(t)) => t,
+    };
+    let result = ai::revise(instruction, &before[s..e]);
+    let mut g = app.session.lock().unwrap();
+    let Some(sess) = g.as_mut() else { return json!({ "open": false }) };
+    match result {
+        Ok(new) => {
+            sess.ai_apply(file, s, e, &before, &new);
+            let mut v = sess.view();
+            v["ok"] = json!(true);
+            v
+        }
+        Err(m) => json!({ "ok": false, "msg": m, "msgKind": "warn" }),
+    }
+}
+
 /// 저장 안 한 변경이 있을 때: 저장(예) / 버림(아니오) / 취소. 계속해도 되면 true.
 fn confirm_discard(app: &App) -> bool {
     match ask_save() {
@@ -306,8 +386,9 @@ fn main() {
     let first_url = match page { Some(n) => format!("{url}?page={n}"), None => url.clone() };
     if headless {
         if let Some(f) = &file { app.open(f); }
+        // 토큰은 화면을 열 때 받는다(브라우저로 이 주소를 연 사람만 쓸 수 있다)
         println!("{first_url}");
-        serve(server, app);
+        serve(server, app, new_token());
         return;
     }
     {
@@ -321,7 +402,7 @@ fn main() {
             });
         }
         let app = app.clone();
-        std::thread::spawn(move || serve(server, app));
+        std::thread::spawn(move || serve(server, app, new_token()));
     }
     run_window(&url, &first_url, app);
 }
